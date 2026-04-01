@@ -2,230 +2,325 @@
 
 import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { format, parseISO } from 'date-fns'
+import {
+  format, parseISO, isAfter, isBefore, subDays, addDays,
+  startOfMonth, endOfMonth, eachDayOfInterval, getDay,
+  differenceInDays, startOfWeek, addMonths, subMonths,
+  isSameMonth, isToday,
+} from 'date-fns'
 import { AssignStaffDialog } from './assign-staff-dialog'
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog'
+import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Workspace, Profile, Project } from '@/types'
+import { Workspace, Profile, Project, Task, ActivityLog } from '@/types'
+import { cn, formatStatus, getInitials, timeAgo } from '@/lib/utils'
 import {
-  cn,
-  formatStatus,
-  getStatusColor,
-  getPriorityColor,
-  getInitials,
-} from '@/lib/utils'
-import {
-  ArrowLeft,
-  Users,
-  Search,
-  Filter,
-  LayoutGrid,
-  List,
-  MoreHorizontal,
-  Plus,
-  RefreshCw,
-  ChevronDown,
-  SlidersHorizontal,
-  Share2,
-  Maximize2,
-  UserPlus,
-  FolderKanban,
-  LayoutList,
-  Calendar,
-  ArrowUpDown,
-  ExternalLink,
+  ArrowLeft, Users, Search, Filter, LayoutGrid, List, MoreHorizontal,
+  Plus, RefreshCw, ChevronDown, ChevronRight, SlidersHorizontal,
+  Share2, Maximize2, UserPlus, FolderKanban, LayoutList, Calendar,
+  ExternalLink, CheckCircle2, PenLine, FilePlus2, Clock, Activity,
+  BarChart2, Globe, ChevronLeft,
 } from 'lucide-react'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+type TabType = 'summary' | 'list' | 'board' | 'calendar' | 'timeline'
 
 interface WorkspaceDetailPageProps {
   workspace: Workspace
   members: Profile[]
   projects: Project[]
+  tasks: Task[]
+  activityLogs: ActivityLog[]
   isAdmin: boolean
 }
 
-type TabType = 'list' | 'members' | 'board'
-type SortKey = 'name' | 'priority' | 'status' | 'created_at' | 'updated_at' | 'due_date'
-
-const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
-
-const STATUS_COLORS: Record<string, string> = {
-  planning:    'bg-slate-100 text-slate-700 border-slate-200',
+// ─── Constants ────────────────────────────────────────────────────────────────
+const STATUS_STYLES: Record<string, string> = {
+  todo:        'bg-slate-100 text-slate-600 border-slate-200',
   in_progress: 'bg-amber-50 text-amber-700 border-amber-200',
-  on_hold:     'bg-orange-50 text-orange-700 border-orange-200',
-  completed:   'bg-green-50 text-green-700 border-green-200',
-  cancelled:   'bg-red-50 text-red-700 border-red-200',
+  in_review:   'bg-blue-50 text-blue-700 border-blue-200',
+  done:        'bg-green-50 text-green-700 border-green-200',
+  cancelled:   'bg-red-50 text-red-600 border-red-200',
 }
 
-const PRIORITY_DOT: Record<string, string> = {
-  urgent: 'text-red-500',
-  high:   'text-orange-500',
-  medium: 'text-yellow-500',
-  low:    'text-blue-400',
+const STATUS_LABEL: Record<string, string> = {
+  todo: 'To Do', in_progress: 'In Progress', in_review: 'In Review',
+  done: 'Done', cancelled: 'Cancelled',
 }
 
-const PRIORITY_LABEL: Record<string, string> = {
-  urgent: '↑↑ Urgent',
-  high:   '↑ High',
-  medium: '= Medium',
-  low:    '↓ Low',
+const STATUS_BAR_COLOR: Record<string, string> = {
+  todo: '#94a3b8', in_progress: '#f59e0b', in_review: '#3b82f6',
+  done: '#22c55e', cancelled: '#ef4444',
 }
 
+const PRIORITY_ICON: Record<string, string> = {
+  urgent: '↑↑', high: '↑', medium: '=', low: '↓',
+}
+
+const PRIORITY_COLOR: Record<string, string> = {
+  urgent: 'text-red-500', high: 'text-orange-500',
+  medium: 'text-yellow-500', low: 'text-blue-400',
+}
+
+// ─── Donut Chart ──────────────────────────────────────────────────────────────
+function DonutChart({ data }: { data: { label: string; value: number; color: string }[] }) {
+  const total = data.reduce((s, d) => s + d.value, 0)
+  if (total === 0) {
+    return (
+      <div className="flex items-center justify-center h-40">
+        <div className="relative h-32 w-32">
+          <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" strokeWidth="3.8" />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center flex-col">
+            <span className="text-2xl font-bold">0</span>
+            <span className="text-xs text-muted-foreground">Total</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  let offset = 0
+  const circumference = 2 * Math.PI * 15.9
+  return (
+    <div className="flex items-center gap-6">
+      <div className="relative h-36 w-36 shrink-0">
+        <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" strokeWidth="3.8" />
+          {data.filter(d => d.value > 0).map((d, i) => {
+            const pct = d.value / total
+            const dash = pct * circumference
+            const el = (
+              <circle key={i} cx="18" cy="18" r="15.9" fill="none"
+                stroke={d.color} strokeWidth="3.8"
+                strokeDasharray={`${dash} ${circumference - dash}`}
+                strokeDashoffset={-offset * circumference}
+              />
+            )
+            offset += pct
+            return el
+          })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-2xl font-bold">{total}</span>
+          <span className="text-[10px] text-muted-foreground text-center leading-tight">Total work<br />items</span>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        {data.map((d) => (
+          <div key={d.label} className="flex items-center gap-2 text-xs">
+            <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ background: d.color }} />
+            <span className="text-muted-foreground">{d.label}:</span>
+            <span className="font-medium">{d.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export function WorkspaceDetailPage({
-  workspace,
-  members,
-  projects: initialProjects,
-  isAdmin,
+  workspace, members, projects, tasks, activityLogs, isAdmin,
 }: WorkspaceDetailPageProps) {
   const router = useRouter()
   const [, startTransition] = useTransition()
-
-  const [activeTab, setActiveTab] = useState<TabType>('list')
+  const [activeTab, setActiveTab] = useState<TabType>('summary')
   const [showAssign, setShowAssign] = useState(false)
   const [showCreateProject, setShowCreateProject] = useState(false)
+  const [showCreateTask, setShowCreateTask] = useState(false)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [sortKey, setSortKey] = useState<SortKey>('created_at')
-  const [sortAsc, setSortAsc] = useState(false)
-  const [projects, setProjects] = useState<Project[]>(initialProjects)
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [calendarDate, setCalendarDate] = useState(new Date())
+  const [timelineScale, setTimelineScale] = useState<'weeks' | 'months'>('months')
 
-  function handleRefresh() {
-    startTransition(() => router.refresh())
+  function refresh() { startTransition(() => router.refresh()) }
+
+  // ── Derived data ──
+  const now = new Date()
+  const sevenDaysAgo = subDays(now, 7)
+  const sevenDaysLater = addDays(now, 7)
+
+  const topLevelTasks = useMemo(() => tasks.filter(t => !t.parent_task_id), [tasks])
+  const subtaskMap = useMemo(() => {
+    const map: Record<string, Task[]> = {}
+    tasks.filter(t => t.parent_task_id).forEach(t => {
+      if (!map[t.parent_task_id!]) map[t.parent_task_id!] = []
+      map[t.parent_task_id!].push(t)
+    })
+    return map
+  }, [tasks])
+
+  const filteredTasks = useMemo(() => {
+    if (!search.trim()) return topLevelTasks
+    const q = search.toLowerCase()
+    return topLevelTasks.filter(t =>
+      t.title.toLowerCase().includes(q) ||
+      (t.description ?? '').toLowerCase().includes(q)
+    )
+  }, [topLevelTasks, search])
+
+  // ── Summary stats ──
+  const stats = useMemo(() => ({
+    completed: tasks.filter(t => t.status === 'done' && isAfter(parseISO(t.updated_at), sevenDaysAgo)).length,
+    updated:   tasks.filter(t => isAfter(parseISO(t.updated_at), sevenDaysAgo)).length,
+    created:   tasks.filter(t => isAfter(parseISO(t.created_at), sevenDaysAgo)).length,
+    dueSoon:   tasks.filter(t => t.due_date && isAfter(parseISO(t.due_date), now) && isBefore(parseISO(t.due_date), sevenDaysLater)).length,
+  }), [tasks])
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    tasks.forEach(t => { counts[t.status] = (counts[t.status] ?? 0) + 1 })
+    return counts
+  }, [tasks])
+
+  const priorityCounts = useMemo(() => {
+    const counts: Record<string, number> = { urgent: 0, high: 0, medium: 0, low: 0 }
+    tasks.forEach(t => { counts[t.priority] = (counts[t.priority] ?? 0) + 1 })
+    return counts
+  }, [tasks])
+
+  const maxPriorityCount = Math.max(...Object.values(priorityCounts), 1)
+
+  // ── Calendar data ──
+  const calendarTasks = useMemo(() => {
+    const map: Record<string, Task[]> = {}
+    tasks.forEach(t => {
+      if (!t.due_date) return
+      const key = t.due_date.slice(0, 10)
+      if (!map[key]) map[key] = []
+      map[key].push(t)
+    })
+    return map
+  }, [tasks])
+
+  // ── Timeline ──
+  const timelineTasks = useMemo(() =>
+    tasks.filter(t => t.start_date || t.due_date), [tasks])
+
+  const tlStart = useMemo(() => {
+    if (!timelineTasks.length) return startOfMonth(now)
+    const dates = timelineTasks.flatMap(t =>
+      [t.start_date, t.due_date].filter(Boolean).map(d => parseISO(d!))
+    )
+    return startOfMonth(dates.reduce((a, b) => isBefore(a, b) ? a : b))
+  }, [timelineTasks])
+
+  const tlEnd = useMemo(() => {
+    if (!timelineTasks.length) return addMonths(startOfMonth(now), 3)
+    const dates = timelineTasks.flatMap(t =>
+      [t.start_date, t.due_date].filter(Boolean).map(d => parseISO(d!))
+    )
+    return endOfMonth(dates.reduce((a, b) => isAfter(a, b) ? a : b))
+  }, [timelineTasks])
+
+  const tlTotalDays = differenceInDays(tlEnd, tlStart) + 1
+
+  function tlPct(date: Date) {
+    return ((differenceInDays(date, tlStart)) / tlTotalDays) * 100
   }
 
-  function handleSort(key: SortKey) {
-    if (sortKey === key) setSortAsc((v) => !v)
-    else { setSortKey(key); setSortAsc(true) }
+  // ── Board columns ──
+  const BOARD_COLS: { key: string; label: string }[] = [
+    { key: 'todo', label: 'To Do' },
+    { key: 'in_progress', label: 'In Progress' },
+    { key: 'in_review', label: 'In Review' },
+    { key: 'done', label: 'Done' },
+  ]
+
+  // ── Calendar helpers ──
+  function buildCalendarGrid(date: Date) {
+    const first = startOfMonth(date)
+    const last = endOfMonth(date)
+    const startDay = startOfWeek(first, { weekStartsOn: 1 })
+    const days = eachDayOfInterval({ start: startDay, end: last })
+    // pad to 6 rows × 7 cols
+    while (days.length % 7 !== 0) days.push(addDays(days[days.length - 1], 1))
+    return days
   }
 
-  const filtered = useMemo(() => {
-    let list = [...projects]
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.description ?? '').toLowerCase().includes(q)
-      )
+  const calDays = buildCalendarGrid(calendarDate)
+  const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+  // ── Timeline months ──
+  const tlMonths = useMemo(() => {
+    const months: { label: string; pct: number; width: number }[] = []
+    let cur = startOfMonth(tlStart)
+    while (isBefore(cur, tlEnd) || format(cur, 'yyyy-MM') === format(tlEnd, 'yyyy-MM')) {
+      const mEnd = endOfMonth(cur)
+      const mStart2 = cur
+      const from = isAfter(mStart2, tlStart) ? mStart2 : tlStart
+      const to = isBefore(mEnd, tlEnd) ? mEnd : tlEnd
+      months.push({
+        label: format(cur, 'MMM yyyy'),
+        pct: tlPct(from),
+        width: ((differenceInDays(to, from) + 1) / tlTotalDays) * 100,
+      })
+      cur = addMonths(cur, 1)
     }
-    list.sort((a, b) => {
-      let cmp = 0
-      if (sortKey === 'priority') {
-        cmp = (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99)
-      } else if (sortKey === 'name') {
-        cmp = a.name.localeCompare(b.name)
-      } else if (sortKey === 'status') {
-        cmp = a.status.localeCompare(b.status)
-      } else if (sortKey === 'due_date') {
-        cmp = (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999')
-      } else if (sortKey === 'updated_at') {
-        cmp = (a.updated_at ?? '').localeCompare(b.updated_at ?? '')
-      } else {
-        cmp = (a.created_at ?? '').localeCompare(b.created_at ?? '')
-      }
-      return sortAsc ? cmp : -cmp
-    })
-    return list
-  }, [projects, search, sortKey, sortAsc])
-
-  function toggleSelect(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
-
-  function toggleAll() {
-    if (selected.size === filtered.length) setSelected(new Set())
-    else setSelected(new Set(filtered.map((p) => p.id)))
-  }
-
-  function fmtDt(iso?: string | null) {
-    if (!iso) return '—'
-    try { return format(parseISO(iso), 'MMM dd, yyyy, h:mm a') } catch { return iso }
-  }
-
-  function fmtDate(iso?: string | null) {
-    if (!iso) return '—'
-    try { return format(parseISO(iso), 'MMM dd, yyyy') } catch { return iso }
-  }
+    return months
+  }, [tlStart, tlEnd, tlTotalDays])
 
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
-    { key: 'list',    label: 'List',    icon: <LayoutList className="h-3.5 w-3.5" /> },
-    { key: 'members', label: 'Members', icon: <Users className="h-3.5 w-3.5" /> },
-    { key: 'board',   label: 'Board',   icon: <LayoutGrid className="h-3.5 w-3.5" /> },
+    { key: 'summary',  label: 'Summary',  icon: <Globe className="h-3.5 w-3.5" /> },
+    { key: 'list',     label: 'List',     icon: <LayoutList className="h-3.5 w-3.5" /> },
+    { key: 'board',    label: 'Board',    icon: <LayoutGrid className="h-3.5 w-3.5" /> },
+    { key: 'calendar', label: 'Calendar', icon: <Calendar className="h-3.5 w-3.5" /> },
+    { key: 'timeline', label: 'Timeline', icon: <BarChart2 className="h-3.5 w-3.5" /> },
   ]
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] -m-6 overflow-hidden">
 
-      {/* ── Breadcrumb ── */}
-      <div className="px-6 pt-4 pb-0">
-        <button
-          onClick={() => router.push('/workspaces')}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Workspaces
+      {/* Breadcrumb */}
+      <div className="px-6 pt-4">
+        <button onClick={() => router.push('/workspaces')}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2">
+          <ArrowLeft className="h-3.5 w-3.5" />Workspaces
         </button>
       </div>
 
-      {/* ── Workspace header ── */}
+      {/* Header */}
       <div className="px-6 pb-0">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-3">
-            {/* Workspace icon */}
             <div className="h-8 w-8 rounded-md bg-blue-600 flex items-center justify-center shrink-0">
               <FolderKanban className="h-4 w-4 text-white" />
             </div>
             <h1 className="text-xl font-bold">{workspace.name}</h1>
-
-            {/* Member avatars */}
-            <div className="flex -space-x-1.5 ml-1">
-              {members.slice(0, 5).map((m) => (
+            <div className="flex -space-x-1.5">
+              {members.slice(0, 5).map(m => (
                 <Avatar key={m.id} className="h-6 w-6 border-2 border-background">
                   <AvatarImage src={m.avatar_url ?? undefined} />
-                  <AvatarFallback className="text-[10px] bg-blue-100 text-blue-700">
-                    {getInitials(m.full_name)}
-                  </AvatarFallback>
+                  <AvatarFallback className="text-[10px] bg-blue-100 text-blue-700">{getInitials(m.full_name)}</AvatarFallback>
                 </Avatar>
               ))}
               {members.length > 5 && (
-                <div className="h-6 w-6 rounded-full bg-muted border-2 border-background flex items-center justify-center text-[10px] font-medium text-muted-foreground">
+                <div className="h-6 w-6 rounded-full bg-muted border-2 border-background flex items-center justify-center text-[10px] font-medium">
                   +{members.length - 5}
                 </div>
               )}
             </div>
-
             <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </div>
-
-          {/* Top-right actions */}
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
               <Share2 className="h-3.5 w-3.5" />
             </Button>
             {isAdmin && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1.5 text-xs text-muted-foreground"
-                onClick={() => setShowAssign(true)}
-              >
-                <UserPlus className="h-3.5 w-3.5" />
-                Assign Staff
+              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground"
+                onClick={() => setShowAssign(true)}>
+                <UserPlus className="h-3.5 w-3.5" />Assign Staff
               </Button>
             )}
             <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
@@ -233,110 +328,206 @@ export function WorkspaceDetailPage({
             </Button>
           </div>
         </div>
-
-        {workspace.description && (
-          <p className="text-sm text-muted-foreground ml-11 mb-1">{workspace.description}</p>
-        )}
       </div>
 
-      {/* ── Tab bar ── */}
+      {/* Tab bar */}
       <div className="px-6 border-b">
-        <div className="flex items-center gap-0">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+        <div className="flex items-center">
+          {tabs.map(tab => (
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={cn(
                 'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px',
                 activeTab === tab.key
                   ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30'
-              )}
-            >
-              {tab.icon}
-              {tab.label}
-              {tab.key === 'list' && projects.length > 0 && (
-                <span className={cn(
-                  'ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                  activeTab === 'list' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'
-                )}>
-                  {projects.length}
-                </span>
-              )}
-              {tab.key === 'members' && members.length > 0 && (
-                <span className={cn(
-                  'ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                  activeTab === 'members' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'
-                )}>
-                  {members.length}
-                </span>
-              )}
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}>
+              {tab.icon}{tab.label}
             </button>
           ))}
-          <button className="flex items-center gap-1 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground border-b-2 border-transparent -mb-px">
+          <button className="flex items-center px-3 py-2.5 text-sm text-muted-foreground border-b-2 border-transparent -mb-px">
             <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
-      {/* ── LIST TAB ── */}
-      {activeTab === 'list' && (
-        <div className="flex flex-col flex-1 overflow-hidden">
+      {/* ══════════════════════════════════════════════════════════════════════
+          SUMMARY TAB
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'summary' && (
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
-          {/* Toolbar */}
-          <div className="flex items-center gap-2 px-4 py-2 border-b bg-background">
-            {/* Left tools */}
-            <div className="flex items-center gap-1.5 flex-1">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search projects…"
-                  className="h-8 pl-8 w-48 text-xs"
-                />
+          {/* Filter bar */}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+              <Filter className="h-3.5 w-3.5" />Filter
+            </Button>
+          </div>
+
+          {/* Stat cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { icon: <CheckCircle2 className="h-5 w-5 text-green-500" />, value: stats.completed, label: 'completed', sub: 'in the last 7 days' },
+              { icon: <PenLine className="h-5 w-5 text-blue-500" />,       value: stats.updated,   label: 'updated',   sub: 'in the last 7 days' },
+              { icon: <FilePlus2 className="h-5 w-5 text-purple-500" />,   value: stats.created,   label: 'created',   sub: 'in the last 7 days' },
+              { icon: <Clock className="h-5 w-5 text-orange-500" />,       value: stats.dueSoon,   label: 'due soon',  sub: 'in the next 7 days' },
+            ].map((s, i) => (
+              <div key={i} className="rounded-lg border bg-card p-4 flex items-center gap-3">
+                {s.icon}
+                <div>
+                  <p className="text-xl font-bold">{s.value} <span className="text-sm font-normal text-foreground">{s.label}</span></p>
+                  <p className="text-xs text-muted-foreground">{s.sub}</p>
+                </div>
               </div>
+            ))}
+          </div>
 
-              {/* Member filter avatars */}
-              <div className="flex -space-x-1 ml-1">
-                {members.slice(0, 3).map((m) => (
-                  <Avatar key={m.id} className="h-6 w-6 border-2 border-background cursor-pointer hover:z-10 hover:scale-110 transition-transform">
-                    <AvatarImage src={m.avatar_url ?? undefined} />
-                    <AvatarFallback className="text-[10px] bg-slate-200 text-slate-600">
-                      {getInitials(m.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Status overview */}
+            <div className="rounded-lg border bg-card p-5">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-semibold text-sm">Status overview</h3>
+                {tasks.length > 0 && (
+                  <button onClick={() => setActiveTab('list')}
+                    className="text-xs text-blue-600 hover:underline">View all work items</button>
+                )}
               </div>
-
-              <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground">
-                <Filter className="h-3.5 w-3.5" />
-                Filter
-              </Button>
-              <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground">
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                Group
-              </Button>
+              <p className="text-xs text-muted-foreground mb-4">
+                {tasks.length === 0
+                  ? 'The status overview will display here after you create some work items'
+                  : 'A snapshot of the status of your work items.'}
+              </p>
+              <DonutChart data={[
+                { label: 'To Do',       value: statusCounts['todo'] ?? 0,        color: '#94a3b8' },
+                { label: 'In Progress', value: statusCounts['in_progress'] ?? 0, color: '#f59e0b' },
+                { label: 'In Review',   value: statusCounts['in_review'] ?? 0,   color: '#3b82f6' },
+                { label: 'Done',        value: statusCounts['done'] ?? 0,         color: '#22c55e' },
+                { label: 'Cancelled',   value: statusCounts['cancelled'] ?? 0,   color: '#ef4444' },
+              ].filter(d => d.value > 0)} />
             </div>
 
-            {/* Right tools */}
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground hidden sm:flex">
-                <ArrowUpDown className="h-3.5 w-3.5" />
-                Sort
-              </Button>
-              <div className="flex items-center border rounded-md overflow-hidden">
-                <button className="px-2 py-1.5 bg-blue-50 text-blue-600 border-r">
-                  <List className="h-3.5 w-3.5" />
-                </button>
-                <button className="px-2 py-1.5 text-muted-foreground hover:bg-muted">
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                </button>
+            {/* Recent activity */}
+            <div className="rounded-lg border bg-card p-5">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-semibold text-sm">Recent activity</h3>
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
+              <p className="text-xs text-muted-foreground mb-4">Stay up to date with what's happening across the workspace.</p>
+              {activityLogs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <Activity className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                  <p className="text-sm font-medium">No activity yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">Create some work items to see activity here.</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-48 overflow-y-auto">
+                  {activityLogs.slice(0, 8).map((log) => (
+                    <div key={log.id} className="flex items-start gap-2">
+                      <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                        <AvatarImage src={log.user?.avatar_url ?? undefined} />
+                        <AvatarFallback className="text-[10px]">{getInitials(log.user?.full_name ?? '?')}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs">
+                          <span className="font-medium text-blue-600">{log.user?.full_name}</span>
+                          {' '}<span className="text-muted-foreground">{log.action.replace(/_/g, ' ')}</span>
+                          {(log as any).task?.title && (
+                            <span className="font-medium"> "{(log as any).task.title}"</span>
+                          )}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">{timeAgo(log.created_at)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Priority breakdown */}
+            <div className="rounded-lg border bg-card p-5">
+              <h3 className="font-semibold text-sm mb-1">Priority breakdown</h3>
+              <p className="text-xs text-muted-foreground mb-4">A holistic view of how work is being prioritized.</p>
+              <div className="space-y-3">
+                {(['urgent', 'high', 'medium', 'low'] as const).map(p => (
+                  <div key={p} className="flex items-center gap-3">
+                    <span className={cn('text-xs font-mono w-16 shrink-0', PRIORITY_COLOR[p])}>
+                      {PRIORITY_ICON[p]} {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </span>
+                    <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
+                      <div
+                        className="h-full rounded transition-all"
+                        style={{
+                          width: `${(priorityCounts[p] / maxPriorityCount) * 100}%`,
+                          background: p === 'urgent' ? '#ef4444' : p === 'high' ? '#f97316' : p === 'medium' ? '#eab308' : '#60a5fa',
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs text-muted-foreground w-6 text-right">{priorityCounts[p]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Types of work */}
+            <div className="rounded-lg border bg-card p-5">
+              <h3 className="font-semibold text-sm mb-1">Types of work</h3>
+              <p className="text-xs text-muted-foreground mb-4">A breakdown of work items by type.</p>
+              {tasks.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Create some work items to view the breakdown.</p>
+              ) : (
+                <div className="space-y-3">
+                  {[
+                    { label: 'Task',    value: topLevelTasks.length },
+                    { label: 'Subtask', value: tasks.length - topLevelTasks.length },
+                  ].map(({ label, value }) => {
+                    const pct = tasks.length ? Math.round((value / tasks.length) * 100) : 0
+                    return (
+                      <div key={label} className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground w-16 shrink-0">{label}</span>
+                        <div className="flex-1 h-4 bg-muted rounded overflow-hidden">
+                          <div className="h-full bg-slate-500 rounded" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-8 text-right">{pct}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          LIST TAB
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'list' && (
+        <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Toolbar */}
+          <div className="flex items-center gap-2 px-4 py-2 border-b">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search work…" className="h-8 pl-8 w-44 text-xs" />
+            </div>
+            <div className="flex -space-x-1">
+              {members.slice(0, 3).map(m => (
+                <Avatar key={m.id} className="h-6 w-6 border-2 border-background cursor-pointer">
+                  <AvatarImage src={m.avatar_url ?? undefined} />
+                  <AvatarFallback className="text-[10px] bg-slate-200">{getInitials(m.full_name)}</AvatarFallback>
+                </Avatar>
+              ))}
+            </div>
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground">
+              <Filter className="h-3.5 w-3.5" />Filter
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground">
+              <SlidersHorizontal className="h-3.5 w-3.5" />Group
+            </Button>
+            <div className="ml-auto flex items-center gap-1">
+              <div className="flex items-center border rounded-md overflow-hidden">
+                <button className="px-2 py-1.5 bg-blue-50 text-blue-600 border-r"><List className="h-3.5 w-3.5" /></button>
+                <button className="px-2 py-1.5 text-muted-foreground hover:bg-muted"><LayoutGrid className="h-3.5 w-3.5" /></button>
+              </div>
             </div>
           </div>
 
@@ -345,322 +536,451 @@ export function WorkspaceDetailPage({
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10 bg-muted/60 backdrop-blur-sm">
                 <tr className="border-b">
-                  <th className="w-10 px-3 py-2.5 text-left">
-                    <Checkbox
-                      checked={selected.size === filtered.length && filtered.length > 0}
-                      onCheckedChange={toggleAll}
-                    />
+                  <th className="w-10 px-3 py-2.5">
+                    <Checkbox checked={selected.size === filteredTasks.length && filteredTasks.length > 0}
+                      onCheckedChange={() => setSelected(selected.size === filteredTasks.length ? new Set() : new Set(filteredTasks.map(t => t.id)))} />
                   </th>
-                  <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground min-w-[260px]">
-                    <button className="flex items-center gap-1 hover:text-foreground" onClick={() => handleSort('name')}>
-                      Project Name
-                      {sortKey === 'name' && <ChevronDown className={cn('h-3 w-3', !sortAsc && 'rotate-180')} />}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground w-32">
-                    <button className="flex items-center gap-1 hover:text-foreground" onClick={() => handleSort('priority')}>
-                      Priority
-                      {sortKey === 'priority' && <ChevronDown className={cn('h-3 w-3', !sortAsc && 'rotate-180')} />}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground w-36">
-                    <button className="flex items-center gap-1 hover:text-foreground" onClick={() => handleSort('status')}>
-                      Status
-                      {sortKey === 'status' && <ChevronDown className={cn('h-3 w-3', !sortAsc && 'rotate-180')} />}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground w-16">
-                    Progress
-                  </th>
-                  <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground w-44">
-                    <button className="flex items-center gap-1 hover:text-foreground" onClick={() => handleSort('created_at')}>
-                      Created
-                      {sortKey === 'created_at' && <ChevronDown className={cn('h-3 w-3', !sortAsc && 'rotate-180')} />}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground w-44">
-                    <button className="flex items-center gap-1 hover:text-foreground" onClick={() => handleSort('updated_at')}>
-                      Updated
-                      {sortKey === 'updated_at' && <ChevronDown className={cn('h-3 w-3', !sortAsc && 'rotate-180')} />}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground w-32">
-                    <button className="flex items-center gap-1 hover:text-foreground" onClick={() => handleSort('due_date')}>
-                      Due Date
-                      {sortKey === 'due_date' && <ChevronDown className={cn('h-3 w-3', !sortAsc && 'rotate-180')} />}
-                    </button>
-                  </th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground min-w-[300px]">Work</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-36">Assignee</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-28">Priority</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-36">Status</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-32">Due date</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-32">Project</th>
                   <th className="w-10 px-2" />
                 </tr>
               </thead>
-
               <tbody className="divide-y divide-border/50">
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="py-16 text-center text-sm text-muted-foreground">
-                      <FolderKanban className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                      {search ? 'No projects match your search.' : 'No projects in this workspace yet.'}
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((project) => (
-                    <tr
-                      key={project.id}
-                      className={cn(
-                        'group hover:bg-muted/40 transition-colors cursor-pointer',
-                        selected.has(project.id) && 'bg-blue-50/50'
-                      )}
-                    >
-                      {/* Checkbox */}
-                      <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={selected.has(project.id)}
-                          onCheckedChange={() => toggleSelect(project.id)}
-                        />
+                {filteredTasks.length === 0 ? (
+                  <tr><td colSpan={8} className="py-16 text-center text-sm text-muted-foreground">
+                    {search ? 'No tasks match your search.' : 'No tasks in this workspace yet.'}
+                  </td></tr>
+                ) : filteredTasks.map(task => {
+                  const subtasks = subtaskMap[task.id] ?? []
+                  const expanded = expandedRows.has(task.id)
+                  return [
+                    <tr key={task.id} className={cn('group hover:bg-muted/40 cursor-pointer', selected.has(task.id) && 'bg-blue-50/50')}>
+                      <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                        <Checkbox checked={selected.has(task.id)}
+                          onCheckedChange={() => setSelected(prev => { const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n })} />
                       </td>
-
-                      {/* Project name */}
-                      <td
-                        className="px-3 py-2.5"
-                        onClick={() => router.push(`/projects/${project.id}`)}
-                      >
+                      <td className="px-3 py-2.5" onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}>
                         <div className="flex items-center gap-2">
-                          <div className="h-5 w-5 rounded bg-blue-100 flex items-center justify-center shrink-0">
-                            <FolderKanban className="h-3 w-3 text-blue-600" />
-                          </div>
-                          <span className="font-medium text-sm group-hover:text-blue-600 transition-colors truncate max-w-[220px]">
-                            {project.name}
+                          {subtasks.length > 0 && (
+                            <button onClick={e => { e.stopPropagation(); setExpandedRows(prev => { const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n }) }}
+                              className="text-muted-foreground hover:text-foreground">
+                              {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
+                          {subtasks.length === 0 && <span className="w-3.5" />}
+                          <span className="text-[10px] font-mono text-blue-600 shrink-0">
+                            #{task.id.slice(0, 4).toUpperCase()}
+                          </span>
+                          <span className="font-medium text-sm group-hover:text-blue-600 transition-colors truncate max-w-[240px]">
+                            {task.title}
                           </span>
                           <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
                         </div>
-                        {project.description && (
-                          <p className="ml-7 text-xs text-muted-foreground truncate max-w-[220px] mt-0.5">
-                            {project.description}
-                          </p>
-                        )}
                       </td>
-
-                      {/* Priority */}
-                      <td className="px-3 py-2.5" onClick={() => router.push(`/projects/${project.id}`)}>
-                        <span className={cn('flex items-center gap-1.5 text-xs font-medium', PRIORITY_DOT[project.priority])}>
-                          {PRIORITY_LABEL[project.priority] ?? project.priority}
+                      <td className="px-3 py-2.5">
+                        {(task.assignees ?? []).length > 0 ? (
+                          <div className="flex items-center gap-1.5">
+                            <Avatar className="h-5 w-5"><AvatarImage src={task.assignees![0].avatar_url ?? undefined} /><AvatarFallback className="text-[10px]">{getInitials(task.assignees![0].full_name)}</AvatarFallback></Avatar>
+                            <span className="text-xs truncate max-w-[90px]">{task.assignees![0].full_name}</span>
+                          </div>
+                        ) : <span className="text-xs text-muted-foreground">Unassigned</span>}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className={cn('text-xs font-medium', PRIORITY_COLOR[task.priority])}>
+                          {PRIORITY_ICON[task.priority]} {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
                         </span>
                       </td>
-
-                      {/* Status */}
-                      <td className="px-3 py-2.5" onClick={() => router.push(`/projects/${project.id}`)}>
-                        <span className={cn(
-                          'inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold border',
-                          STATUS_COLORS[project.status] ?? 'bg-muted text-muted-foreground'
-                        )}>
-                          {formatStatus(project.status)}
+                      <td className="px-3 py-2.5">
+                        <span className={cn('inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold border', STATUS_STYLES[task.status])}>
+                          {STATUS_LABEL[task.status] ?? task.status}
                           <ChevronDown className="h-3 w-3 opacity-60" />
                         </span>
                       </td>
-
-                      {/* Progress */}
-                      <td className="px-3 py-2.5" onClick={() => router.push(`/projects/${project.id}`)}>
-                        <div className="flex items-center gap-1.5">
-                          <div className="h-1.5 w-10 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className="h-full bg-blue-500 rounded-full"
-                              style={{ width: `${project.progress ?? 0}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-muted-foreground">{project.progress ?? 0}%</span>
-                        </div>
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                        {task.due_date ? format(parseISO(task.due_date), 'MMM dd, yyyy') : '—'}
                       </td>
-
-                      {/* Created */}
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap" onClick={() => router.push(`/projects/${project.id}`)}>
-                        {fmtDt(project.created_at)}
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground truncate max-w-[100px]">
+                        {(task as any).project?.name ?? '—'}
                       </td>
-
-                      {/* Updated */}
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap" onClick={() => router.push(`/projects/${project.id}`)}>
-                        {fmtDt(project.updated_at)}
-                      </td>
-
-                      {/* Due date */}
-                      <td className="px-3 py-2.5 text-xs whitespace-nowrap" onClick={() => router.push(`/projects/${project.id}`)}>
-                        {project.due_date ? (
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
-                            {fmtDate(project.due_date)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/50">—</span>
-                        )}
-                      </td>
-
-                      {/* Row actions */}
-                      <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
+                            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
                               <MoreHorizontal className="h-3.5 w-3.5" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/projects/${project.id}`)}>
-                              Open project
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => router.push(`/projects/${project.id}`)}>
-                              View tasks
-                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}>Open task</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>
-                    </tr>
-                  ))
-                )}
+                    </tr>,
+                    ...(expanded ? subtasks.map(sub => (
+                      <tr key={sub.id} className="group hover:bg-muted/30 bg-muted/10 cursor-pointer"
+                        onClick={() => router.push(`/projects/${sub.project_id}/tasks/${sub.id}`)}>
+                        <td className="px-3 py-2" />
+                        <td className="px-3 py-2 pl-10">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-mono text-blue-400">#{sub.id.slice(0, 4).toUpperCase()}</span>
+                            <span className="text-xs text-muted-foreground truncate max-w-[200px]">{sub.title}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          {(sub.assignees ?? []).length > 0
+                            ? <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px]">{getInitials(sub.assignees![0].full_name)}</AvatarFallback></Avatar>
+                            : <span className="text-xs text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-3 py-2"><span className={cn('text-xs', PRIORITY_COLOR[sub.priority])}>{PRIORITY_ICON[sub.priority]}</span></td>
+                        <td className="px-3 py-2">
+                          <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold border', STATUS_STYLES[sub.status])}>
+                            {STATUS_LABEL[sub.status]}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{sub.due_date ? format(parseISO(sub.due_date), 'MMM dd') : '—'}</td>
+                        <td colSpan={2} />
+                      </tr>
+                    )) : [])
+                  ]
+                })}
               </tbody>
             </table>
           </div>
 
-          {/* ── Table footer ── */}
+          {/* Footer */}
           <div className="flex items-center justify-between px-4 py-2 border-t bg-background text-xs text-muted-foreground">
-            <button
-              className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors font-medium"
-              onClick={() => setShowCreateProject(true)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Create
+            <button className="flex items-center gap-1.5 hover:text-foreground font-medium"
+              onClick={() => setShowCreateTask(true)}>
+              <Plus className="h-3.5 w-3.5" />Create
             </button>
             <div className="flex items-center gap-2">
-              <span>{filtered.length} of {projects.length}</span>
-              <button onClick={handleRefresh} className="hover:text-foreground transition-colors">
-                <RefreshCw className="h-3.5 w-3.5" />
-              </button>
+              <span>{filteredTasks.length} of {topLevelTasks.length}</span>
+              <button onClick={refresh}><RefreshCw className="h-3.5 w-3.5" /></button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── MEMBERS TAB ── */}
-      {activeTab === 'members' && (
-        <div className="flex-1 overflow-auto p-6">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-muted-foreground">
-              {members.length} staff member{members.length !== 1 ? 's' : ''} assigned to this workspace
-            </p>
-            {isAdmin && (
-              <Button size="sm" className="gap-2" onClick={() => setShowAssign(true)}>
-                <UserPlus className="h-4 w-4" />
-                Assign Staff
+      {/* ══════════════════════════════════════════════════════════════════════
+          BOARD TAB
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'board' && (
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-2 border-b">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input placeholder="Search board…" className="h-8 pl-8 w-44 text-xs" />
+            </div>
+            <div className="flex -space-x-1">
+              {members.slice(0, 3).map(m => (
+                <Avatar key={m.id} className="h-6 w-6 border-2 border-background cursor-pointer">
+                  <AvatarImage src={m.avatar_url ?? undefined} />
+                  <AvatarFallback className="text-[10px] bg-slate-200">{getInitials(m.full_name)}</AvatarFallback>
+                </Avatar>
+              ))}
+            </div>
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground">
+              <Filter className="h-3.5 w-3.5" />Filter
+            </Button>
+            <div className="ml-auto">
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                Group: Status <ChevronDown className="h-3.5 w-3.5" />
               </Button>
-            )}
+            </div>
           </div>
 
-          {members.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16">
-              <Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">No staff assigned yet</p>
-              {isAdmin && (
-                <Button variant="outline" size="sm" className="mt-4 gap-2" onClick={() => setShowAssign(true)}>
-                  <UserPlus className="h-4 w-4" />
-                  Assign Staff
+          <div className="flex-1 overflow-auto p-4">
+            {topLevelTasks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="h-32 w-32 mb-6 opacity-60">
+                  <LayoutGrid className="h-full w-full text-blue-200" />
+                </div>
+                <h3 className="text-lg font-bold mb-2">Visualize your work with a board</h3>
+                <p className="text-sm text-muted-foreground mb-4 max-w-xs">
+                  Track, organize and prioritize your team's work. Get started by creating a work item.
+                </p>
+                <Button onClick={() => setShowCreateTask(true)}>
+                  <Plus className="h-4 w-4 mr-2" />Create a work item
                 </Button>
-              )}
+              </div>
+            ) : (
+              <div className="flex gap-4 h-full min-h-[400px]">
+                {BOARD_COLS.map(col => {
+                  const colTasks = topLevelTasks.filter(t => t.status === col.key)
+                  return (
+                    <div key={col.key} className="flex flex-col w-64 shrink-0">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {col.label}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{colTasks.length}</span>
+                      </div>
+                      <div className="flex flex-col gap-2 flex-1">
+                        {colTasks.map(task => (
+                          <div key={task.id}
+                            className="rounded-lg border bg-card p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition-all"
+                            onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}>
+                            <p className="text-sm font-medium mb-2 line-clamp-2">{task.title}</p>
+                            <div className="flex items-center gap-2 mb-2">
+                              {task.due_date && (
+                                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(parseISO(task.due_date), 'MMM dd, yyyy')}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-mono text-blue-500">#{task.id.slice(0, 4).toUpperCase()}</span>
+                                {(subtaskMap[task.id] ?? []).length > 0 && (
+                                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                    <Users className="h-3 w-3" />{(subtaskMap[task.id] ?? []).length}
+                                  </span>
+                                )}
+                                <span className={cn('text-[10px] font-bold', PRIORITY_COLOR[task.priority])}>
+                                  {PRIORITY_ICON[task.priority]}
+                                </span>
+                              </div>
+                              {(task.assignees ?? []).length > 0 && (
+                                <Avatar className="h-5 w-5">
+                                  <AvatarImage src={task.assignees![0].avatar_url ?? undefined} />
+                                  <AvatarFallback className="text-[10px]">{getInitials(task.assignees![0].full_name)}</AvatarFallback>
+                                </Avatar>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground p-2 rounded hover:bg-muted transition-colors"
+                          onClick={() => setShowCreateTask(true)}>
+                          <Plus className="h-3.5 w-3.5" />Create
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          CALENDAR TAB
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'calendar' && (
+        <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Calendar toolbar */}
+          <div className="flex items-center gap-2 px-4 py-2 border-b">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input placeholder="Search calendar…" className="h-8 pl-8 w-44 text-xs" />
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {members.map((member) => (
-                <div
-                  key={member.id}
-                  className="flex items-center gap-3 rounded-lg border bg-card p-3.5 hover:border-blue-200 hover:shadow-sm transition-all"
-                >
-                  <Avatar className="h-9 w-9 shrink-0">
-                    <AvatarImage src={member.avatar_url ?? undefined} />
-                    <AvatarFallback className="text-sm bg-blue-100 text-blue-700 font-semibold">
-                      {getInitials(member.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{member.full_name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{member.email}</p>
-                  </div>
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground">
+              <Filter className="h-3.5 w-3.5" />Filter
+            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setCalendarDate(new Date())}>Today</Button>
+              <button onClick={() => setCalendarDate(d => subMonths(d, 1))} className="p-1.5 rounded hover:bg-muted">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-sm font-medium w-24 text-center">{format(calendarDate, 'MMM yyyy')}</span>
+              <button onClick={() => setCalendarDate(d => addMonths(d, 1))} className="p-1.5 rounded hover:bg-muted">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                Month <ChevronDown className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Calendar grid */}
+          <div className="flex-1 overflow-auto">
+            <div className="grid grid-cols-7 border-b">
+              {DAY_NAMES.map(d => (
+                <div key={d} className="px-3 py-2 text-xs font-medium text-muted-foreground text-center border-r last:border-r-0">
+                  {d}
                 </div>
               ))}
             </div>
-          )}
+            <div className="grid grid-cols-7 flex-1">
+              {calDays.map((day, i) => {
+                const key = format(day, 'yyyy-MM-dd')
+                const dayTasks = calendarTasks[key] ?? []
+                const inMonth = isSameMonth(day, calendarDate)
+                const today = isToday(day)
+                return (
+                  <div key={i} className={cn(
+                    'min-h-[100px] border-r border-b last:border-r-0 p-1.5',
+                    !inMonth && 'bg-muted/30',
+                  )}>
+                    <span className={cn(
+                      'inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium mb-1',
+                      today && 'bg-blue-600 text-white',
+                      !today && !inMonth && 'text-muted-foreground/50',
+                      !today && inMonth && 'text-foreground',
+                    )}>
+                      {format(day, 'd')}
+                    </span>
+                    <div className="space-y-0.5">
+                      {dayTasks.slice(0, 3).map(t => (
+                        <div key={t.id}
+                          className={cn(
+                            'rounded px-1.5 py-0.5 text-[10px] font-medium truncate cursor-pointer hover:opacity-80',
+                            STATUS_STYLES[t.status],
+                          )}
+                          onClick={() => router.push(`/projects/${t.project_id}/tasks/${t.id}`)}>
+                          {t.title}
+                        </div>
+                      ))}
+                      {dayTasks.length > 3 && (
+                        <p className="text-[10px] text-muted-foreground px-1">+{dayTasks.length - 3} more</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── BOARD TAB ── */}
-      {activeTab === 'board' && (
-        <div className="flex-1 overflow-auto p-6">
-          <div className="flex gap-4 h-full">
-            {(['planning', 'in_progress', 'on_hold', 'completed'] as const).map((status) => {
-              const cols = filtered.filter((p) => p.status === status)
-              return (
-                <div key={status} className="flex flex-col w-64 shrink-0">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className={cn(
-                      'inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold border',
-                      STATUS_COLORS[status]
-                    )}>
-                      {formatStatus(status)}
+      {/* ══════════════════════════════════════════════════════════════════════
+          TIMELINE TAB
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'timeline' && (
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-2 border-b">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input placeholder="Search timeline…" className="h-8 pl-8 w-44 text-xs" />
+            </div>
+            <div className="flex -space-x-1">
+              {members.slice(0, 3).map(m => (
+                <Avatar key={m.id} className="h-6 w-6 border-2 border-background">
+                  <AvatarImage src={m.avatar_url ?? undefined} />
+                  <AvatarFallback className="text-[10px] bg-slate-200">{getInitials(m.full_name)}</AvatarFallback>
+                </Avatar>
+              ))}
+            </div>
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground">
+              <Filter className="h-3.5 w-3.5" />Filter
+            </Button>
+            <div className="ml-auto flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8"><SlidersHorizontal className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+            </div>
+          </div>
+
+          <div className="flex flex-1 overflow-hidden">
+            {/* Left: task list */}
+            <div className="w-72 shrink-0 border-r overflow-y-auto">
+              <div className="sticky top-0 bg-muted/60 border-b px-3 py-2.5 text-xs font-medium text-muted-foreground">Work</div>
+              {timelineTasks.length === 0 ? (
+                <p className="text-xs text-muted-foreground p-4">No tasks with dates.</p>
+              ) : timelineTasks.map(t => (
+                <div key={t.id} className="flex items-center gap-2 px-3 py-2.5 border-b hover:bg-muted/30 cursor-pointer"
+                  onClick={() => router.push(`/projects/${t.project_id}/tasks/${t.id}`)}>
+                  <Checkbox className="h-3.5 w-3.5 shrink-0" />
+                  <span className="text-[10px] font-mono text-blue-500 shrink-0">#{t.id.slice(0, 4).toUpperCase()}</span>
+                  <span className="text-xs truncate">{t.title}</span>
+                  {t.status !== 'todo' && (
+                    <span className={cn('ml-auto shrink-0 text-[10px] rounded px-1 border', STATUS_STYLES[t.status])}>
+                      {STATUS_LABEL[t.status]}
                     </span>
-                    <span className="text-xs text-muted-foreground">{cols.length}</span>
-                  </div>
-                  <div className="flex flex-col gap-2 flex-1 overflow-y-auto">
-                    {cols.map((project) => (
-                      <div
-                        key={project.id}
-                        className="rounded-lg border bg-card p-3 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
-                        onClick={() => router.push(`/projects/${project.id}`)}
-                      >
-                        <p className="text-sm font-medium mb-1.5 line-clamp-2">{project.name}</p>
-                        <div className="flex items-center justify-between">
-                          <span className={cn('text-xs font-medium', PRIORITY_DOT[project.priority])}>
-                            {PRIORITY_LABEL[project.priority]}
-                          </span>
-                          {project.due_date && (
-                            <span className="text-xs text-muted-foreground">{fmtDate(project.due_date)}</span>
-                          )}
-                        </div>
-                        <div className="mt-2 h-1 rounded-full bg-muted overflow-hidden">
-                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${project.progress ?? 0}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                    {isAdmin && (
-                      <button
-                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground p-2 rounded hover:bg-muted transition-colors"
-                        onClick={() => setShowCreateProject(true)}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Add project
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
-              )
-            })}
+              ))}
+              <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2.5">
+                <Plus className="h-3.5 w-3.5" />Create
+              </button>
+            </div>
+
+            {/* Right: Gantt chart */}
+            <div className="flex-1 overflow-auto">
+              {/* Month headers */}
+              <div className="sticky top-0 z-10 flex border-b bg-muted/60 backdrop-blur-sm">
+                {tlMonths.map((m, i) => (
+                  <div key={i} className="border-r last:border-r-0 px-2 py-2.5 text-xs font-medium text-muted-foreground shrink-0"
+                    style={{ width: `${m.width}%`, minWidth: 80 }}>
+                    {m.label}
+                  </div>
+                ))}
+              </div>
+
+              {/* Gantt rows */}
+              <div className="relative">
+                {/* Today line */}
+                {isAfter(now, tlStart) && isBefore(now, tlEnd) && (
+                  <div className="absolute top-0 bottom-0 w-px bg-blue-500 z-10 pointer-events-none"
+                    style={{ left: `${tlPct(now)}%` }} />
+                )}
+
+                {timelineTasks.length === 0 ? (
+                  <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+                    No tasks with dates to show.
+                  </div>
+                ) : timelineTasks.map(t => {
+                  const start = t.start_date ? parseISO(t.start_date) : (t.due_date ? parseISO(t.due_date) : null)
+                  const end = t.due_date ? parseISO(t.due_date) : start
+                  if (!start || !end) return null
+                  const left = Math.max(0, tlPct(start))
+                  const width = Math.max(1, tlPct(end) - left)
+                  return (
+                    <div key={t.id} className="relative h-10 border-b flex items-center">
+                      <div className="absolute h-5 rounded-full cursor-pointer hover:opacity-80 transition-opacity flex items-center px-2"
+                        style={{
+                          left: `${left}%`,
+                          width: `${width}%`,
+                          minWidth: 24,
+                          background: STATUS_BAR_COLOR[t.status] ?? '#94a3b8',
+                          opacity: 0.85,
+                        }}
+                        onClick={() => router.push(`/projects/${t.project_id}/tasks/${t.id}`)}>
+                        <span className="text-[10px] text-white font-medium truncate">{t.title}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Timeline scale switcher */}
+          <div className="flex justify-end items-center gap-1 border-t px-4 py-2">
+            {(['weeks', 'months'] as const).map(s => (
+              <button key={s} onClick={() => setTimelineScale(s)}
+                className={cn(
+                  'px-3 py-1 text-xs rounded border transition-colors',
+                  timelineScale === s ? 'bg-blue-600 text-white border-blue-600' : 'text-muted-foreground border-border hover:bg-muted'
+                )}>
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
           </div>
         </div>
       )}
 
       {/* ── Dialogs ── */}
-      <AssignStaffDialog
-        open={showAssign}
-        onOpenChange={setShowAssign}
-        workspaceId={workspace.id}
-        currentMemberIds={members.map((m) => m.id)}
-        onSuccess={() => startTransition(() => router.refresh())}
-      />
+      <AssignStaffDialog open={showAssign} onOpenChange={setShowAssign}
+        workspaceId={workspace.id} currentMemberIds={members.map(m => m.id)}
+        onSuccess={refresh} />
 
       {isAdmin && (
-        <CreateProjectDialog
-          open={showCreateProject}
-          onOpenChange={setShowCreateProject}
-          workspaces={[workspace]}
-          onCreated={() => startTransition(() => router.refresh())}
+        <CreateProjectDialog open={showCreateProject} onOpenChange={setShowCreateProject}
+          workspaces={[workspace]} onCreated={refresh} />
+      )}
+
+      {projects.length > 0 && (
+        <CreateTaskDialog
+          open={showCreateTask}
+          onOpenChange={setShowCreateTask}
+          projects={projects}
+          profile={{ id: '', email: '', full_name: '', avatar_url: null, role: 'super_admin', is_temp_password: false, onboarding_completed: true, created_at: '', updated_at: '' }}
+          onCreated={refresh}
         />
       )}
     </div>
