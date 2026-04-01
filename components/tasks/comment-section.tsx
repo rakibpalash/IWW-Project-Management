@@ -20,6 +20,7 @@ interface CommentSectionProps {
   members: Profile[]
   profile: Profile
   onCommentAdded: (comment: Comment) => void
+  inputOnly?: boolean
 }
 
 export function CommentSection({
@@ -28,6 +29,7 @@ export function CommentSection({
   members,
   profile,
   onCommentAdded,
+  inputOnly = false,
 }: CommentSectionProps) {
   const { toast } = useToast()
   const supabase = createClient()
@@ -126,6 +128,34 @@ export function CommentSection({
   const visibleComments = comments.filter(
     (c) => !c.is_internal || isStaffOrAdmin
   )
+
+  if (inputOnly) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-start gap-3">
+          <Avatar className="h-8 w-8 shrink-0 mt-0.5">
+            <AvatarImage src={profile.avatar_url ?? undefined} />
+            <AvatarFallback className="text-xs">{getInitials(profile.full_name)}</AvatarFallback>
+          </Avatar>
+          <div className="flex-1 space-y-2">
+            <MentionInput
+              ref={inputRef}
+              value={newComment}
+              onChange={setNewComment}
+              members={members}
+              placeholder="Your thoughts on this…"
+              onMentionSelect={(id) => setMentionedUserIds((p) => [...new Set([...p, id])])}
+            />
+            {newComment.trim() && (
+              <Button size="sm" onClick={handleSubmit} disabled={submitting} className="h-7 text-xs">
+                {submitting ? 'Posting…' : 'Post Comment'}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
