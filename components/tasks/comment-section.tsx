@@ -144,10 +144,10 @@ export function CommentSection({
               onChange={setNewComment}
               members={members}
               placeholder="Your thoughts on this…"
-              onMentionSelect={(id) => setMentionedUserIds((p) => [...new Set([...p, id])])}
+              onMentionedUsers={setMentionedUserIds}
             />
             {newComment.trim() && (
-              <Button size="sm" onClick={handleSubmit} disabled={submitting} className="h-7 text-xs">
+              <Button size="sm" onClick={() => handleSubmitComment(newComment, isInternal)} disabled={submitting} className="h-7 text-xs">
                 {submitting ? 'Posting…' : 'Post Comment'}
               </Button>
             )}

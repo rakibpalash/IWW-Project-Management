@@ -297,7 +297,7 @@ export function TaskDetailPage({
                 task.status === 'todo' && 'bg-slate-100 text-slate-700',
                 task.status === 'in_progress' && 'bg-yellow-100 text-yellow-700',
                 task.status === 'in_review' && 'bg-blue-100 text-blue-700',
-                task.status === 'completed' && 'bg-green-100 text-green-700',
+                task.status === 'done' && 'bg-green-100 text-green-700',
                 task.status === 'cancelled' && 'bg-red-100 text-red-700',
               )}>
                 <SelectValue />
