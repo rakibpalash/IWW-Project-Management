@@ -1,15 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Task, Profile, Comment, TimeEntry, ActivityLog, TaskStatus, Priority } from '@/types'
 import { SubtaskList } from './subtask-list'
 import { CommentSection } from './comment-section'
 import { TimeLogDialog } from '@/components/time-tracking/time-log-dialog'
-import { TimeEntriesList } from '@/components/time-tracking/time-entries-list'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -20,7 +18,6 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Tooltip,
   TooltipContent,
@@ -32,20 +29,13 @@ import {
   ArrowLeft,
   Calendar,
   Clock,
-  Edit3,
   Check,
-  X,
-  Plus,
-  Activity,
-  MessageSquare,
-  Timer,
-  ChevronDown,
   Circle,
-  Tag,
-  Info,
-  Paperclip,
   Play,
   Square,
+  Bold,
+  Code,
+  List,
 } from 'lucide-react'
 import { TASK_STATUSES, PRIORITIES } from '@/lib/constants'
 import {
@@ -53,8 +43,6 @@ import {
   formatDate,
   formatHours,
   getInitials,
-  getPriorityColor,
-  getStatusColor,
   timeAgo,
   formatStatus,
 } from '@/lib/utils'
@@ -69,10 +57,37 @@ interface TaskDetailPageProps {
   profile: Profile
 }
 
-// ── Elapsed timer display ─────────────────────────────────────────────────────
+type FeedItem =
+  | { type: 'activity'; id: string; date: string; data: ActivityLog }
+  | { type: 'comment'; id: string; date: string; data: Comment }
+  | { type: 'time'; id: string; date: string; data: TimeEntry }
+
+// ── Status / priority style maps ─────────────────────────────────────────────
+const STATUS_CLASSES: Record<string, string> = {
+  todo: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  in_progress: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  in_review: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  done: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+}
+
+const PRIORITY_CLASSES: Record<Priority, string> = {
+  urgent: 'border-red-200 bg-red-50 text-red-700',
+  high: 'border-orange-200 bg-orange-50 text-orange-700',
+  medium: 'border-yellow-200 bg-yellow-50 text-yellow-700',
+  low: 'border-blue-200 bg-blue-50 text-blue-600',
+}
+
+const PRIORITY_ICON: Record<Priority, string> = {
+  urgent: '!!',
+  high: '▲',
+  medium: '=',
+  low: '▼',
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 function ElapsedTimer({ startedAt }: { startedAt: string }) {
   const [elapsed, setElapsed] = useState(0)
-
   useEffect(() => {
     const base = new Date(startedAt).getTime()
     const tick = () => setElapsed(Math.floor((Date.now() - base) / 1000))
@@ -80,14 +95,94 @@ function ElapsedTimer({ startedAt }: { startedAt: string }) {
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [startedAt])
-
   const h = Math.floor(elapsed / 3600).toString().padStart(2, '0')
   const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0')
   const s = (elapsed % 60).toString().padStart(2, '0')
-
   return <span>{h}:{m}:{s}</span>
 }
 
+function FeedRow({ item, isLast }: { item: FeedItem; isLast: boolean }) {
+  const divider = !isLast && 'border-b border-border/40'
+
+  if (item.type === 'activity') {
+    const log = item.data
+    return (
+      <div className={cn('flex items-start gap-3 py-3', divider)}>
+        <Avatar className="h-7 w-7 mt-0.5 shrink-0">
+          <AvatarImage src={log.user?.avatar_url ?? undefined} />
+          <AvatarFallback className="text-[10px]">
+            {log.user ? getInitials(log.user.full_name) : '?'}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm">
+            <span className="font-medium">{log.user?.full_name ?? 'Unknown'}</span>{' '}
+            <span className="text-muted-foreground">
+              {formatActivityAction(log.action, log.old_value, log.new_value)}
+            </span>
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">{timeAgo(log.created_at)}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (item.type === 'comment') {
+    const c = item.data
+    return (
+      <div className={cn('flex items-start gap-3 py-3', divider)}>
+        <Avatar className="h-7 w-7 mt-0.5 shrink-0">
+          <AvatarImage src={c.user?.avatar_url ?? undefined} />
+          <AvatarFallback className="text-[10px]">
+            {c.user ? getInitials(c.user.full_name) : '?'}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-sm font-medium">{c.user?.full_name ?? 'Unknown'}</span>
+            {c.is_internal && (
+              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">
+                Internal
+              </span>
+            )}
+            <span className="text-xs text-muted-foreground">{timeAgo(c.created_at)}</span>
+          </div>
+          <div className="text-sm text-foreground/90 whitespace-pre-wrap rounded-lg bg-muted/50 px-3 py-2.5">
+            {c.content}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (item.type === 'time') {
+    const e = item.data
+    const mins = e.duration_minutes ?? 0
+    return (
+      <div className={cn('flex items-start gap-3 py-3', divider)}>
+        <div className="h-7 w-7 mt-0.5 shrink-0 rounded-full bg-muted flex items-center justify-center">
+          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm">
+            <span className="font-medium">Time logged</span>{' '}
+            <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+              {formatHours(mins / 60)}
+            </span>
+            {e.description && (
+              <span className="text-muted-foreground"> — {e.description}</span>
+            )}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">{timeAgo(e.created_at)}</p>
+        </div>
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export function TaskDetailPage({
   task: initialTask,
   comments: initialComments,
@@ -99,6 +194,7 @@ export function TaskDetailPage({
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
+  const descTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const [task, setTask] = useState<Task>(initialTask)
   const [comments, setComments] = useState<Comment[]>(initialComments)
@@ -109,8 +205,8 @@ export function TaskDetailPage({
   const [titleDraft, setTitleDraft] = useState(task.title)
   const [editingDescription, setEditingDescription] = useState(false)
   const [descriptionDraft, setDescriptionDraft] = useState(task.description ?? '')
-  const [savingDescription, setSavingDescription] = useState(false)
   const [savingTitle, setSavingTitle] = useState(false)
+  const [savingDescription, setSavingDescription] = useState(false)
 
   const [showTimeLogDialog, setShowTimeLogDialog] = useState(false)
   const [timerRunning, setTimerRunning] = useState(false)
@@ -126,7 +222,10 @@ export function TaskDetailPage({
     .filter((e) => e.duration_minutes !== null && !e.is_running)
     .reduce((sum, e) => sum + (e.duration_minutes ?? 0), 0)
 
-  // Check for running timer on mount
+  const estimatedMinutes = (task.estimated_hours ?? 0) * 60
+  const timeProgress =
+    estimatedMinutes > 0 ? Math.min((totalLoggedMinutes / estimatedMinutes) * 100, 100) : 0
+
   useEffect(() => {
     const running = timeEntries.find((e) => e.is_running)
     if (running) {
@@ -135,7 +234,40 @@ export function TaskDetailPage({
     }
   }, [])
 
-  async function logActivity(action: string, oldValue: string | null, newValue: string | null) {
+  const feedItems = useMemo<FeedItem[]>(() => {
+    const items: FeedItem[] = [
+      ...activityLogs.map((a) => ({
+        type: 'activity' as const,
+        id: a.id,
+        date: a.created_at,
+        data: a,
+      })),
+      ...comments.map((c) => ({
+        type: 'comment' as const,
+        id: c.id,
+        date: c.created_at,
+        data: c,
+      })),
+      ...timeEntries
+        .filter((e) => !e.is_running)
+        .map((e) => ({
+          type: 'time' as const,
+          id: e.id,
+          date: e.created_at,
+          data: e,
+        })),
+    ]
+    return items.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    )
+  }, [activityLogs, comments, timeEntries])
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
+  async function logActivity(
+    action: string,
+    oldValue: string | null,
+    newValue: string | null,
+  ) {
     await supabase.from('activity_logs').insert({
       task_id: task.id,
       user_id: profile.id,
@@ -194,7 +326,10 @@ export function TaskDetailPage({
       .update({ title: titleDraft.trim(), updated_at: new Date().toISOString() })
       .eq('id', task.id)
     setSavingTitle(false)
-    if (error) { toast({ title: 'Error saving title', variant: 'destructive' }); return }
+    if (error) {
+      toast({ title: 'Error saving title', variant: 'destructive' })
+      return
+    }
     setTask((p) => ({ ...p, title: titleDraft.trim() }))
     setEditingTitle(false)
   }
@@ -207,7 +342,10 @@ export function TaskDetailPage({
       .update({ description: descriptionDraft, updated_at: new Date().toISOString() })
       .eq('id', task.id)
     setSavingDescription(false)
-    if (error) { toast({ title: 'Error saving description', variant: 'destructive' }); return }
+    if (error) {
+      toast({ title: 'Error saving description', variant: 'destructive' })
+      return
+    }
     setTask((p) => ({ ...p, description: descriptionDraft }))
     setEditingDescription(false)
     await logActivity('description_updated', old, descriptionDraft)
@@ -227,7 +365,10 @@ export function TaskDetailPage({
       .select('*')
       .single()
     setTimerLoading(false)
-    if (error || !data) { toast({ title: 'Failed to start timer', variant: 'destructive' }); return }
+    if (error || !data) {
+      toast({ title: 'Failed to start timer', variant: 'destructive' })
+      return
+    }
     setRunningEntry(data as TimeEntry)
     setTimerRunning(true)
     setTimeEntries((p) => [data as TimeEntry, ...p])
@@ -236,25 +377,66 @@ export function TaskDetailPage({
   async function stopTimer() {
     if (!runningEntry) return
     setTimerLoading(true)
-    const duration = Math.round((Date.now() - new Date(runningEntry.started_at).getTime()) / 60000)
+    const duration = Math.round(
+      (Date.now() - new Date(runningEntry.started_at).getTime()) / 60000,
+    )
     const { data, error } = await supabase
       .from('time_entries')
-      .update({ is_running: false, duration_minutes: duration, updated_at: new Date().toISOString() })
+      .update({
+        is_running: false,
+        duration_minutes: duration,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', runningEntry.id)
       .select('*')
       .single()
     setTimerLoading(false)
-    if (error || !data) { toast({ title: 'Failed to stop timer', variant: 'destructive' }); return }
+    if (error || !data) {
+      toast({ title: 'Failed to stop timer', variant: 'destructive' })
+      return
+    }
     setRunningEntry(null)
     setTimerRunning(false)
-    setTimeEntries((p) => p.map((e) => (e.id === runningEntry.id ? (data as TimeEntry) : e)))
+    setTimeEntries((p) =>
+      p.map((e) => (e.id === runningEntry.id ? (data as TimeEntry) : e)),
+    )
+  }
+
+  function applyFormat(fmt: 'bold' | 'code' | 'bullet') {
+    const ta = descTextareaRef.current
+    if (!ta) return
+    const start = ta.selectionStart
+    const end = ta.selectionEnd
+    const sel = descriptionDraft.slice(start, end)
+    let replacement: string
+    let offset: number
+    if (fmt === 'bold') {
+      replacement = `**${sel}**`
+      offset = 2
+    } else if (fmt === 'code') {
+      replacement = `\`${sel}\``
+      offset = 1
+    } else {
+      replacement = `- ${sel}`
+      offset = 2
+    }
+    const newVal =
+      descriptionDraft.slice(0, start) + replacement + descriptionDraft.slice(end)
+    setDescriptionDraft(newVal)
+    requestAnimationFrame(() => {
+      ta.focus()
+      ta.setSelectionRange(start + offset, start + offset + sel.length)
+    })
   }
 
   function handleSubtaskCreated(subtask: Task) {
     setTask((p) => ({ ...p, subtasks: [...(p.subtasks ?? []), subtask] }))
   }
   function handleSubtaskUpdated(updated: Task) {
-    setTask((p) => ({ ...p, subtasks: (p.subtasks ?? []).map((s) => (s.id === updated.id ? updated : s)) }))
+    setTask((p) => ({
+      ...p,
+      subtasks: (p.subtasks ?? []).map((s) => (s.id === updated.id ? updated : s)),
+    }))
   }
   function handleCommentAdded(comment: Comment) {
     setComments((p) => [...p, comment])
@@ -262,25 +444,18 @@ export function TaskDetailPage({
   function handleTimeEntryAdded(entry: TimeEntry) {
     setTimeEntries((p) => [entry, ...p])
   }
-  function handleTimeEntryUpdated(entry: TimeEntry) {
-    setTimeEntries((p) => p.map((e) => (e.id === entry.id ? entry : e)))
-  }
-  function handleTimeEntryDeleted(id: string) {
-    setTimeEntries((p) => p.filter((e) => e.id !== id))
-  }
 
-  const primaryAssignee = (task.assignees ?? [])[0]
-  const statusMeta = TASK_STATUSES.find((s) => s.value === task.status)
-
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background">
-        {/* ── Top nav bar ── */}
-        <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-card px-4 py-2.5">
+
+        {/* ── Top nav ── */}
+        <div className="sticky top-0 z-20 flex items-center gap-2 border-b bg-background/95 backdrop-blur-sm px-4 h-[49px]">
           <Button
             variant="ghost"
             size="sm"
-            className="gap-1.5 text-muted-foreground"
+            className="gap-1.5 text-muted-foreground hover:text-foreground h-8 px-2 shrink-0"
             onClick={() => router.push(`/projects/${task.project_id}`)}
           >
             <ArrowLeft className="h-4 w-4" />
@@ -289,121 +464,215 @@ export function TaskDetailPage({
 
           <Separator orientation="vertical" className="h-5" />
 
-          {/* Status badge */}
-          {canEdit ? (
-            <Select value={task.status} onValueChange={handleStatusChange}>
-              <SelectTrigger className={cn(
-                'h-7 gap-1.5 border-0 px-2.5 text-xs font-semibold rounded-full w-auto',
-                task.status === 'todo' && 'bg-slate-100 text-slate-700',
-                task.status === 'in_progress' && 'bg-yellow-100 text-yellow-700',
-                task.status === 'in_review' && 'bg-blue-100 text-blue-700',
-                task.status === 'done' && 'bg-green-100 text-green-700',
-                task.status === 'cancelled' && 'bg-red-100 text-red-700',
-              )}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TASK_STATUSES.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <span className={cn(
-              'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
-              getStatusColor(task.status)
-            )}>
-              {formatStatus(task.status)}
-            </span>
+          {task.project && (
+            <button
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors truncate max-w-[140px]"
+              onClick={() => router.push(`/projects/${task.project_id}`)}
+            >
+              {task.project.name}
+            </button>
           )}
 
-          {/* Assignee */}
-          {primaryAssignee && (
-            <div className="flex items-center gap-2 ml-1">
-              <Avatar className="h-6 w-6">
-                <AvatarImage src={primaryAssignee.avatar_url ?? undefined} />
-                <AvatarFallback className="text-xs">{getInitials(primaryAssignee.full_name)}</AvatarFallback>
-              </Avatar>
-              <div className="hidden sm:block">
-                <p className="text-[10px] text-muted-foreground leading-none">Assigned to</p>
-                <p className="text-xs font-medium leading-tight">{primaryAssignee.full_name}</p>
-              </div>
-            </div>
-          )}
-
-          <div className="ml-auto flex items-center gap-1">
-            {task.project && (
-              <span className="hidden md:inline text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                {task.project.name}
-              </span>
-            )}
-          </div>
+          <span className="text-muted-foreground/40 shrink-0">/</span>
+          <span className="text-xs text-foreground font-medium truncate max-w-[220px]">
+            {task.title}
+          </span>
         </div>
 
-        {/* ── Two-column layout ── */}
+        {/* ── Body ── */}
         <div className="flex h-[calc(100vh-49px)]">
 
-          {/* ── Left panel (main content) ── */}
+          {/* ── Left panel ── */}
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
+            <div className="max-w-2xl mx-auto px-8 py-8 space-y-8">
 
-              {/* Title */}
-              <div>
+              {/* Header: meta chips + title ─────────────────── */}
+              <div className="space-y-3">
+
+                {/* Meta row */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Status */}
+                  {canEdit ? (
+                    <Select value={task.status} onValueChange={handleStatusChange}>
+                      <SelectTrigger
+                        className={cn(
+                          'h-6 gap-1 border-0 px-2.5 text-xs font-semibold rounded-full w-auto shadow-none focus:ring-0',
+                          STATUS_CLASSES[task.status] ?? 'bg-muted text-muted-foreground',
+                        )}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TASK_STATUSES.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>
+                            {s.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span
+                      className={cn(
+                        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                        STATUS_CLASSES[task.status],
+                      )}
+                    >
+                      {formatStatus(task.status)}
+                    </span>
+                  )}
+
+                  {/* Priority chip */}
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border',
+                      PRIORITY_CLASSES[task.priority],
+                    )}
+                  >
+                    <span className="font-bold text-[11px] leading-none">
+                      {PRIORITY_ICON[task.priority]}
+                    </span>
+                    {formatStatus(task.priority)}
+                  </span>
+
+                  {/* Assignee avatars */}
+                  {(task.assignees ?? []).length > 0 && (
+                    <div className="flex items-center -space-x-1.5 ml-0.5">
+                      {(task.assignees ?? []).slice(0, 5).map((a) => (
+                        <Tooltip key={a.id}>
+                          <TooltipTrigger asChild>
+                            <Avatar className="h-6 w-6 border-2 border-background cursor-default">
+                              <AvatarImage src={a.avatar_url ?? undefined} />
+                              <AvatarFallback className="text-[10px]">
+                                {getInitials(a.full_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{a.full_name}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ))}
+                      {(task.assignees ?? []).length > 5 && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          +{(task.assignees ?? []).length - 5}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Title */}
                 {editingTitle ? (
                   <div className="space-y-2">
                     <Textarea
                       value={titleDraft}
                       onChange={(e) => setTitleDraft(e.target.value)}
-                      className="text-2xl font-bold resize-none border-0 border-b rounded-none px-0 focus-visible:ring-0 focus-visible:border-primary"
+                      className="text-2xl font-bold resize-none border-0 border-b rounded-none px-0 py-1 focus-visible:ring-0 focus-visible:border-primary leading-snug"
                       rows={2}
                       autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          saveTitle()
+                        }
+                        if (e.key === 'Escape') {
+                          setEditingTitle(false)
+                          setTitleDraft(task.title)
+                        }
+                      }}
                     />
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={saveTitle} disabled={savingTitle} className="gap-1.5 h-7">
-                        <Check className="h-3 w-3" />{savingTitle ? 'Saving…' : 'Save'}
+                      <Button
+                        size="sm"
+                        onClick={saveTitle}
+                        disabled={savingTitle}
+                        className="h-7 gap-1.5"
+                      >
+                        <Check className="h-3 w-3" />
+                        {savingTitle ? 'Saving…' : 'Save'}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => { setEditingTitle(false); setTitleDraft(task.title) }} className="h-7">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7"
+                        onClick={() => {
+                          setEditingTitle(false)
+                          setTitleDraft(task.title)
+                        }}
+                      >
                         Cancel
                       </Button>
                     </div>
                   </div>
                 ) : (
-                  <div className="group flex items-start gap-2">
-                    <h1
-                      className="text-2xl font-bold leading-snug flex-1 cursor-text"
-                      onClick={() => canEdit && setEditingTitle(true)}
-                    >
-                      {task.title}
-                    </h1>
-                    {canEdit && (
-                      <button
-                        onClick={() => setEditingTitle(true)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity mt-1 p-1 rounded hover:bg-muted text-muted-foreground"
-                      >
-                        <Edit3 className="h-3.5 w-3.5" />
-                      </button>
+                  <h1
+                    className={cn(
+                      'text-2xl font-bold leading-snug break-words',
+                      canEdit &&
+                        'cursor-text hover:bg-muted/50 -mx-2 px-2 py-1 rounded-md transition-colors',
                     )}
-                  </div>
+                    onClick={() => canEdit && setEditingTitle(true)}
+                  >
+                    {task.title}
+                  </h1>
                 )}
               </div>
 
-              {/* Description */}
+              {/* Description ─────────────────────────────────── */}
               <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+                  Description
+                </p>
                 {editingDescription ? (
-                  <div className="space-y-2">
+                  <div className="rounded-lg border bg-background overflow-hidden">
+                    {/* Toolbar */}
+                    <div className="flex items-center gap-0.5 px-2 py-1.5 border-b bg-muted/30">
+                      {(
+                        [
+                          { icon: <Bold className="h-3.5 w-3.5" />, title: 'Bold', fmt: 'bold' },
+                          { icon: <Code className="h-3.5 w-3.5" />, title: 'Code', fmt: 'code' },
+                          { icon: <List className="h-3.5 w-3.5" />, title: 'Bullet list', fmt: 'bullet' },
+                        ] as const
+                      ).map(({ icon, title, fmt }) => (
+                        <button
+                          key={fmt}
+                          type="button"
+                          title={title}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            applyFormat(fmt)
+                          }}
+                          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        >
+                          {icon}
+                        </button>
+                      ))}
+                    </div>
                     <Textarea
+                      ref={descTextareaRef}
                       value={descriptionDraft}
                       onChange={(e) => setDescriptionDraft(e.target.value)}
                       placeholder="Add a description…"
-                      rows={5}
-                      className="resize-none text-sm"
+                      rows={6}
+                      className="border-0 rounded-none resize-none text-sm focus-visible:ring-0 px-3 py-2.5"
                       autoFocus
                     />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={saveDescription} disabled={savingDescription} className="gap-1.5 h-7">
-                        <Check className="h-3 w-3" />{savingDescription ? 'Saving…' : 'Save'}
+                    <div className="flex gap-2 px-3 py-2 border-t bg-muted/20">
+                      <Button
+                        size="sm"
+                        onClick={saveDescription}
+                        disabled={savingDescription}
+                        className="h-7 gap-1.5"
+                      >
+                        <Check className="h-3 w-3" />
+                        {savingDescription ? 'Saving…' : 'Save'}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setEditingDescription(false)} className="h-7">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7"
+                        onClick={() => setEditingDescription(false)}
+                      >
                         Cancel
                       </Button>
                     </div>
@@ -411,41 +680,25 @@ export function TaskDetailPage({
                 ) : (
                   <div
                     className={cn(
-                      'group text-sm leading-relaxed whitespace-pre-wrap rounded-md p-3 -mx-3 cursor-text hover:bg-muted/50 transition-colors',
-                      !task.description && 'text-muted-foreground italic'
+                      'text-sm leading-relaxed rounded-md px-3 py-2.5 -mx-3 transition-colors',
+                      canEdit && 'cursor-text hover:bg-muted/50',
+                      !task.description && 'text-muted-foreground italic',
                     )}
                     onClick={() => canEdit && setEditingDescription(true)}
                   >
-                    {task.description || (canEdit ? 'Click to add a description…' : 'No description provided.')}
+                    {task.description ? (
+                      <div className="whitespace-pre-wrap">{task.description}</div>
+                    ) : canEdit ? (
+                      'Click to add a description…'
+                    ) : (
+                      'No description provided.'
+                    )}
                   </div>
                 )}
               </div>
 
-              <Separator />
-
-              {/* Action buttons */}
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" className="gap-2 h-8 text-xs">
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Checklist
-                </Button>
-                <Button variant="outline" size="sm" className="gap-2 h-8 text-xs">
-                  <Paperclip className="h-3.5 w-3.5" />
-                  Add Attachments
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 h-8 text-xs"
-                  onClick={() => setShowTimeLogDialog(true)}
-                >
-                  <Clock className="h-3.5 w-3.5" />
-                  Log Time
-                </Button>
-              </div>
-
-              {/* Subtasks */}
-              <div className="rounded-lg border bg-card p-4">
+              {/* Subtasks ────────────────────────────────────── */}
+              <div className="rounded-xl border bg-card/50 p-4">
                 <SubtaskList
                   parentTask={task}
                   subtasks={task.subtasks ?? []}
@@ -456,224 +709,209 @@ export function TaskDetailPage({
                 />
               </div>
 
-              {/* Activities / Comments / Time tabs */}
-              <Tabs defaultValue="activity">
-                <TabsList className="h-9 border-b w-full rounded-none bg-transparent p-0 justify-start gap-0">
-                  <TabsTrigger
-                    value="activity"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 text-sm"
+              {/* Activity feed ───────────────────────────────── */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Activity</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5"
+                    onClick={() => setShowTimeLogDialog(true)}
                   >
-                    Activities
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="comments"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 text-sm"
-                  >
-                    Comments
-                    {comments.length > 0 && (
-                      <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs">{comments.length}</span>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="time"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 text-sm"
-                  >
-                    Time Entries
-                  </TabsTrigger>
-                </TabsList>
+                    <Clock className="h-3.5 w-3.5" />
+                    Log Time
+                  </Button>
+                </div>
 
-                {/* Activity feed */}
-                <TabsContent value="activity" className="mt-0 pt-4">
-                  {/* Comment input box */}
-                  <div className="mb-5">
-                    <CommentSection
-                      taskId={task.id}
-                      comments={[]}
-                      members={members}
-                      profile={profile}
-                      onCommentAdded={handleCommentAdded}
-                      inputOnly
-                    />
+                {/* Comment input */}
+                <CommentSection
+                  taskId={task.id}
+                  comments={[]}
+                  members={members}
+                  profile={profile}
+                  onCommentAdded={handleCommentAdded}
+                  inputOnly
+                />
+
+                {/* Unified timeline */}
+                {feedItems.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">No activity yet.</p>
+                ) : (
+                  <div>
+                    {feedItems.map((item, i) => (
+                      <FeedRow
+                        key={`${item.type}-${item.id}`}
+                        item={item}
+                        isLast={i === feedItems.length - 1}
+                      />
+                    ))}
                   </div>
+                )}
+              </div>
 
-                  {activityLogs.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-10">No activity yet.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {activityLogs.map((log) => (
-                        <div key={log.id} className="flex items-start gap-3">
-                          <Avatar className="h-7 w-7 mt-0.5 shrink-0">
-                            <AvatarImage src={log.user?.avatar_url ?? undefined} />
-                            <AvatarFallback className="text-xs">
-                              {log.user ? getInitials(log.user.full_name) : '?'}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm">
-                              <span className="font-medium text-primary">{log.user?.full_name ?? 'Unknown'}</span>{' '}
-                              <span className="text-muted-foreground">
-                                {formatActivityAction(log.action, log.old_value, log.new_value)}
-                              </span>
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">{timeAgo(log.created_at)}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
-
-                {/* Comments */}
-                <TabsContent value="comments" className="mt-0 pt-4">
-                  <CommentSection
-                    taskId={task.id}
-                    comments={comments}
-                    members={members}
-                    profile={profile}
-                    onCommentAdded={handleCommentAdded}
-                  />
-                </TabsContent>
-
-                {/* Time entries */}
-                <TabsContent value="time" className="mt-0 pt-4">
-                  <TimeEntriesList
-                    timeEntries={timeEntries}
-                    profile={profile}
-                    onEntryUpdated={handleTimeEntryUpdated}
-                    onEntryDeleted={handleTimeEntryDeleted}
-                  />
-                </TabsContent>
-              </Tabs>
             </div>
           </div>
 
           {/* ── Right sidebar ── */}
-          <div className="w-64 shrink-0 border-l bg-card overflow-y-auto">
-            <div className="p-4 space-y-5">
+          <div className="w-72 shrink-0 border-l">
+            <div className="sticky top-[49px] h-[calc(100vh-49px)] overflow-y-auto bg-card/30 p-5 space-y-6">
 
-              {/* Timer */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
+              {/* Timer ───────────────────────────────────────── */}
+              <div className="rounded-xl border bg-card p-4 space-y-3">
+                <div className="flex items-center gap-2.5">
                   {timerRunning && runningEntry ? (
-                    <span className="flex h-2.5 w-2.5 relative">
+                    <span className="relative flex h-2.5 w-2.5 shrink-0">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
                     </span>
                   ) : (
-                    <Circle className="h-2.5 w-2.5 text-muted-foreground" />
+                    <Circle className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
                   )}
-                  <span className="text-2xl font-mono font-bold tabular-nums">
-                    {timerRunning && runningEntry
-                      ? <ElapsedTimer startedAt={runningEntry.started_at} />
-                      : '00:00:00'
-                    }
+                  <span className="text-3xl font-mono font-bold tabular-nums tracking-tight">
+                    {timerRunning && runningEntry ? (
+                      <ElapsedTimer startedAt={runningEntry.started_at} />
+                    ) : (
+                      '00:00:00'
+                    )}
                   </span>
                 </div>
                 <button
                   onClick={timerRunning ? stopTimer : startTimer}
                   disabled={timerLoading}
                   className={cn(
-                    'flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md transition-colors w-full justify-center',
+                    'flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors w-full',
                     timerRunning
                       ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
-                      : 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20'
+                      : 'bg-primary text-primary-foreground hover:bg-primary/90',
+                    timerLoading && 'opacity-50 cursor-not-allowed',
                   )}
                 >
-                  {timerRunning
-                    ? <><Square className="h-3 w-3 fill-current" /> Stop Timer</>
-                    : <><Play className="h-3 w-3 fill-current" /> Start Timer</>
-                  }
+                  {timerRunning ? (
+                    <>
+                      <Square className="h-3.5 w-3.5 fill-current" />
+                      Stop Timer
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-3.5 w-3.5 fill-current" />
+                      Start Timer
+                    </>
+                  )}
                 </button>
               </div>
 
-              {/* Time log total */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Timer className="h-3.5 w-3.5" />
-                  <span className="text-xs">Time Log</span>
+              {/* Time summary ────────────────────────────────── */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Time
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Logged</span>
+                  <span className="text-sm font-semibold tabular-nums">
+                    {formatHours(totalLoggedMinutes / 60)}
+                  </span>
                 </div>
-                <span className="text-xs font-medium">{formatHours(totalLoggedMinutes / 60)}</span>
+                {task.estimated_hours ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Estimated</span>
+                      <span className="text-sm font-medium text-muted-foreground tabular-nums">
+                        {task.estimated_hours}h
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-all duration-300',
+                          timeProgress >= 100 ? 'bg-destructive' : 'bg-primary',
+                        )}
+                        style={{ width: `${timeProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground text-right">
+                      {Math.round(timeProgress)}% of estimate
+                    </p>
+                  </>
+                ) : null}
               </div>
 
               <Separator />
 
-              {/* Dates */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Start date</p>
-                    <p className={cn('text-xs', task.start_date ? 'text-foreground' : 'text-muted-foreground')}>
-                      {task.start_date ? formatDate(task.start_date) : 'Not set yet'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Due on</p>
-                    <p className={cn('text-xs', task.due_date ? 'text-foreground font-medium' : 'text-muted-foreground')}>
-                      {task.due_date ? formatDate(task.due_date) : 'Not set yet'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Estimated</p>
-                    <p className={cn('text-xs', task.estimated_hours ? 'text-foreground' : 'text-muted-foreground')}>
-                      {task.estimated_hours ? `${task.estimated_hours}h` : 'Not set yet'}
-                    </p>
-                  </div>
-                </div>
+              {/* Status ──────────────────────────────────────── */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Status
+                </p>
+                {canEdit ? (
+                  <Select value={task.status} onValueChange={handleStatusChange}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TASK_STATUSES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium',
+                      STATUS_CLASSES[task.status],
+                    )}
+                  >
+                    {formatStatus(task.status)}
+                  </span>
+                )}
               </div>
 
-              <Separator />
-
-              {/* Priority */}
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  'h-2 w-2 rounded-full shrink-0',
-                  task.priority === 'urgent' && 'bg-red-500',
-                  task.priority === 'high' && 'bg-orange-500',
-                  task.priority === 'medium' && 'bg-yellow-500',
-                  task.priority === 'low' && 'bg-blue-400',
-                )} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Priority</p>
-                  {canEdit ? (
-                    <Select value={task.priority} onValueChange={handlePriorityChange}>
-                      <SelectTrigger className="h-auto p-0 border-0 text-xs font-medium bg-transparent focus:ring-0 shadow-none">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PRIORITIES.map((p) => (
-                          <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-xs font-medium">{formatStatus(task.priority)}</p>
-                  )}
-                </div>
+              {/* Priority ────────────────────────────────────── */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Priority
+                </p>
+                {canEdit ? (
+                  <Select value={task.priority} onValueChange={handlePriorityChange}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRIORITIES.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-sm font-medium">{formatStatus(task.priority)}</span>
+                )}
               </div>
 
-              {/* Assignees */}
-              <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Assignees</p>
+              {/* Assignees ───────────────────────────────────── */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Assignees
+                </p>
                 {(task.assignees ?? []).length === 0 ? (
                   <p className="text-xs text-muted-foreground">Unassigned</p>
                 ) : (
                   <div className="space-y-2">
-                    {(task.assignees ?? []).map((assignee) => (
-                      <div key={assignee.id} className="flex items-center gap-2">
-                        <Avatar className="h-6 w-6 shrink-0">
-                          <AvatarImage src={assignee.avatar_url ?? undefined} />
-                          <AvatarFallback className="text-xs">{getInitials(assignee.full_name)}</AvatarFallback>
+                    {(task.assignees ?? []).map((a) => (
+                      <div key={a.id} className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7 shrink-0">
+                          <AvatarImage src={a.avatar_url ?? undefined} />
+                          <AvatarFallback className="text-xs">
+                            {getInitials(a.full_name)}
+                          </AvatarFallback>
                         </Avatar>
-                        <span className="text-xs truncate">{assignee.full_name}</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium truncate">{a.full_name}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{a.email}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -682,38 +920,66 @@ export function TaskDetailPage({
 
               <Separator />
 
-              {/* About the Task */}
-              <div>
-                <div className="flex items-center gap-1.5 mb-3">
-                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                  <p className="text-xs font-medium">About the Task</p>
-                </div>
-                <div className="space-y-2">
-                  {task.project && (
-                    <>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Project</p>
-                        <p className="text-xs font-medium truncate">{task.project.name}</p>
-                      </div>
-                    </>
-                  )}
+              {/* Dates ───────────────────────────────────────── */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Dates
+                </p>
+                <div className="flex items-center gap-2.5">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Created</p>
-                    <p className="text-xs text-muted-foreground">
-                      {task.created_at
-                        ? format(parseISO(task.created_at), 'dd MMM yyyy, hh:mm a')
-                        : '—'}
+                    <p className="text-[10px] text-muted-foreground">Start</p>
+                    <p className="text-xs font-medium">
+                      {task.start_date ? formatDate(task.start_date) : '—'}
                     </p>
                   </div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Task ID</p>
-                    <p className="text-xs text-muted-foreground font-mono truncate">{task.id.slice(0, 8)}…</p>
+                    <p className="text-[10px] text-muted-foreground">Due</p>
+                    <p
+                      className={cn(
+                        'text-xs font-medium',
+                        !task.due_date && 'text-muted-foreground',
+                      )}
+                    >
+                      {task.due_date ? formatDate(task.due_date) : '—'}
+                    </p>
                   </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Details ─────────────────────────────────────── */}
+              <div className="space-y-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Details
+                </p>
+                {task.project && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Project</p>
+                    <p className="text-xs font-medium truncate">{task.project.name}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Created</p>
+                  <p className="text-xs text-muted-foreground">
+                    {task.created_at
+                      ? format(parseISO(task.created_at), 'dd MMM yyyy')
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Task ID</p>
+                  <p className="text-xs text-muted-foreground font-mono">{task.id.slice(0, 8)}</p>
                 </div>
               </div>
 
             </div>
           </div>
+
         </div>
 
         {/* Time log dialog */}
