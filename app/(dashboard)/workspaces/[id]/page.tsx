@@ -104,6 +104,12 @@ export default async function WorkspaceDetailRoute({
     }
   }
 
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select(profileSelect)
+    .eq('id', user.id)
+    .single()
+
   return (
     <WorkspaceDetailPage
       workspace={workspace as Workspace}
@@ -112,6 +118,7 @@ export default async function WorkspaceDetailRoute({
       tasks={tasks}
       activityLogs={activityLogs}
       isAdmin={true}
+      profile={profileData as any}
     />
   )
 }

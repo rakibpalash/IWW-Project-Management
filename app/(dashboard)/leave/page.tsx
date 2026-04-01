@@ -32,6 +32,8 @@ export default async function LeaveServerPage() {
     redirect('/login')
   }
 
+  if (profile.role === 'client') redirect('/dashboard')
+
   const currentYear = new Date().getFullYear()
   const isAdmin = profile.role === 'super_admin'
 

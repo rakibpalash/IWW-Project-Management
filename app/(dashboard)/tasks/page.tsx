@@ -29,6 +29,8 @@ export default async function TasksServerPage() {
     redirect('/login')
   }
 
+  if (profile.role === 'client') redirect('/dashboard')
+
   // Fetch tasks assigned to current user via task_assignees
   const { data: assignedTaskIds } = await supabase
     .from('task_assignees')

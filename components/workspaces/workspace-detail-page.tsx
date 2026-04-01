@@ -39,6 +39,7 @@ interface WorkspaceDetailPageProps {
   tasks: Task[]
   activityLogs: ActivityLog[]
   isAdmin: boolean
+  profile: Profile
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -128,7 +129,7 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function WorkspaceDetailPage({
-  workspace, members, projects, tasks, activityLogs, isAdmin,
+  workspace, members, projects, tasks, activityLogs, isAdmin, profile,
 }: WorkspaceDetailPageProps) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -979,7 +980,7 @@ export function WorkspaceDetailPage({
           open={showCreateTask}
           onOpenChange={setShowCreateTask}
           projects={projects}
-          profile={{ id: '', email: '', full_name: '', avatar_url: null, role: 'super_admin', is_temp_password: false, onboarding_completed: true, created_at: '', updated_at: '' }}
+          profile={profile}
           onCreated={refresh}
         />
       )}

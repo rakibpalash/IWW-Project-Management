@@ -19,6 +19,16 @@ export async function approveLeaveAction(
       return { success: false, error: 'Not authenticated' }
     }
 
+    const { data: caller } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (!caller || caller.role !== 'super_admin') {
+      return { success: false, error: 'Unauthorized' }
+    }
+
     // Fetch the leave request first
     const { data: request, error: fetchError } = await supabase
       .from('leave_requests')
@@ -103,6 +113,16 @@ export async function rejectLeaveAction(
       return { success: false, error: 'Not authenticated' }
     }
 
+    const { data: caller } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (!caller || caller.role !== 'super_admin') {
+      return { success: false, error: 'Unauthorized' }
+    }
+
     const { error: updateError } = await supabase
       .from('leave_requests')
       .update({
@@ -174,6 +194,16 @@ export async function grantMarriageLeaveAction(
 
     if (userError || !user) {
       return { success: false, error: 'Not authenticated' }
+    }
+
+    const { data: caller } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (!caller || caller.role !== 'super_admin') {
+      return { success: false, error: 'Unauthorized' }
     }
 
     const currentYear = new Date().getFullYear()

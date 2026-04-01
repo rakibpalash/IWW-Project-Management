@@ -65,6 +65,16 @@ export async function updateUserRoleAction(
   try {
     const supabase = await createAdminClient()
 
+    // Verify caller is super_admin
+    const { createClient: createRegularClient } = await import('@/lib/supabase/server')
+    const userClient = await createRegularClient()
+    const { data: { user: callerUser } } = await userClient.auth.getUser()
+    if (!callerUser) return { success: false, error: 'Not authenticated' }
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerUser.id).single()
+    if (!callerProfile || callerProfile.role !== 'super_admin') {
+      return { success: false, error: 'Unauthorized' }
+    }
+
     const { error } = await supabase
       .from('profiles')
       .update({ role })

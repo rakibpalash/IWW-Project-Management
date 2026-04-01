@@ -430,7 +430,7 @@ function MyTasksList({ tasks }: { tasks: Task[] }) {
           </div>
           <ul className="divide-y divide-gray-50">
             {overdueTasks.map((task) => (
-              <TaskRow key={task.id} task={task} onClick={() => router.push(`/tasks/${task.id}`)} />
+              <TaskRow key={task.id} task={task} onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)} />
             ))}
           </ul>
         </div>
@@ -456,7 +456,7 @@ function MyTasksList({ tasks }: { tasks: Task[] }) {
               <TaskRow
                 key={task.id}
                 task={task}
-                onClick={() => router.push(`/tasks/${task.id}`)}
+                onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}
               />
             ))}
           </ul>

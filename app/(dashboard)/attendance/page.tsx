@@ -31,6 +31,8 @@ export default async function AttendanceRoute() {
 
   const profile = profileData as Profile
 
+  if (profile.role === 'client') redirect('/dashboard')
+
   const { data: settingsData } = await supabase
     .from('attendance_settings')
     .select('*')
