@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Task, Profile, Project, TaskStatus, Priority } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -23,8 +22,12 @@ import {
 } from '@/components/ui/select'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { X, Check, Users } from 'lucide-react'
+import {
+  X, Check, ChevronDown, CheckSquare, AlertCircle,
+  Bold, List, AlignLeft, Code2, Link2, Minus,
+} from 'lucide-react'
 import { TASK_STATUSES, PRIORITIES, MAX_SUBTASKS, MAX_SUBTASK_DEPTH } from '@/lib/constants'
 import { getInitials, cn } from '@/lib/utils'
 
@@ -34,12 +37,25 @@ interface CreateTaskDialogProps {
   projects: Project[]
   profile: Profile
   onCreated: (task: Task) => void
-  // If creating a subtask
   parentTaskId?: string
   parentTaskDepth?: number
   projectId?: string
-  // Current subtask count for parent
   currentSubtaskCount?: number
+}
+
+const STATUS_STYLES: Record<string, string> = {
+  todo:        'bg-slate-100 text-slate-700 hover:bg-slate-200',
+  in_progress: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
+  in_review:   'bg-blue-100 text-blue-700 hover:bg-blue-200',
+  done:        'bg-green-100 text-green-700 hover:bg-green-200',
+  cancelled:   'bg-red-100 text-red-600 hover:bg-red-200',
+}
+
+const PRIORITY_STYLES: Record<string, { color: string; icon: string }> = {
+  low:    { color: 'text-sky-500',   icon: '▼' },
+  medium: { color: 'text-amber-500', icon: '=' },
+  high:   { color: 'text-orange-500',icon: '▲' },
+  urgent: { color: 'text-red-600',   icon: '!!' },
 }
 
 export function CreateTaskDialog({
@@ -55,8 +71,10 @@ export function CreateTaskDialog({
 }: CreateTaskDialogProps) {
   const { toast } = useToast()
   const supabase = createClient()
+  const titleRef = useRef<HTMLInputElement>(null)
 
   const [title, setTitle] = useState('')
+  const [titleTouched, setTitleTouched] = useState(false)
   const [description, setDescription] = useState('')
   const [selectedProjectId, setSelectedProjectId] = useState(defaultProjectId ?? '')
   const [startDate, setStartDate] = useState('')
@@ -68,53 +86,46 @@ export function CreateTaskDialog({
   const [members, setMembers] = useState<Profile[]>([])
   const [loadingMembers, setLoadingMembers] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [createAnother, setCreateAnother] = useState(false)
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
 
   const isSubtask = !!parentTaskId
   const depth = isSubtask ? (parentTaskDepth ?? 0) + 1 : 0
+  const canCreate = !isSubtask || (currentSubtaskCount < MAX_SUBTASKS && depth <= MAX_SUBTASK_DEPTH)
 
-  // Validate subtask constraints
-  const canCreate =
-    !isSubtask ||
-    (currentSubtaskCount < MAX_SUBTASKS && depth <= MAX_SUBTASK_DEPTH)
+  const currentProject = projects.find((p) => p.id === (selectedProjectId || defaultProjectId))
+  const titleError = titleTouched && !title.trim()
+  const projectError = titleTouched && !selectedProjectId && !defaultProjectId
 
   // Fetch workspace members when project changes
   useEffect(() => {
     const projectId = selectedProjectId || defaultProjectId
     if (!projectId) return
-
     const project = projects.find((p) => p.id === projectId)
     if (!project?.workspace_id) return
 
     setLoadingMembers(true)
-
     const fetchMembers = async () => {
       const profileSelect =
         'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
-
       const { data: assignmentsRaw } = await supabase
         .from('workspace_assignments')
         .select(`user:profiles(${profileSelect})`)
         .eq('workspace_id', project.workspace_id)
-
       const { data: admins } = await supabase
         .from('profiles')
         .select(profileSelect)
         .eq('role', 'super_admin')
 
       const workspaceMembers: Profile[] = ((assignmentsRaw ?? []) as any[])
-        .map((a) => a.user)
-        .filter(Boolean) as Profile[]
-
-      const adminProfiles = (admins ?? []) as Profile[]
+        .map((a) => a.user).filter(Boolean) as Profile[]
       const memberIds = new Set(workspaceMembers.map((m) => m.id))
-      for (const a of adminProfiles) {
+      for (const a of (admins ?? []) as Profile[]) {
         if (!memberIds.has(a.id)) workspaceMembers.push(a)
       }
-
       setMembers(workspaceMembers)
       setLoadingMembers(false)
     }
-
     fetchMembers()
   }, [selectedProjectId, defaultProjectId, projects])
 
@@ -124,32 +135,44 @@ export function CreateTaskDialog({
     )
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  function assignToMe() {
+    if (!selectedAssigneeIds.includes(profile.id)) {
+      setSelectedAssigneeIds([profile.id])
+    }
+  }
 
+  function reset() {
+    setTitle('')
+    setTitleTouched(false)
+    setDescription('')
+    if (!defaultProjectId) setSelectedProjectId('')
+    setStartDate('')
+    setDueDate('')
+    setEstimatedHours('')
+    setPriority('medium')
+    setStatus('todo')
+    setSelectedAssigneeIds([])
+    setShowAssigneeDropdown(false)
+  }
+
+  async function handleSubmit() {
+    setTitleTouched(true)
     if (!title.trim()) {
-      toast({ title: 'Title is required', variant: 'destructive' })
+      titleRef.current?.focus()
       return
     }
-
     const projectId = selectedProjectId || defaultProjectId
-
-    if (!projectId) {
-      toast({ title: 'Please select a project', variant: 'destructive' })
-      return
-    }
-
+    if (!projectId) return
     if (!canCreate) {
       toast({
         title: 'Cannot create subtask',
-        description: `Maximum ${MAX_SUBTASKS} subtasks per task, or max depth of ${MAX_SUBTASK_DEPTH} reached.`,
+        description: `Maximum ${MAX_SUBTASKS} subtasks or depth ${MAX_SUBTASK_DEPTH} reached.`,
         variant: 'destructive',
       })
       return
     }
 
     setSubmitting(true)
-
     try {
       const { data: newTask, error: taskError } = await supabase
         .from('tasks')
@@ -164,26 +187,19 @@ export function CreateTaskDialog({
           priority,
           status,
           created_by: profile.id,
-          depth: depth,
+          depth,
         })
         .select('*')
         .single()
 
-      if (taskError || !newTask) {
-        throw taskError ?? new Error('Failed to create task')
-      }
+      if (taskError || !newTask) throw taskError ?? new Error('Failed to create task')
 
-      // Insert assignees
       if (selectedAssigneeIds.length > 0) {
         await supabase.from('task_assignees').insert(
-          selectedAssigneeIds.map((userId) => ({
-            task_id: newTask.id,
-            user_id: userId,
-          }))
+          selectedAssigneeIds.map((userId) => ({ task_id: newTask.id, user_id: userId }))
         )
       }
 
-      // Log activity
       await supabase.from('activity_logs').insert({
         task_id: newTask.id,
         user_id: profile.id,
@@ -202,7 +218,6 @@ export function CreateTaskDialog({
         })
       }
 
-      // Send notifications to assignees
       const assigneesToNotify = selectedAssigneeIds.filter((id) => id !== profile.id)
       if (assigneesToNotify.length > 0) {
         await supabase.from('notifications').insert(
@@ -218,25 +233,18 @@ export function CreateTaskDialog({
       }
 
       const assigneeProfiles = members.filter((m) => selectedAssigneeIds.includes(m.id))
-
-      const fullTask: Task = {
-        ...newTask,
-        assignees: assigneeProfiles,
-        subtasks: [],
-      }
+      const fullTask: Task = { ...newTask, assignees: assigneeProfiles, subtasks: [] }
 
       toast({ title: isSubtask ? 'Subtask created' : 'Task created' })
       onCreated(fullTask)
 
-      // Reset
-      setTitle('')
-      setDescription('')
-      setStartDate('')
-      setDueDate('')
-      setEstimatedHours('')
-      setPriority('medium')
-      setStatus('todo')
-      setSelectedAssigneeIds([])
+      if (createAnother) {
+        reset()
+        setTimeout(() => titleRef.current?.focus(), 50)
+      } else {
+        onOpenChange(false)
+        reset()
+      }
     } catch (err) {
       console.error(err)
       toast({ title: 'Failed to create task', variant: 'destructive' })
@@ -248,7 +256,7 @@ export function CreateTaskDialog({
   if (!canCreate && isSubtask) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Cannot Add Subtask</DialogTitle>
           </DialogHeader>
@@ -257,95 +265,344 @@ export function CreateTaskDialog({
               ? `This task already has the maximum of ${MAX_SUBTASKS} subtasks.`
               : `Maximum subtask depth of ${MAX_SUBTASK_DEPTH} reached.`}
           </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-          </DialogFooter>
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          </div>
         </DialogContent>
       </Dialog>
     )
   }
 
+  const selectedStatus = TASK_STATUSES.find((s) => s.value === status)
+  const selectedPriority = PRIORITIES.find((p) => p.value === priority)
+  const assignedMembers = members.filter((m) => selectedAssigneeIds.includes(m.id))
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isSubtask ? 'Add Subtask' : 'Create Task'}</DialogTitle>
-        </DialogHeader>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v) }}>
+      <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden max-h-[92vh] flex flex-col">
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Title */}
-          <div className="space-y-1.5">
-            <Label htmlFor="task-title">
-              Title <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="task-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Task title"
-              required
-            />
-          </div>
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+          <h2 className="text-base font-semibold">
+            {isSubtask ? 'Add Subtask' : 'Create Task'}
+          </h2>
+          <button
+            onClick={() => { reset(); onOpenChange(false) }}
+            className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
-          {/* Project (only show if not locked) */}
+        {/* ── Scrollable body ── */}
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+          <p className="text-xs text-muted-foreground">
+            Required fields are marked with an asterisk <span className="text-red-500 font-semibold">*</span>
+          </p>
+
+          {/* Project (Space) */}
           {!defaultProjectId && (
             <div className="space-y-1.5">
-              <Label htmlFor="task-project">Project</Label>
-              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger id="task-project">
-                  <SelectValue placeholder="Select project" />
+              <Label className="text-xs font-semibold text-foreground">
+                Project <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={selectedProjectId}
+                onValueChange={(v) => { setSelectedProjectId(v); setTitleTouched(false) }}
+              >
+                <SelectTrigger className={cn('text-sm', projectError && 'border-red-500')}>
+                  {currentProject ? (
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary text-[10px] font-bold shrink-0">
+                        {currentProject.name.slice(0, 2).toUpperCase()}
+                      </span>
+                      <span className="truncate">{currentProject.name}</span>
+                    </div>
+                  ) : (
+                    <SelectValue placeholder="Select a project" />
+                  )}
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name}
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary text-[10px] font-bold">
+                          {p.name.slice(0, 2).toUpperCase()}
+                        </span>
+                        {p.name}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {projectError && (
+                <p className="text-xs text-red-500 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> Project is required
+                </p>
+              )}
             </div>
           )}
 
+          {/* Work type (fixed) */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground">
+              Work type <span className="text-red-500">*</span>
+            </Label>
+            <div className="flex h-9 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm text-muted-foreground cursor-default select-none">
+              <CheckSquare className="h-4 w-4 text-primary" />
+              <span>Task</span>
+            </div>
+          </div>
+
+          <div className="border-t" />
+
+          {/* Status pill */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground">Status</Label>
+            <div className="flex items-center gap-2 flex-wrap">
+              {TASK_STATUSES.map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => setStatus(s.value as TaskStatus)}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-all',
+                    status === s.value
+                      ? STATUS_STYLES[s.value] + ' ring-2 ring-offset-1 ring-primary/30'
+                      : 'bg-muted/40 text-muted-foreground hover:bg-muted border-transparent'
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">This is the initial status upon creation</p>
+          </div>
+
+          {/* Summary / Title */}
+          <div className="space-y-1.5">
+            <Label htmlFor="task-title" className="text-xs font-semibold text-foreground">
+              Summary <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="task-title"
+              ref={titleRef}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => setTitleTouched(true)}
+              placeholder="Enter task summary"
+              className={cn(
+                'text-sm transition-colors',
+                titleError ? 'border-red-500 focus-visible:ring-red-300' : ''
+              )}
+              autoFocus
+            />
+            {titleError && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" /> Summary is required
+              </p>
+            )}
+          </div>
+
           {/* Description */}
           <div className="space-y-1.5">
-            <Label htmlFor="task-description">Description</Label>
-            <Textarea
-              id="task-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional description"
-              rows={3}
-              className="resize-none"
-            />
+            <Label className="text-xs font-semibold text-foreground">Description</Label>
+            <div className="rounded-md border overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0">
+              {/* Toolbar */}
+              <div className="flex items-center gap-0.5 border-b bg-muted/30 px-2 py-1.5">
+                <ToolbarBtn icon={<AlignLeft className="h-3.5 w-3.5" />} title="Paragraph" />
+                <div className="w-px h-4 bg-border mx-1" />
+                <ToolbarBtn icon={<Bold className="h-3.5 w-3.5" />} title="Bold" />
+                <ToolbarBtn icon={<List className="h-3.5 w-3.5" />} title="Bullet list" />
+                <ToolbarBtn icon={<Code2 className="h-3.5 w-3.5" />} title="Code" />
+                <ToolbarBtn icon={<Link2 className="h-3.5 w-3.5" />} title="Link" />
+                <div className="w-px h-4 bg-border mx-1" />
+                <ToolbarBtn icon={<Minus className="h-3.5 w-3.5" />} title="Divider" />
+              </div>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add a description… Use @ to mention someone"
+                rows={4}
+                className="resize-none border-0 rounded-none focus-visible:ring-0 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Assignee */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-foreground">Assignee</Label>
+              <button
+                type="button"
+                onClick={assignToMe}
+                className="text-xs text-primary hover:underline font-medium"
+              >
+                Assign to me
+              </button>
+            </div>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => !loadingMembers && setShowAssigneeDropdown((v) => !v)}
+                className={cn(
+                  'w-full flex items-center gap-2 rounded-md border px-3 h-9 text-sm text-left transition-colors',
+                  'hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-ring',
+                  assignedMembers.length === 0 && 'text-muted-foreground'
+                )}
+              >
+                {assignedMembers.length === 0 ? (
+                  <>
+                    <Avatar className="h-5 w-5 shrink-0">
+                      <AvatarFallback className="text-[10px] bg-muted">?</AvatarFallback>
+                    </Avatar>
+                    <span>{loadingMembers ? 'Loading…' : 'Unassigned'}</span>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    <div className="flex -space-x-1">
+                      {assignedMembers.slice(0, 3).map((m) => (
+                        <Avatar key={m.id} className="h-5 w-5 ring-1 ring-background">
+                          <AvatarImage src={m.avatar_url ?? undefined} />
+                          <AvatarFallback className="text-[9px]">{getInitials(m.full_name)}</AvatarFallback>
+                        </Avatar>
+                      ))}
+                    </div>
+                    <span className="truncate text-sm">
+                      {assignedMembers.length === 1
+                        ? assignedMembers[0].full_name
+                        : `${assignedMembers.length} assignees`}
+                    </span>
+                  </div>
+                )}
+                <ChevronDown className="h-3.5 w-3.5 ml-auto shrink-0 text-muted-foreground" />
+              </button>
+
+              {showAssigneeDropdown && members.length > 0 && (
+                <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg py-1 max-h-48 overflow-y-auto">
+                  {members.map((member) => {
+                    const selected = selectedAssigneeIds.includes(member.id)
+                    return (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onClick={() => toggleAssignee(member.id)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                      >
+                        <Avatar className="h-6 w-6 shrink-0">
+                          <AvatarImage src={member.avatar_url ?? undefined} />
+                          <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
+                        </Avatar>
+                        <span className="flex-1 text-left truncate">{member.full_name}</span>
+                        {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Selected assignee badges */}
+            {assignedMembers.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {assignedMembers.map((m) => (
+                  <Badge key={m.id} variant="secondary" className="gap-1 pr-1 h-6">
+                    <Avatar className="h-4 w-4">
+                      <AvatarImage src={m.avatar_url ?? undefined} />
+                      <AvatarFallback className="text-[8px]">{getInitials(m.full_name)}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs">{m.full_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleAssignee(m.id)}
+                      className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Reporter */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground">
+              Reporter <span className="text-red-500">*</span>
+            </Label>
+            <div className="flex h-9 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm cursor-default">
+              <Avatar className="h-5 w-5 shrink-0">
+                <AvatarImage src={profile.avatar_url ?? undefined} />
+                <AvatarFallback className="text-[10px]">{getInitials(profile.full_name)}</AvatarFallback>
+              </Avatar>
+              <span>{profile.full_name}</span>
+            </div>
+          </div>
+
+          {/* Priority */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-foreground">Priority</Label>
+            <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
+              <SelectTrigger className="text-sm">
+                <div className="flex items-center gap-2">
+                  <span className={cn('font-bold text-base leading-none', PRIORITY_STYLES[priority]?.color)}>
+                    {PRIORITY_STYLES[priority]?.icon}
+                  </span>
+                  <span>{selectedPriority?.label}</span>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {PRIORITIES.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    <div className="flex items-center gap-2">
+                      <span className={cn('font-bold text-base leading-none', PRIORITY_STYLES[p.value]?.color)}>
+                        {PRIORITY_STYLES[p.value]?.icon}
+                      </span>
+                      {p.label}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Dates */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="task-start">Start Date</Label>
+              <Label htmlFor="task-start" className="text-xs font-semibold text-foreground">
+                Start date
+              </Label>
               <Input
                 id="task-start"
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
+                className="text-sm"
               />
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                Allows the planned start date to be set.
+              </p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="task-due">Due Date</Label>
+              <Label htmlFor="task-due" className="text-xs font-semibold text-foreground">
+                Due date
+              </Label>
               <Input
                 id="task-due"
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
+                className="text-sm"
               />
             </div>
           </div>
 
           {/* Estimated hours */}
           <div className="space-y-1.5">
-            <Label htmlFor="task-hours">Estimated Hours</Label>
+            <Label htmlFor="task-hours" className="text-xs font-semibold text-foreground">
+              Estimated hours
+            </Label>
             <Input
               id="task-hours"
               type="number"
@@ -354,117 +611,56 @@ export function CreateTaskDialog({
               value={estimatedHours}
               onChange={(e) => setEstimatedHours(e.target.value)}
               placeholder="e.g. 4"
+              className="text-sm"
             />
           </div>
+        </div>
 
-          {/* Priority + Status */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Priority</Label>
-              <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITIES.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TASK_STATUSES.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+        {/* ── Footer ── */}
+        <div className="flex items-center justify-between border-t px-6 py-3 bg-muted/20 shrink-0">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <Checkbox
+              id="create-another"
+              checked={createAnother}
+              onCheckedChange={(v) => setCreateAnother(!!v)}
+            />
+            <span className="text-sm text-foreground">Create another</span>
+          </label>
 
-          {/* Assignees */}
-          {members.length > 0 && (
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5" />
-                Assignees
-              </Label>
-              <div className="max-h-44 overflow-y-auto space-y-1 rounded-md border p-2">
-                {loadingMembers ? (
-                  <p className="text-xs text-muted-foreground text-center py-2">
-                    Loading members…
-                  </p>
-                ) : (
-                  members.map((member) => {
-                    const selected = selectedAssigneeIds.includes(member.id)
-                    return (
-                      <button
-                        key={member.id}
-                        type="button"
-                        onClick={() => toggleAssignee(member.id)}
-                        className={cn(
-                          'w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors',
-                          selected
-                            ? 'bg-primary/10 text-primary'
-                            : 'hover:bg-muted text-foreground'
-                        )}
-                      >
-                        <Avatar className="h-6 w-6 shrink-0">
-                          <AvatarImage src={member.avatar_url ?? undefined} />
-                          <AvatarFallback className="text-xs">
-                            {getInitials(member.full_name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="flex-1 truncate text-left">{member.full_name}</span>
-                        {selected && <Check className="h-4 w-4 shrink-0" />}
-                      </button>
-                    )
-                  })
-                )}
-              </div>
-
-              {selectedAssigneeIds.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedAssigneeIds.map((id) => {
-                    const member = members.find((m) => m.id === id)
-                    if (!member) return null
-                    return (
-                      <Badge key={id} variant="secondary" className="gap-1 pr-1">
-                        {member.full_name}
-                        <button
-                          type="button"
-                          onClick={() => toggleAssignee(id)}
-                          className="rounded-full hover:bg-muted"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { reset(); onOpenChange(false) }}
+              disabled={submitting}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Creating…' : isSubtask ? 'Add Subtask' : 'Create Task'}
+            <Button
+              size="sm"
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="min-w-[72px]"
+            >
+              {submitting ? 'Creating…' : 'Create'}
             </Button>
-          </DialogFooter>
-        </form>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// Small toolbar button helper
+function ToolbarBtn({ icon, title }: { icon: React.ReactNode; title: string }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      onMouseDown={(e) => e.preventDefault()} // prevent textarea blur
+    >
+      {icon}
+    </button>
   )
 }
