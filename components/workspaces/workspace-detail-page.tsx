@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Workspace, Profile, Project, Task, ActivityLog } from '@/types'
 import { cn, formatStatus, getInitials, timeAgo } from '@/lib/utils'
+import { useToast } from '@/components/ui/use-toast'
 import {
   ArrowLeft, Users, Search, Filter, LayoutGrid, List, MoreHorizontal,
   Plus, RefreshCw, ChevronDown, ChevronRight, SlidersHorizontal,
@@ -132,6 +133,7 @@ export function WorkspaceDetailPage({
   workspace, members, projects, tasks, activityLogs, isAdmin, profile,
 }: WorkspaceDetailPageProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [, startTransition] = useTransition()
   const [activeTab, setActiveTab] = useState<TabType>('summary')
   const [showAssign, setShowAssign] = useState(false)
@@ -142,6 +144,10 @@ export function WorkspaceDetailPage({
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [calendarDate, setCalendarDate] = useState(new Date())
   const [timelineScale, setTimelineScale] = useState<'weeks' | 'months'>('months')
+  const [boardSearch, setBoardSearch] = useState('')
+  const [calSearch, setCalSearch] = useState('')
+  const [tlSearch, setTlSearch] = useState('')
+  const [listView, setListView] = useState<'list' | 'grid'>('list')
 
   function refresh() { startTransition(() => router.refresh()) }
 
@@ -191,21 +197,39 @@ export function WorkspaceDetailPage({
 
   const maxPriorityCount = Math.max(...Object.values(priorityCounts), 1)
 
+  const filteredBoardTasks = useMemo(() => {
+    if (!boardSearch.trim()) return topLevelTasks
+    const q = boardSearch.toLowerCase()
+    return topLevelTasks.filter(t => t.title.toLowerCase().includes(q))
+  }, [topLevelTasks, boardSearch])
+
+  const filteredCalTasks = useMemo(() => {
+    if (!calSearch.trim()) return tasks
+    const q = calSearch.toLowerCase()
+    return tasks.filter(t => t.title.toLowerCase().includes(q))
+  }, [tasks, calSearch])
+
+  const filteredTimelineTasks = useMemo(() => {
+    const base = tasks.filter(t => t.start_date || t.due_date)
+    if (!tlSearch.trim()) return base
+    const q = tlSearch.toLowerCase()
+    return base.filter(t => t.title.toLowerCase().includes(q))
+  }, [tasks, tlSearch])
+
   // ── Calendar data ──
   const calendarTasks = useMemo(() => {
     const map: Record<string, Task[]> = {}
-    tasks.forEach(t => {
+    filteredCalTasks.forEach(t => {
       if (!t.due_date) return
       const key = t.due_date.slice(0, 10)
       if (!map[key]) map[key] = []
       map[key].push(t)
     })
     return map
-  }, [tasks])
+  }, [filteredCalTasks])
 
   // ── Timeline ──
-  const timelineTasks = useMemo(() =>
-    tasks.filter(t => t.start_date || t.due_date), [tasks])
+  const timelineTasks = filteredTimelineTasks
 
   const tlStart = useMemo(() => {
     if (!timelineTasks.length) return startOfMonth(now)
@@ -270,6 +294,26 @@ export function WorkspaceDetailPage({
     return months
   }, [tlStart, tlEnd, tlTotalDays])
 
+  // ── Timeline weeks ──
+  const tlWeeks = useMemo(() => {
+    const weeks: { label: string; pct: number; width: number }[] = []
+    let cur = startOfWeek(tlStart, { weekStartsOn: 1 })
+    while (isBefore(cur, addDays(tlEnd, 1))) {
+      const wEnd = addDays(cur, 6)
+      const from = isAfter(cur, tlStart) ? cur : tlStart
+      const to = isBefore(wEnd, tlEnd) ? wEnd : tlEnd
+      if (!isAfter(from, tlEnd)) {
+        weeks.push({
+          label: format(from, 'MMM d'),
+          pct: tlPct(from),
+          width: ((differenceInDays(to, from) + 1) / tlTotalDays) * 100,
+        })
+      }
+      cur = addDays(cur, 7)
+    }
+    return weeks
+  }, [tlStart, tlEnd, tlTotalDays])
+
   const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
     { key: 'summary',  label: 'Summary',  icon: <Globe className="h-3.5 w-3.5" /> },
     { key: 'list',     label: 'List',     icon: <LayoutList className="h-3.5 w-3.5" /> },
@@ -310,12 +354,36 @@ export function WorkspaceDetailPage({
                 </div>
               )}
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => navigator.clipboard.writeText(workspace.id)}>
+                  Copy workspace ID
+                </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => setShowAssign(true)}>
+                    Manage members
+                  </DropdownMenuItem>
+                )}
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => setShowCreateProject(true)}>
+                    New project
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
+              title="Copy link"
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href)
+                toast({ title: 'Link copied to clipboard' })
+              }}>
               <Share2 className="h-3.5 w-3.5" />
             </Button>
             {isAdmin && (
@@ -324,7 +392,12 @@ export function WorkspaceDetailPage({
                 <UserPlus className="h-3.5 w-3.5" />Assign Staff
               </Button>
             )}
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
+              title="Toggle fullscreen"
+              onClick={() => {
+                if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {})
+                else document.exitFullscreen().catch(() => {})
+              }}>
               <Maximize2 className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -526,13 +599,52 @@ export function WorkspaceDetailPage({
             </Button>
             <div className="ml-auto flex items-center gap-1">
               <div className="flex items-center border rounded-md overflow-hidden">
-                <button className="px-2 py-1.5 bg-blue-50 text-blue-600 border-r"><List className="h-3.5 w-3.5" /></button>
-                <button className="px-2 py-1.5 text-muted-foreground hover:bg-muted"><LayoutGrid className="h-3.5 w-3.5" /></button>
+                <button onClick={() => setListView('list')} className={cn('px-2 py-1.5 border-r', listView === 'list' ? 'bg-blue-50 text-blue-600' : 'text-muted-foreground hover:bg-muted')}><List className="h-3.5 w-3.5" /></button>
+                <button onClick={() => setListView('grid')} className={cn('px-2 py-1.5', listView === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-muted-foreground hover:bg-muted')}><LayoutGrid className="h-3.5 w-3.5" /></button>
               </div>
             </div>
           </div>
 
+          {/* Grid view */}
+          {listView === 'grid' && (
+            <div className="flex-1 overflow-auto p-4">
+              {filteredTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-16">
+                  {search ? 'No tasks match your search.' : 'No tasks in this workspace yet.'}
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {filteredTasks.map(task => (
+                    <div key={task.id}
+                      className="rounded-lg border bg-card p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition-all"
+                      onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}>
+                      <p className="text-sm font-medium mb-2 line-clamp-2">{task.title}</p>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold border', STATUS_STYLES[task.status])}>
+                          {STATUS_LABEL[task.status]}
+                        </span>
+                        <span className={cn('text-[10px] font-bold', PRIORITY_COLOR[task.priority])}>
+                          {PRIORITY_ICON[task.priority]}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono text-blue-500">#{task.id.slice(0, 4).toUpperCase()}</span>
+                        {(task.assignees ?? []).length > 0 && (
+                          <Avatar className="h-5 w-5">
+                            <AvatarImage src={task.assignees![0].avatar_url ?? undefined} />
+                            <AvatarFallback className="text-[10px]">{getInitials(task.assignees![0].full_name)}</AvatarFallback>
+                          </Avatar>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Table */}
+          {listView === 'list' && (
           <div className="flex-1 overflow-auto">
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10 bg-muted/60 backdrop-blur-sm">
@@ -650,6 +762,7 @@ export function WorkspaceDetailPage({
               </tbody>
             </table>
           </div>
+          )}
 
           {/* Footer */}
           <div className="flex items-center justify-between px-4 py-2 border-t bg-background text-xs text-muted-foreground">
@@ -673,7 +786,7 @@ export function WorkspaceDetailPage({
           <div className="flex items-center gap-2 px-4 py-2 border-b">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Search board…" className="h-8 pl-8 w-44 text-xs" />
+              <Input value={boardSearch} onChange={e => setBoardSearch(e.target.value)} placeholder="Search board…" className="h-8 pl-8 w-44 text-xs" />
             </div>
             <div className="flex -space-x-1">
               {members.slice(0, 3).map(m => (
@@ -710,7 +823,7 @@ export function WorkspaceDetailPage({
             ) : (
               <div className="flex gap-4 h-full min-h-[400px]">
                 {BOARD_COLS.map(col => {
-                  const colTasks = topLevelTasks.filter(t => t.status === col.key)
+                  const colTasks = filteredBoardTasks.filter(t => t.status === col.key)
                   return (
                     <div key={col.key} className="flex flex-col w-64 shrink-0">
                       <div className="flex items-center gap-2 mb-3">
@@ -778,7 +891,7 @@ export function WorkspaceDetailPage({
           <div className="flex items-center gap-2 px-4 py-2 border-b">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Search calendar…" className="h-8 pl-8 w-44 text-xs" />
+              <Input value={calSearch} onChange={e => setCalSearch(e.target.value)} placeholder="Search calendar…" className="h-8 pl-8 w-44 text-xs" />
             </div>
             <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground">
               <Filter className="h-3.5 w-3.5" />Filter
@@ -857,7 +970,7 @@ export function WorkspaceDetailPage({
           <div className="flex items-center gap-2 px-4 py-2 border-b">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Search timeline…" className="h-8 pl-8 w-44 text-xs" />
+              <Input value={tlSearch} onChange={e => setTlSearch(e.target.value)} placeholder="Search timeline…" className="h-8 pl-8 w-44 text-xs" />
             </div>
             <div className="flex -space-x-1">
               {members.slice(0, 3).map(m => (
@@ -895,18 +1008,19 @@ export function WorkspaceDetailPage({
                   )}
                 </div>
               ))}
-              <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2.5">
+              <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2.5"
+                onClick={() => setShowCreateTask(true)}>
                 <Plus className="h-3.5 w-3.5" />Create
               </button>
             </div>
 
             {/* Right: Gantt chart */}
             <div className="flex-1 overflow-auto">
-              {/* Month headers */}
+              {/* Month/week headers */}
               <div className="sticky top-0 z-10 flex border-b bg-muted/60 backdrop-blur-sm">
-                {tlMonths.map((m, i) => (
+                {(timelineScale === 'weeks' ? tlWeeks : tlMonths).map((m, i) => (
                   <div key={i} className="border-r last:border-r-0 px-2 py-2.5 text-xs font-medium text-muted-foreground shrink-0"
-                    style={{ width: `${m.width}%`, minWidth: 80 }}>
+                    style={{ width: `${m.width}%`, minWidth: timelineScale === 'weeks' ? 60 : 80 }}>
                     {m.label}
                   </div>
                 ))}
