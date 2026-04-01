@@ -1,0 +1,457 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { createClient } from '@/lib/supabase/client'
+import { Project, Workspace, Profile } from '@/types'
+import { toast } from '@/components/ui/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { CalendarIcon, Loader2 } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
+import { cn } from '@/lib/utils'
+import { PROJECT_STATUSES, PRIORITIES } from '@/lib/constants'
+
+const formSchema = z.object({
+  name: z.string().min(1, 'Project name is required').max(255),
+  workspace_id: z.string().min(1, 'Workspace is required'),
+  client_id: z.string().optional(),
+  start_date: z.date().optional(),
+  due_date: z.date().optional(),
+  status: z.enum(['planning', 'in_progress', 'on_hold', 'completed', 'cancelled']),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']),
+  progress: z.coerce.number().min(0).max(100),
+  estimated_hours: z.coerce.number().min(0).optional().or(z.literal('')),
+  description: z.string().max(2000).optional(),
+})
+
+type FormValues = z.infer<typeof formSchema>
+
+interface EditProjectDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  project: Project
+  onUpdated?: (project: Project) => void
+}
+
+export function EditProjectDialog({
+  open,
+  onOpenChange,
+  project,
+  onUpdated,
+}: EditProjectDialogProps) {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(false)
+  const [clients, setClients] = useState<Profile[]>([])
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: project.name,
+      workspace_id: project.workspace_id,
+      client_id: project.client_id ?? undefined,
+      start_date: project.start_date ? parseISO(project.start_date) : undefined,
+      due_date: project.due_date ? parseISO(project.due_date) : undefined,
+      status: project.status,
+      priority: project.priority,
+      progress: project.progress,
+      estimated_hours: project.estimated_hours ?? '',
+      description: project.description ?? '',
+    },
+  })
+
+  useEffect(() => {
+    if (!open) return
+
+    // Load workspaces
+    supabase
+      .from('workspaces')
+      .select('*')
+      .order('name')
+      .then(({ data }) => setWorkspaces(data ?? []))
+
+    // Load clients
+    supabase
+      .from('profiles')
+      .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at')
+      .eq('role', 'client')
+      .order('full_name')
+      .then(({ data }) => setClients((data as Profile[]) ?? []))
+  }, [open])
+
+  async function onSubmit(values: FormValues) {
+    setLoading(true)
+    try {
+      const payload: Record<string, unknown> = {
+        name: values.name,
+        workspace_id: values.workspace_id,
+        client_id: values.client_id || null,
+        start_date: values.start_date
+          ? format(values.start_date, 'yyyy-MM-dd')
+          : null,
+        due_date: values.due_date ? format(values.due_date, 'yyyy-MM-dd') : null,
+        status: values.status,
+        priority: values.priority,
+        progress: values.progress,
+        estimated_hours:
+          values.estimated_hours === '' || values.estimated_hours === undefined
+            ? null
+            : Number(values.estimated_hours),
+        description: values.description || null,
+        updated_at: new Date().toISOString(),
+      }
+
+      const { data, error } = await supabase
+        .from('projects')
+        .update(payload)
+        .eq('id', project.id)
+        .select(`
+          *,
+          workspace:workspaces(*),
+          client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
+        `)
+        .single()
+
+      if (error) {
+        toast({
+          title: 'Failed to update project',
+          description: error.message,
+          variant: 'destructive',
+        })
+        return
+      }
+
+      toast({
+        title: 'Project updated',
+        description: `"${data.name}" has been updated successfully.`,
+      })
+
+      onUpdated?.(data as Project)
+      onOpenChange(false)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Project</DialogTitle>
+          <DialogDescription>
+            Update the project details below.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Name */}
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Project Name *</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. Website Redesign" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Workspace */}
+            <FormField
+              control={form.control}
+              name="workspace_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Workspace *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a workspace" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {workspaces.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Client */}
+            <FormField
+              control={form.control}
+              name="client_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Client</FormLabel>
+                  <Select
+                    onValueChange={(v) => field.onChange(v === '__none__' ? undefined : v)}
+                    value={field.value ?? '__none__'}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="No client assigned" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="__none__">No client</SelectItem>
+                      {clients.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.full_name} ({c.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Status + Priority */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {PROJECT_STATUSES.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>
+                            {s.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="priority"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Priority</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {PRIORITIES.map((p) => (
+                          <SelectItem key={p.value} value={p.value}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Progress */}
+            <FormField
+              control={form.control}
+              name="progress"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Progress (%)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      placeholder="0"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Start date + Due date */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="start_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              'w-full justify-start text-left font-normal',
+                              !field.value && 'text-muted-foreground'
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? format(field.value, 'PPP') : 'Pick a date'}
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="due_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Due Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              'w-full justify-start text-left font-normal',
+                              !field.value && 'text-muted-foreground'
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? format(field.value, 'PPP') : 'Pick a date'}
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Estimated hours */}
+            <FormField
+              control={form.control}
+              name="estimated_hours"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Estimated Hours</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      placeholder="e.g. 40"
+                      {...field}
+                      value={field.value ?? ''}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Description */}
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Describe the project goals, scope, and any relevant details…"
+                      rows={4}
+                      {...field}
+                      value={field.value ?? ''}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}

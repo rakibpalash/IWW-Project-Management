@@ -1,0 +1,102 @@
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { AttendancePage } from '@/components/attendance/attendance-page'
+import {
+  Profile,
+  AttendanceRecord,
+  FootballRule,
+  AttendanceSettings,
+} from '@/types'
+
+export const metadata = {
+  title: 'Attendance — IWW PM',
+}
+
+export default async function AttendanceRoute() {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) redirect('/login')
+
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single()
+
+  if (!profileData) redirect('/login')
+
+  const profile = profileData as Profile
+
+  const { data: settingsData } = await supabase
+    .from('attendance_settings')
+    .select('*')
+    .single()
+
+  const settings = settingsData as AttendanceSettings | null
+
+  // ── Super Admin view ─────────────────────────────────────────────────────
+  if (profile.role === 'super_admin') {
+    const today = new Date().toISOString().slice(0, 10)
+
+    const [
+      { data: staffProfiles },
+      { data: todayRecords },
+      { data: todayFootballRule },
+    ] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at')
+        .eq('role', 'staff')
+        .order('full_name', { ascending: true }),
+      supabase
+        .from('attendance_records')
+        .select('*, user:profiles(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)')
+        .eq('date', today),
+      supabase
+        .from('football_rules')
+        .select('*')
+        .eq('date', today)
+        .maybeSingle(),
+    ])
+
+    return (
+      <AttendancePage
+        profile={profile as Profile}
+        settings={settings}
+        staffProfiles={(staffProfiles as Profile[]) ?? []}
+        initialRecords={(todayRecords as unknown as AttendanceRecord[]) ?? []}
+        initialFootballRule={(todayFootballRule as unknown as FootballRule) ?? null}
+        initialDate={today}
+      />
+    )
+  }
+
+  // ── Staff view ───────────────────────────────────────────────────────────
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10)
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    .toISOString()
+    .slice(0, 10)
+
+  const { data: monthRecords } = await supabase
+    .from('attendance_records')
+    .select('*')
+    .eq('user_id', user.id)
+    .gte('date', monthStart)
+    .lte('date', monthEnd)
+    .order('date', { ascending: true })
+
+  return (
+    <AttendancePage
+      profile={profile as Profile}
+      settings={settings}
+      monthRecords={(monthRecords as AttendanceRecord[]) ?? []}
+    />
+  )
+}

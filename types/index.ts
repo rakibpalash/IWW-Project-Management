@@ -1,0 +1,225 @@
+export type Role = 'super_admin' | 'staff' | 'client'
+
+export type ProjectStatus = 'planning' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled'
+export type Priority = 'low' | 'medium' | 'high' | 'urgent'
+export type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled'
+export type AttendanceStatus = 'on_time' | 'late_150' | 'late_250' | 'absent' | 'advance_absence'
+export type LeaveType = 'yearly' | 'work_from_home' | 'marriage'
+export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+
+export interface Profile {
+  id: string
+  email: string
+  full_name: string
+  avatar_url: string | null
+  role: Role
+  is_temp_password: boolean
+  onboarding_completed: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Workspace {
+  id: string
+  name: string
+  description: string | null
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkspaceAssignment {
+  id: string
+  workspace_id: string
+  user_id: string
+  created_at: string
+}
+
+export interface Project {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  client_id: string | null
+  start_date: string | null
+  due_date: string | null
+  status: ProjectStatus
+  priority: Priority
+  progress: number
+  estimated_hours: number | null
+  created_by: string
+  created_at: string
+  updated_at: string
+  // joined
+  workspace?: Workspace
+  client?: Profile
+  actual_hours?: number
+}
+
+export interface Task {
+  id: string
+  project_id: string
+  parent_task_id: string | null
+  title: string
+  description: string | null
+  start_date: string | null
+  due_date: string | null
+  estimated_hours: number | null
+  priority: Priority
+  status: TaskStatus
+  created_by: string
+  created_at: string
+  updated_at: string
+  depth: number
+  // joined
+  project?: Project
+  assignees?: Profile[]
+  subtasks?: Task[]
+  actual_hours?: number
+  watcher_ids?: string[]
+}
+
+export interface TaskAssignee {
+  id: string
+  task_id: string
+  user_id: string
+  created_at: string
+}
+
+export interface TaskWatcher {
+  id: string
+  task_id: string
+  user_id: string
+  created_at: string
+}
+
+export interface Comment {
+  id: string
+  task_id: string
+  user_id: string
+  content: string
+  is_internal: boolean
+  parent_comment_id: string | null
+  created_at: string
+  updated_at: string
+  // joined
+  user?: Profile
+  replies?: Comment[]
+}
+
+export interface TimeEntry {
+  id: string
+  task_id: string
+  user_id: string
+  description: string | null
+  started_at: string
+  ended_at: string | null
+  duration_minutes: number | null
+  is_running: boolean
+  created_at: string
+  updated_at: string
+  // joined
+  task?: Task
+}
+
+export interface Notification {
+  id: string
+  user_id: string
+  type: 'task_assigned' | 'subtask_assigned' | 'mention' | 'comment_reply' | 'status_changed'
+  title: string
+  message: string
+  link: string | null
+  is_read: boolean
+  created_at: string
+}
+
+export interface ActivityLog {
+  id: string
+  task_id: string
+  user_id: string
+  action: string
+  old_value: string | null
+  new_value: string | null
+  created_at: string
+  // joined
+  user?: Profile
+}
+
+export interface AttendanceRecord {
+  id: string
+  user_id: string
+  date: string
+  check_in_time: string | null
+  check_out_time: string | null
+  status: AttendanceStatus
+  is_football_rule: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+  // joined
+  user?: Profile
+}
+
+export interface FootballRule {
+  id: string
+  date: string
+  user_ids: string[]
+  created_by: string
+  created_at: string
+}
+
+export interface LeaveBalance {
+  id: string
+  user_id: string
+  year: number
+  yearly_total: number
+  yearly_used: number
+  wfh_total: number
+  wfh_used: number
+  marriage_total: number
+  marriage_used: number
+  created_at: string
+  updated_at: string
+}
+
+export interface LeaveRequest {
+  id: string
+  user_id: string
+  leave_type: LeaveType
+  start_date: string
+  end_date: string
+  total_days: number
+  reason: string | null
+  status: LeaveStatus
+  reviewed_by: string | null
+  reviewed_at: string | null
+  review_notes: string | null
+  created_at: string
+  updated_at: string
+  // joined
+  user?: Profile
+  reviewer?: Profile
+}
+
+export interface AttendanceSettings {
+  id: string
+  on_time_end: string      // '09:00'
+  late_150_end: string     // '09:30'
+  late_250_end: string     // '11:00'
+  football_on_time_end: string   // '09:45'
+  football_late_150_end: string  // '10:30'
+  football_late_250_end: string  // '11:00'
+  yearly_leave_days: number
+  wfh_days: number
+  updated_by: string | null
+  updated_at: string
+}
+
+export interface DashboardStats {
+  total_projects: number
+  active_projects: number
+  overdue_tasks: number
+  my_tasks: number
+  pending_leaves: number
+  todays_attendance?: AttendanceRecord
+}

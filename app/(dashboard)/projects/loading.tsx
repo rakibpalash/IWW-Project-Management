@@ -1,0 +1,68 @@
+import { Skeleton } from '@/components/ui/skeleton'
+import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card'
+
+export default function ProjectsLoading() {
+  return (
+    <div className="space-y-6" data-testid="projects-loading">
+      {/* Page heading + action button */}
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+        <Skeleton className="h-9 w-36 rounded-md" />
+      </div>
+
+      {/* Filter / search bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Skeleton className="h-9 w-56 rounded-md" />
+        <Skeleton className="h-9 w-32 rounded-md" />
+        <Skeleton className="h-9 w-32 rounded-md" />
+      </div>
+
+      {/* Project cards grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Card key={i} className="flex flex-col">
+            <CardHeader className="pb-2">
+              <div className="flex items-start justify-between gap-2">
+                <Skeleton className="h-5 w-3/5" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+              <Skeleton className="h-4 w-full mt-1" />
+              <Skeleton className="h-4 w-4/5" />
+            </CardHeader>
+
+            <CardContent className="flex-1 space-y-3">
+              {/* Progress bar */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-3 w-8" />
+                </div>
+                <Skeleton className="h-2 w-full rounded-full" />
+              </div>
+
+              {/* Meta row */}
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+
+              {/* Avatar stack */}
+              <div className="flex -space-x-2">
+                {Array.from({ length: 3 }).map((_, j) => (
+                  <Skeleton key={j} className="h-6 w-6 rounded-full ring-2 ring-background" />
+                ))}
+              </div>
+            </CardContent>
+
+            <CardFooter className="pt-0">
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
