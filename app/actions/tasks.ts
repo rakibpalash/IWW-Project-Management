@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { Task, TimeEntry } from '@/types'
 
@@ -247,8 +247,12 @@ export async function updateTaskStatusAction(
       return { success: false, error: 'Not authenticated' }
     }
 
+    // Use admin client to bypass RLS (avoids infinite recursion in tasks_update
+    // policy which checks task_assignees, which in turn checks back into tasks)
+    const adminSupabase = await createAdminClient()
+
     // Fetch task for old status + creator
-    const { data: existing } = await supabase
+    const { data: existing } = await adminSupabase
       .from('tasks')
       .select('status, created_by, title')
       .eq('id', id)
@@ -256,7 +260,7 @@ export async function updateTaskStatusAction(
 
     const oldStatus = existing?.status ?? null
 
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('tasks')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', id)
