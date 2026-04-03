@@ -433,6 +433,16 @@ RETURNS BOOLEAN AS $$
   SELECT get_my_role() = 'super_admin';
 $$ LANGUAGE SQL STABLE SECURITY DEFINER;
 
+-- Helper: check if current user is a task assignee (SECURITY DEFINER bypasses RLS
+-- on task_assignees to prevent infinite recursion in tasks_update policy)
+CREATE OR REPLACE FUNCTION is_task_assignee(p_task_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM task_assignees
+    WHERE task_id = p_task_id AND user_id = auth.uid()
+  );
+$$ LANGUAGE SQL STABLE SECURITY DEFINER;
+
 -- Helper: user is in workspace
 CREATE OR REPLACE FUNCTION is_in_workspace(p_workspace_id UUID)
 RETURNS BOOLEAN AS $$
@@ -525,9 +535,7 @@ CREATE POLICY "tasks_update" ON tasks
   FOR UPDATE USING (
     is_super_admin()
     OR created_by = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM task_assignees ta WHERE ta.task_id = tasks.id AND ta.user_id = auth.uid()
-    )
+    OR is_task_assignee(id)
   );
 
 DROP POLICY IF EXISTS "tasks_delete_admin" ON tasks;
