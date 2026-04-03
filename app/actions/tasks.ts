@@ -160,7 +160,7 @@ export async function updateTaskAction(
     }
 
     // Use admin client for DB ops to bypass RLS recursion
-    const admin = await createAdminClient()
+    const admin = createAdminClient()
 
     // Fetch existing task for diff logging
     const { data: existing } = await admin
@@ -251,7 +251,7 @@ export async function updateTaskStatusAction(
     }
 
     // Use admin client for DB ops to bypass RLS recursion
-    const admin = await createAdminClient()
+    const admin = createAdminClient()
 
     // Fetch task for old status + creator
     const { data: existing } = await admin

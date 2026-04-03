@@ -10,7 +10,7 @@ export async function createUserAction(data: {
   password: string
 }): Promise<{ success: boolean; userId?: string; tempPassword?: string; error?: string }> {
   try {
-    const supabase = await createAdminClient()
+    const supabase = createAdminClient()
 
     // Create auth user via admin API
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
@@ -63,7 +63,7 @@ export async function updateUserRoleAction(
   role: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createAdminClient()
+    const supabase = createAdminClient()
 
     // Verify caller is super_admin
     const { createClient: createRegularClient } = await import('@/lib/supabase/server')
@@ -99,7 +99,7 @@ export async function updateUserProfileAction(data: {
   avatar_url?: string | null
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createAdminClient()
+    const supabase = createAdminClient()
 
     // Get current user from admin client – we need the session from a regular client
     const { createClient } = await import('@/lib/supabase/server')
