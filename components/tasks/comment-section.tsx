@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Comment, Profile } from '@/types'
 import { MentionInput, MentionInputHandle } from './mention-input'
@@ -286,25 +286,44 @@ function CommentItem({
   const user = comment.user
   const isInternal = comment.is_internal
 
-  // Highlight @mentions
+  // Highlight @mentions — greedy match, stops at punctuation/newline/@
   function renderContent(content: string) {
-    const parts = content.split(/(@[\w][\w\s]*?)(?=\s|$|[^a-zA-Z\s])/g)
-    return parts.map((part, i) => {
-      if (part.startsWith('@')) {
-        const name = part.slice(1).trim()
-        const member = members.find(
-          (m) => m.full_name.toLowerCase() === name.toLowerCase()
-        )
-        if (member) {
-          return (
-            <span key={i} className="text-primary font-medium">
-              {part}
-            </span>
+    const regex = /@([\w][\w ]*?)(?=[,.()\[\]{}<>!?;:'"@\n]|$)/g
+    const result: React.ReactNode[] = []
+    let lastIndex = 0
+    let match
+
+    while ((match = regex.exec(content)) !== null) {
+      const name = match[1].trimEnd()
+      const member = members.find(
+        (m) => m.full_name.toLowerCase() === name.toLowerCase()
+      )
+
+      if (member) {
+        // Push text before the mention
+        if (match.index > lastIndex) {
+          result.push(
+            <span key={lastIndex}>{content.slice(lastIndex, match.index)}</span>
           )
         }
+        result.push(
+          <span
+            key={match.index}
+            className="text-primary font-semibold bg-primary/10 rounded px-0.5"
+          >
+            @{member.full_name}
+          </span>
+        )
+        lastIndex = match.index + match[0].length
       }
-      return <span key={i}>{part}</span>
-    })
+    }
+
+    // Push remaining text
+    if (lastIndex < content.length) {
+      result.push(<span key={lastIndex}>{content.slice(lastIndex)}</span>)
+    }
+
+    return result.length > 0 ? result : <>{content}</>
   }
 
   async function submitReply() {

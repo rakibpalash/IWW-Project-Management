@@ -28,6 +28,9 @@ export interface MentionInputHandle {
   focus: () => void
 }
 
+// Characters that terminate a mention (not part of any name)
+const MENTION_BREAKERS = /[\n,.()\[\]{}<>!?;:'"]/
+
 export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
   function MentionInput(
     {
@@ -50,34 +53,53 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
     const [mentionStart, setMentionStart] = useState<number | null>(null)
     const [selectedIndex, setSelectedIndex] = useState(0)
 
+    // Reliable set of user IDs that were actually selected from the dropdown
+    // Key: full_name (as inserted), Value: user id
+    const selectedMentionsRef = useRef<Map<string, string>>(new Map())
+
     useImperativeHandle(ref, () => ({
       focus: () => textareaRef.current?.focus(),
     }))
 
+    // Filter members by current query — allow spaces for multi-word names
     const filteredMembers = members.filter((m) =>
-      m.full_name.toLowerCase().includes(mentionQuery.toLowerCase())
+      m.full_name.toLowerCase().includes(mentionQuery.toLowerCase().trim())
     )
 
-    // Extract mentioned user IDs from content
+    // Build the final list of mentioned user IDs:
+    // 1. Start from dropdown-selected mentions (reliable)
+    // 2. Supplement with regex scan for manually typed @Name patterns
     const extractMentions = useCallback(
       (text: string): string[] => {
-        const regex = /@(\w[\w\s]*?)(?=\s|$|[^a-zA-Z\s])/g
-        const ids: string[] = []
+        const ids = new Set<string>()
+
+        // Add reliably tracked (dropdown-selected) mentions
+        for (const [name, userId] of selectedMentionsRef.current.entries()) {
+          if (text.includes(`@${name}`)) {
+            ids.add(userId)
+          }
+        }
+
+        // Also scan for manually typed mentions using a greedy regex
+        // Pattern: @Word (one or more words, greedy, stops at punctuation/newline)
+        const regex = /@([\w][\w ]*?)(?=[,.()\[\]{}<>!?;:'"@\n]|$)/g
         let match
         while ((match = regex.exec(text)) !== null) {
-          const name = match[1].trim()
+          const name = match[1].trimEnd()
           const member = members.find(
             (m) => m.full_name.toLowerCase() === name.toLowerCase()
           )
-          if (member && !ids.includes(member.id)) {
-            ids.push(member.id)
+          if (member) {
+            ids.add(member.id)
           }
         }
-        return ids
+
+        return Array.from(ids)
       },
       [members]
     )
 
+    // Notify parent whenever value or members change
     useEffect(() => {
       if (onMentionedUsers) {
         onMentionedUsers(extractMentions(value))
@@ -89,20 +111,26 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
       const cursor = e.target.selectionStart ?? 0
       onChange(text)
 
-      // Find @ trigger
+      // Find the last @ before the cursor
       const beforeCursor = text.slice(0, cursor)
       const atIndex = beforeCursor.lastIndexOf('@')
 
       if (atIndex !== -1) {
         const afterAt = beforeCursor.slice(atIndex + 1)
-        // Only trigger if no space before cursor (still in mention)
-        if (!afterAt.includes(' ') || afterAt.length === 0) {
-          setMentionQuery(afterAt)
-          setMentionStart(atIndex)
-          setShowDropdown(true)
-          setSelectedIndex(0)
+
+        // Close if user typed a mention-breaking character
+        if (MENTION_BREAKERS.test(afterAt)) {
+          setShowDropdown(false)
+          setMentionStart(null)
           return
         }
+
+        // Keep dropdown open — spaces are OK for multi-word names
+        setMentionQuery(afterAt)
+        setMentionStart(atIndex)
+        setShowDropdown(true)
+        setSelectedIndex(0)
+        return
       }
 
       setShowDropdown(false)
@@ -114,17 +142,23 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
 
       const before = value.slice(0, mentionStart)
       const after = value.slice(mentionStart + 1 + mentionQuery.length)
-      const newValue = `${before}@${member.full_name} ${after}`
+      const inserted = `@${member.full_name} `
+      const newValue = `${before}${inserted}${after}`
+
+      // Track this selection reliably
+      selectedMentionsRef.current.set(member.full_name, member.id)
+
       onChange(newValue)
       setShowDropdown(false)
       setMentionStart(null)
+      setMentionQuery('')
 
-      // Restore focus + move cursor
+      // Restore focus and move cursor right after the inserted mention
       setTimeout(() => {
         const textarea = textareaRef.current
         if (textarea) {
           textarea.focus()
-          const pos = before.length + member.full_name.length + 2
+          const pos = before.length + inserted.length
           textarea.setSelectionRange(pos, pos)
         }
       }, 0)
@@ -143,6 +177,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         e.preventDefault()
         selectMember(filteredMembers[selectedIndex])
       } else if (e.key === 'Escape') {
+        e.preventDefault()
         setShowDropdown(false)
       }
     }
@@ -163,6 +198,13 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
       return () => document.removeEventListener('mousedown', handleClick)
     }, [])
 
+    // Reset selected mentions when value is cleared externally (e.g. after submit)
+    useEffect(() => {
+      if (!value) {
+        selectedMentionsRef.current.clear()
+      }
+    }, [value])
+
     return (
       <div className="relative">
         <textarea
@@ -179,34 +221,48 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
           )}
         />
 
-        {/* Mention dropdown */}
+        {/* Mention dropdown — renders BELOW the textarea to avoid clipping */}
         {showDropdown && filteredMembers.length > 0 && (
           <div
             ref={dropdownRef}
-            className="absolute bottom-full left-0 z-50 mb-1 w-64 rounded-md border bg-popover shadow-lg py-1 max-h-48 overflow-y-auto"
+            className="absolute top-full left-0 z-50 mt-1 w-64 rounded-md border bg-popover shadow-lg py-1 max-h-48 overflow-y-auto"
           >
+            <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Mention a person
+            </p>
             {filteredMembers.map((member, idx) => (
               <button
                 key={member.id}
                 type="button"
                 onMouseDown={(e) => {
+                  // preventDefault keeps textarea focused
                   e.preventDefault()
                   selectMember(member)
                 }}
                 className={cn(
-                  'w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors',
+                  'w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left',
                   idx === selectedIndex && 'bg-accent'
                 )}
               >
                 <Avatar className="h-6 w-6 shrink-0">
                   <AvatarImage src={member.avatar_url ?? undefined} />
-                  <AvatarFallback className="text-xs">
+                  <AvatarFallback className="text-[10px]">
                     {getInitials(member.full_name)}
                   </AvatarFallback>
                 </Avatar>
-                <span className="truncate">{member.full_name}</span>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-xs">{member.full_name}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">{member.email}</p>
+                </div>
               </button>
             ))}
+          </div>
+        )}
+
+        {/* No results hint */}
+        {showDropdown && filteredMembers.length === 0 && mentionQuery.length > 0 && (
+          <div className="absolute top-full left-0 z-50 mt-1 w-48 rounded-md border bg-popover shadow-lg px-3 py-2">
+            <p className="text-xs text-muted-foreground">No members match "{mentionQuery.trim()}"</p>
           </div>
         )}
       </div>
