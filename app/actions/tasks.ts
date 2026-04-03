@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { Task, TimeEntry } from '@/types'
 
@@ -148,8 +148,8 @@ export async function updateTaskAction(
   data: Partial<Omit<TaskInput, 'assignee_ids'>> & { assignee_ids?: string[] }
 ): Promise<{ success: boolean; task?: Task; error?: string }> {
   try {
+    // Verify auth with regular client
     const supabase = await createClient()
-
     const {
       data: { user },
       error: userError,
@@ -159,8 +159,11 @@ export async function updateTaskAction(
       return { success: false, error: 'Not authenticated' }
     }
 
+    // Use admin client for DB ops to bypass RLS recursion
+    const admin = await createAdminClient()
+
     // Fetch existing task for diff logging
-    const { data: existing } = await supabase
+    const { data: existing } = await admin
       .from('tasks')
       .select('*')
       .eq('id', id)
@@ -177,7 +180,7 @@ export async function updateTaskAction(
     if (data.status !== undefined) payload.status = data.status
     if (data.parent_task_id !== undefined) payload.parent_task_id = data.parent_task_id
 
-    const { data: task, error } = await supabase
+    const { data: task, error } = await admin
       .from('tasks')
       .update(payload)
       .eq('id', id)
@@ -190,9 +193,9 @@ export async function updateTaskAction(
 
     // Sync assignees if provided
     if (data.assignee_ids !== undefined) {
-      await supabase.from('task_assignees').delete().eq('task_id', id)
+      await admin.from('task_assignees').delete().eq('task_id', id)
       if (data.assignee_ids.length > 0) {
-        await supabase.from('task_assignees').insert(
+        await admin.from('task_assignees').insert(
           data.assignee_ids.map((uid) => ({ task_id: id, user_id: uid }))
         )
       }
@@ -208,7 +211,7 @@ export async function updateTaskAction(
         const existingVal = (existing as any)[field]
         if (payloadVal !== undefined && payloadVal !== existingVal) {
           await logActivity(
-            supabase,
+            admin,
             id,
             user.id,
             `updated_${field}`,
@@ -236,8 +239,8 @@ export async function updateTaskStatusAction(
   status: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Verify auth with regular client
     const supabase = await createClient()
-
     const {
       data: { user },
       error: userError,
@@ -247,8 +250,11 @@ export async function updateTaskStatusAction(
       return { success: false, error: 'Not authenticated' }
     }
 
+    // Use admin client for DB ops to bypass RLS recursion
+    const admin = await createAdminClient()
+
     // Fetch task for old status + creator
-    const { data: existing } = await supabase
+    const { data: existing } = await admin
       .from('tasks')
       .select('status, created_by, title')
       .eq('id', id)
@@ -256,7 +262,7 @@ export async function updateTaskStatusAction(
 
     const oldStatus = existing?.status ?? null
 
-    const { error } = await supabase
+    const { error } = await admin
       .from('tasks')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', id)
@@ -266,12 +272,12 @@ export async function updateTaskStatusAction(
     }
 
     // Activity log
-    await logActivity(supabase, id, user.id, 'changed_status', oldStatus, status)
+    await logActivity(admin, id, user.id, 'changed_status', oldStatus, status)
 
     // Notify creator if it's not the same person who changed the status
     if (existing && existing.created_by && existing.created_by !== user.id) {
       await createNotification(
-        supabase,
+        admin,
         existing.created_by,
         'status_changed',
         'Task status updated',
@@ -281,7 +287,7 @@ export async function updateTaskStatusAction(
     }
 
     // Notify watchers
-    const { data: watchers } = await supabase
+    const { data: watchers } = await admin
       .from('task_watchers')
       .select('user_id')
       .eq('task_id', id)
@@ -292,7 +298,7 @@ export async function updateTaskStatusAction(
           .filter((w) => w.user_id !== user.id)
           .map((w) =>
             createNotification(
-              supabase,
+              admin,
               w.user_id,
               'status_changed',
               'Task status updated',
