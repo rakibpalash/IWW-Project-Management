@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -23,8 +23,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
+import { Profile } from '@/types'
+import { Search, Users, Loader2 } from 'lucide-react'
+import { getInitials } from '@/lib/utils'
 
 const formSchema = z.object({
   name: z
@@ -51,13 +56,52 @@ export function CreateWorkspaceDialog({
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Staff picker state
+  const [staffList, setStaffList] = useState<Profile[]>([])
+  const [staffLoading, setStaffLoading] = useState(false)
+  const [staffSearch, setStaffSearch] = useState('')
+  const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set())
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-    },
+    defaultValues: { name: '', description: '' },
   })
+
+  // Load staff list when dialog opens
+  useEffect(() => {
+    if (!open) return
+    setStaffSearch('')
+    setSelectedStaff(new Set())
+
+    async function loadStaff() {
+      setStaffLoading(true)
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, avatar_url, role')
+          .eq('role', 'staff')
+          .order('full_name', { ascending: true })
+
+        if (error) throw error
+        setStaffList((data as Profile[]) ?? [])
+      } catch {
+        // Non-critical — staff list just won't show
+      } finally {
+        setStaffLoading(false)
+      }
+    }
+
+    loadStaff()
+  }, [open])
+
+  function toggleStaff(userId: string) {
+    setSelectedStaff((prev) => {
+      const next = new Set(prev)
+      next.has(userId) ? next.delete(userId) : next.add(userId)
+      return next
+    })
+  }
 
   async function onSubmit(values: FormValues) {
     setIsSubmitting(true)
@@ -77,24 +121,39 @@ export function CreateWorkspaceDialog({
         return
       }
 
-      const { error } = await supabase.from('workspaces').insert({
-        name: values.name.trim(),
-        description: values.description?.trim() || null,
-        created_by: user.id,
-      })
+      // 1. Create workspace
+      const { data: workspace, error: wsError } = await supabase
+        .from('workspaces')
+        .insert({
+          name: values.name.trim(),
+          description: values.description?.trim() || null,
+          created_by: user.id,
+        })
+        .select('id')
+        .single()
 
-      if (error) {
+      if (wsError || !workspace) {
         toast({
           title: 'Failed to create workspace',
-          description: error.message,
+          description: wsError?.message ?? 'Unknown error',
           variant: 'destructive',
         })
         return
       }
 
+      // 2. Assign selected staff
+      if (selectedStaff.size > 0) {
+        await supabase.from('workspace_assignments').insert(
+          [...selectedStaff].map((user_id) => ({
+            workspace_id: workspace.id,
+            user_id,
+          }))
+        )
+      }
+
       toast({
         title: 'Workspace created',
-        description: `"${values.name}" has been created successfully.`,
+        description: `"${values.name}" created with ${selectedStaff.size} member${selectedStaff.size !== 1 ? 's' : ''}.`,
       })
 
       form.reset()
@@ -106,13 +165,23 @@ export function CreateWorkspaceDialog({
   }
 
   function handleOpenChange(open: boolean) {
-    if (!open) form.reset()
+    if (!open) {
+      form.reset()
+      setSelectedStaff(new Set())
+      setStaffSearch('')
+    }
     onOpenChange(open)
   }
 
+  const filteredStaff = staffList.filter(
+    (s) =>
+      s.full_name.toLowerCase().includes(staffSearch.toLowerCase()) ||
+      s.email.toLowerCase().includes(staffSearch.toLowerCase())
+  )
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Create Workspace</DialogTitle>
           <DialogDescription>
@@ -122,6 +191,7 @@ export function CreateWorkspaceDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Name */}
             <FormField
               control={form.control}
               name="name"
@@ -138,6 +208,7 @@ export function CreateWorkspaceDialog({
               )}
             />
 
+            {/* Description */}
             <FormField
               control={form.control}
               name="description"
@@ -156,6 +227,71 @@ export function CreateWorkspaceDialog({
               )}
             />
 
+            {/* ── Assign Staff ────────────────────────────────────────────── */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Assign Staff</span>
+                {selectedStaff.size > 0 && (
+                  <span className="ml-auto text-xs text-blue-600 font-medium">
+                    {selectedStaff.size} selected
+                  </span>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50/50">
+                {/* Staff search */}
+                <div className="p-2 border-b border-gray-200">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                    <Input
+                      placeholder="Search staff…"
+                      value={staffSearch}
+                      onChange={(e) => setStaffSearch(e.target.value)}
+                      className="pl-8 h-8 text-sm bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Staff list */}
+                {staffLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                  </div>
+                ) : filteredStaff.length === 0 ? (
+                  <div className="py-6 text-center">
+                    <p className="text-sm text-gray-400">
+                      {staffSearch ? 'No staff match your search' : 'No staff members found'}
+                    </p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-44">
+                    <ul className="p-1">
+                      {filteredStaff.map((staff) => (
+                        <li key={staff.id}>
+                          <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-white">
+                            <Checkbox
+                              checked={selectedStaff.has(staff.id)}
+                              onCheckedChange={() => toggleStaff(staff.id)}
+                            />
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+                              {getInitials(staff.full_name)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-gray-900">
+                                {staff.full_name}
+                              </p>
+                              <p className="truncate text-xs text-gray-500">{staff.email}</p>
+                            </div>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                )}
+              </div>
+            </div>
+
             <DialogFooter>
               <Button
                 type="button"
@@ -166,6 +302,7 @@ export function CreateWorkspaceDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isSubmitting ? 'Creating…' : 'Create Workspace'}
               </Button>
             </DialogFooter>
