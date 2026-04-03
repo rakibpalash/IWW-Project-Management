@@ -228,6 +228,32 @@ export interface AttendanceSettings {
   updated_at: string
 }
 
+export interface CustomTaskStatus {
+  id: string
+  name: string
+  slug: string
+  color: string
+  sort_order: number
+  is_active: boolean
+  is_default: boolean
+  is_completed_status: boolean
+  counts_toward_progress: boolean
+  created_by: string | null
+  created_at: string
+}
+
+export interface CustomTaskPriority {
+  id: string
+  name: string
+  slug: string
+  color: string
+  sort_order: number
+  is_active: boolean
+  is_default: boolean
+  created_by: string | null
+  created_at: string
+}
+
 export interface DashboardStats {
   total_projects: number
   active_projects: number

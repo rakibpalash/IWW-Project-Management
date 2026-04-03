@@ -1,13 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { Profile, AttendanceSettings, Workspace, WorkspaceAssignment } from '@/types'
+import { Profile, AttendanceSettings, Workspace, WorkspaceAssignment, CustomTaskStatus, CustomTaskPriority } from '@/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { AttendanceRulesForm } from './attendance-rules-form'
 import { TeamManagement } from './team-management'
+import { TaskStatusesForm } from './task-statuses-form'
+import { TaskPrioritiesForm } from './task-priorities-form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Clock, Users, User, Shield, ExternalLink } from 'lucide-react'
+import { Clock, Users, User, Shield, ExternalLink, ListTodo, Flag } from 'lucide-react'
 
 interface SettingsPageProps {
   profile: Profile
@@ -16,6 +18,8 @@ interface SettingsPageProps {
   allStaff: Profile[]
   workspaces: Workspace[]
   workspaceAssignments: (WorkspaceAssignment & { workspace?: Workspace })[]
+  taskStatuses: CustomTaskStatus[]
+  taskPriorities: CustomTaskPriority[]
 }
 
 export function SettingsPage({
@@ -25,6 +29,8 @@ export function SettingsPage({
   allStaff,
   workspaces,
   workspaceAssignments,
+  taskStatuses,
+  taskPriorities,
 }: SettingsPageProps) {
   return (
     <div className="space-y-6">
@@ -47,6 +53,14 @@ export function SettingsPage({
                 <Users className="h-4 w-4" />
                 Team Management
               </TabsTrigger>
+              <TabsTrigger value="statuses" className="gap-2">
+                <ListTodo className="h-4 w-4" />
+                Task Statuses
+              </TabsTrigger>
+              <TabsTrigger value="priorities" className="gap-2">
+                <Flag className="h-4 w-4" />
+                Task Priorities
+              </TabsTrigger>
             </>
           )}
           <TabsTrigger value="profile" className="gap-2">
@@ -59,25 +73,30 @@ export function SettingsPage({
           </TabsTrigger>
         </TabsList>
 
-        {/* Attendance Rules Tab (Admin only) */}
         {isAdmin && (
-          <TabsContent value="attendance">
-            <AttendanceRulesForm settings={attendanceSettings} />
-          </TabsContent>
+          <>
+            <TabsContent value="attendance">
+              <AttendanceRulesForm settings={attendanceSettings} />
+            </TabsContent>
+
+            <TabsContent value="team">
+              <TeamManagement
+                users={allStaff}
+                workspaces={workspaces}
+                workspaceAssignments={workspaceAssignments}
+              />
+            </TabsContent>
+
+            <TabsContent value="statuses">
+              <TaskStatusesForm initialStatuses={taskStatuses} />
+            </TabsContent>
+
+            <TabsContent value="priorities">
+              <TaskPrioritiesForm initialPriorities={taskPriorities} />
+            </TabsContent>
+          </>
         )}
 
-        {/* Team Management Tab (Admin only) */}
-        {isAdmin && (
-          <TabsContent value="team">
-            <TeamManagement
-              users={allStaff}
-              workspaces={workspaces}
-              workspaceAssignments={workspaceAssignments}
-            />
-          </TabsContent>
-        )}
-
-        {/* Profile Tab */}
         <TabsContent value="profile">
           <Card>
             <CardHeader>
@@ -85,9 +104,7 @@ export function SettingsPage({
                 <User className="h-4 w-4" />
                 Profile Settings
               </CardTitle>
-              <CardDescription>
-                Update your personal information and avatar
-              </CardDescription>
+              <CardDescription>Update your personal information and avatar</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between rounded-lg border p-4">
@@ -106,7 +123,6 @@ export function SettingsPage({
           </Card>
         </TabsContent>
 
-        {/* Security Tab */}
         <TabsContent value="security">
           <Card>
             <CardHeader>
@@ -114,9 +130,7 @@ export function SettingsPage({
                 <Shield className="h-4 w-4" />
                 Security Settings
               </CardTitle>
-              <CardDescription>
-                Manage your password and account security
-              </CardDescription>
+              <CardDescription>Manage your password and account security</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between rounded-lg border p-4">

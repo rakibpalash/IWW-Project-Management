@@ -28,8 +28,9 @@ import {
   X, Check, ChevronDown, CheckSquare, AlertCircle,
   Bold, List, AlignLeft, Code2, Link2, Minus,
 } from 'lucide-react'
-import { TASK_STATUSES, PRIORITIES, MAX_SUBTASKS, MAX_SUBTASK_DEPTH } from '@/lib/constants'
+import { MAX_SUBTASKS, MAX_SUBTASK_DEPTH } from '@/lib/constants'
 import { getInitials, cn } from '@/lib/utils'
+import { useTaskConfig } from '@/hooks/use-task-config'
 
 interface CreateTaskDialogProps {
   open: boolean
@@ -43,20 +44,6 @@ interface CreateTaskDialogProps {
   currentSubtaskCount?: number
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  todo:        'bg-slate-100 text-slate-700 hover:bg-slate-200',
-  in_progress: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
-  in_review:   'bg-blue-100 text-blue-700 hover:bg-blue-200',
-  done:        'bg-green-100 text-green-700 hover:bg-green-200',
-  cancelled:   'bg-red-100 text-red-600 hover:bg-red-200',
-}
-
-const PRIORITY_STYLES: Record<string, { color: string; icon: string }> = {
-  low:    { color: 'text-sky-500',   icon: '▼' },
-  medium: { color: 'text-amber-500', icon: '=' },
-  high:   { color: 'text-orange-500',icon: '▲' },
-  urgent: { color: 'text-red-600',   icon: '!!' },
-}
 
 export function CreateTaskDialog({
   open,
@@ -72,6 +59,7 @@ export function CreateTaskDialog({
   const { toast } = useToast()
   const supabase = createClient()
   const titleRef = useRef<HTMLInputElement>(null)
+  const { statuses, priorities, defaultStatus, defaultPriority } = useTaskConfig()
 
   const [title, setTitle] = useState('')
   const [titleTouched, setTitleTouched] = useState(false)
@@ -80,8 +68,8 @@ export function CreateTaskDialog({
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [estimatedHours, setEstimatedHours] = useState('')
-  const [priority, setPriority] = useState<Priority>('medium')
-  const [status, setStatus] = useState<TaskStatus>('todo')
+  const [priority, setPriority] = useState<string>('medium')
+  const [status, setStatus] = useState<string>('todo')
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([])
   const [members, setMembers] = useState<Profile[]>([])
   const [loadingMembers, setLoadingMembers] = useState(false)
@@ -149,8 +137,8 @@ export function CreateTaskDialog({
     setStartDate('')
     setDueDate('')
     setEstimatedHours('')
-    setPriority('medium')
-    setStatus('todo')
+    setPriority(defaultPriority)
+    setStatus(defaultStatus)
     setSelectedAssigneeIds([])
     setShowAssigneeDropdown(false)
   }
@@ -273,8 +261,8 @@ export function CreateTaskDialog({
     )
   }
 
-  const selectedStatus = TASK_STATUSES.find((s) => s.value === status)
-  const selectedPriority = PRIORITIES.find((p) => p.value === priority)
+  const selectedStatusCfg = statuses.find((s) => s.slug === status)
+  const selectedPriorityCfg = priorities.find((p) => p.slug === priority)
   const assignedMembers = members.filter((m) => selectedAssigneeIds.includes(m.id))
 
   return (
@@ -360,19 +348,24 @@ export function CreateTaskDialog({
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-foreground">Status</Label>
             <div className="flex items-center gap-2 flex-wrap">
-              {TASK_STATUSES.map((s) => (
+              {statuses.map((s) => (
                 <button
-                  key={s.value}
+                  key={s.slug}
                   type="button"
-                  onClick={() => setStatus(s.value as TaskStatus)}
+                  onClick={() => setStatus(s.slug)}
                   className={cn(
                     'inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-all',
-                    status === s.value
-                      ? STATUS_STYLES[s.value] + ' ring-2 ring-offset-1 ring-primary/30'
+                    status === s.slug
+                      ? 'ring-2 ring-offset-1 ring-primary/30'
                       : 'bg-muted/40 text-muted-foreground hover:bg-muted border-transparent'
                   )}
+                  style={status === s.slug ? {
+                    backgroundColor: s.color + '20',
+                    color: s.color,
+                    borderColor: s.color + '60',
+                  } : {}}
                 >
-                  {s.label}
+                  {s.name}
                 </button>
               ))}
             </div>
@@ -543,23 +536,22 @@ export function CreateTaskDialog({
           {/* Priority */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-foreground">Priority</Label>
-            <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
+            <Select value={priority} onValueChange={setPriority}>
               <SelectTrigger className="text-sm">
                 <div className="flex items-center gap-2">
-                  <span className={cn('font-bold text-base leading-none', PRIORITY_STYLES[priority]?.color)}>
-                    {PRIORITY_STYLES[priority]?.icon}
-                  </span>
-                  <span>{selectedPriority?.label}</span>
+                  <div
+                    className="h-2.5 w-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: selectedPriorityCfg?.color ?? '#f59e0b' }}
+                  />
+                  <span>{selectedPriorityCfg?.name ?? priority}</span>
                 </div>
               </SelectTrigger>
               <SelectContent>
-                {PRIORITIES.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
+                {priorities.map((p) => (
+                  <SelectItem key={p.slug} value={p.slug}>
                     <div className="flex items-center gap-2">
-                      <span className={cn('font-bold text-base leading-none', PRIORITY_STYLES[p.value]?.color)}>
-                        {PRIORITY_STYLES[p.value]?.icon}
-                      </span>
-                      {p.label}
+                      <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                      {p.name}
                     </div>
                   </SelectItem>
                 ))}

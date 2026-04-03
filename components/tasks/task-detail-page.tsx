@@ -37,15 +37,14 @@ import {
   Code,
   List,
 } from 'lucide-react'
-import { TASK_STATUSES, PRIORITIES } from '@/lib/constants'
 import { updateTaskAction, updateTaskStatusAction } from '@/app/actions/tasks'
+import { useTaskConfig } from '@/hooks/use-task-config'
 import {
   cn,
   formatDate,
   formatHours,
   getInitials,
   timeAgo,
-  formatStatus,
 } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
 
@@ -62,29 +61,6 @@ type FeedItem =
   | { type: 'activity'; id: string; date: string; data: ActivityLog }
   | { type: 'comment'; id: string; date: string; data: Comment }
   | { type: 'time'; id: string; date: string; data: TimeEntry }
-
-// ── Status / priority style maps ─────────────────────────────────────────────
-const STATUS_CLASSES: Record<string, string> = {
-  todo: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  in_progress: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  in_review: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  done: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-}
-
-const PRIORITY_CLASSES: Record<Priority, string> = {
-  urgent: 'border-red-200 bg-red-50 text-red-700',
-  high: 'border-orange-200 bg-orange-50 text-orange-700',
-  medium: 'border-yellow-200 bg-yellow-50 text-yellow-700',
-  low: 'border-blue-200 bg-blue-50 text-blue-600',
-}
-
-const PRIORITY_ICON: Record<Priority, string> = {
-  urgent: '!!',
-  high: '▲',
-  medium: '=',
-  low: '▼',
-}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 function ElapsedTimer({ startedAt }: { startedAt: string }) {
@@ -218,6 +194,10 @@ export function TaskDetailPage({
   const isCreator = task.created_by === profile.id
   const isAssignee = (task.assignees ?? []).some((a) => a.id === profile.id)
   const canEdit = isAdmin || isCreator || isAssignee
+
+  const { statuses, priorities, getStatus, getPriority } = useTaskConfig()
+  const statusCfg = getStatus(task.status)
+  const priorityCfg = getPriority(task.priority)
 
   const totalLoggedMinutes = timeEntries
     .filter((e) => e.duration_minutes !== null && !e.is_running)
@@ -483,43 +463,48 @@ export function TaskDetailPage({
                   {canEdit ? (
                     <Select value={task.status} onValueChange={handleStatusChange}>
                       <SelectTrigger
-                        className={cn(
-                          'h-6 gap-1 border-0 px-2.5 text-xs font-semibold rounded-full w-auto shadow-none focus:ring-0',
-                          STATUS_CLASSES[task.status] ?? 'bg-muted text-muted-foreground',
-                        )}
+                        className="h-6 gap-1 border-0 px-2.5 text-xs font-semibold rounded-full w-auto shadow-none focus:ring-0"
+                        style={{
+                          backgroundColor: (statusCfg?.color ?? '#94a3b8') + '20',
+                          color: statusCfg?.color ?? '#94a3b8',
+                        }}
                       >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {TASK_STATUSES.map((s) => (
-                          <SelectItem key={s.value} value={s.value}>
-                            {s.label}
+                        {statuses.map((s) => (
+                          <SelectItem key={s.slug} value={s.slug}>
+                            <div className="flex items-center gap-1.5">
+                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                              {s.name}
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
                     <span
-                      className={cn(
-                        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                        STATUS_CLASSES[task.status],
-                      )}
+                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                      style={{
+                        backgroundColor: (statusCfg?.color ?? '#94a3b8') + '20',
+                        color: statusCfg?.color ?? '#94a3b8',
+                      }}
                     >
-                      {formatStatus(task.status)}
+                      {statusCfg?.name ?? task.status}
                     </span>
                   )}
 
                   {/* Priority chip */}
                   <span
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border',
-                      PRIORITY_CLASSES[task.priority],
-                    )}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border"
+                    style={{
+                      backgroundColor: (priorityCfg?.color ?? '#f59e0b') + '15',
+                      color: priorityCfg?.color ?? '#f59e0b',
+                      borderColor: (priorityCfg?.color ?? '#f59e0b') + '40',
+                    }}
                   >
-                    <span className="font-bold text-[11px] leading-none">
-                      {PRIORITY_ICON[task.priority]}
-                    </span>
-                    {formatStatus(task.priority)}
+                    <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: priorityCfg?.color ?? '#f59e0b' }} />
+                    {priorityCfg?.name ?? task.priority}
                   </span>
 
                   {/* Assignee avatars */}
@@ -834,24 +819,31 @@ export function TaskDetailPage({
                 {canEdit ? (
                   <Select value={task.status} onValueChange={handleStatusChange}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: statusCfg?.color ?? '#94a3b8' }} />
+                        <span>{statusCfg?.name ?? task.status}</span>
+                      </div>
                     </SelectTrigger>
                     <SelectContent>
-                      {TASK_STATUSES.map((s) => (
-                        <SelectItem key={s.value} value={s.value}>
-                          {s.label}
+                      {statuses.map((s) => (
+                        <SelectItem key={s.slug} value={s.slug} className="text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                            {s.name}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 ) : (
                   <span
-                    className={cn(
-                      'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium',
-                      STATUS_CLASSES[task.status],
-                    )}
+                    className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium"
+                    style={{
+                      backgroundColor: (statusCfg?.color ?? '#94a3b8') + '20',
+                      color: statusCfg?.color ?? '#94a3b8',
+                    }}
                   >
-                    {formatStatus(task.status)}
+                    {statusCfg?.name ?? task.status}
                   </span>
                 )}
               </div>
@@ -864,18 +856,30 @@ export function TaskDetailPage({
                 {canEdit ? (
                   <Select value={task.priority} onValueChange={handlePriorityChange}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: priorityCfg?.color ?? '#f59e0b' }} />
+                        <span>{priorityCfg?.name ?? task.priority}</span>
+                      </div>
                     </SelectTrigger>
                     <SelectContent>
-                      {PRIORITIES.map((p) => (
-                        <SelectItem key={p.value} value={p.value}>
-                          {p.label}
+                      {priorities.map((p) => (
+                        <SelectItem key={p.slug} value={p.slug} className="text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                            {p.name}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 ) : (
-                  <span className="text-sm font-medium">{formatStatus(task.priority)}</span>
+                  <span
+                    className="inline-flex items-center gap-1.5 text-xs font-medium"
+                    style={{ color: priorityCfg?.color ?? '#f59e0b' }}
+                  >
+                    <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: priorityCfg?.color ?? '#f59e0b' }} />
+                    {priorityCfg?.name ?? task.priority}
+                  </span>
                 )}
               </div>
 
@@ -992,9 +996,9 @@ function formatActivityAction(
 ): string {
   switch (action) {
     case 'status_changed':
-      return `changed status from "${formatStatus(oldValue ?? '')}" to "${formatStatus(newValue ?? '')}"`
+      return `changed status from "${oldValue ?? ''}" to "${newValue ?? ''}"`
     case 'priority_changed':
-      return `changed priority from "${formatStatus(oldValue ?? '')}" to "${formatStatus(newValue ?? '')}"`
+      return `changed priority from "${oldValue ?? ''}" to "${newValue ?? ''}"`
     case 'description_updated':
       return 'updated the description'
     case 'task_created':

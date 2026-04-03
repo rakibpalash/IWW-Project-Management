@@ -22,15 +22,12 @@ import {
 } from '@/components/ui/tooltip'
 import { useToast } from '@/components/ui/use-toast'
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
-import { TASK_STATUSES } from '@/lib/constants'
+import { useTaskConfig } from '@/hooks/use-task-config'
 import {
   cn,
   formatDate,
   getInitials,
-  getPriorityColor,
-  getStatusColor,
   isOverdue,
-  formatStatus,
 } from '@/lib/utils'
 import { SubtaskList } from './subtask-list'
 
@@ -52,12 +49,18 @@ export function TaskRow({
   level = 0,
 }: TaskRowProps) {
   const { toast } = useToast()
+  const { statuses, priorities, getStatus, getPriority } = useTaskConfig()
   const [expanded, setExpanded] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
 
   const hasSubtasks = (task.subtasks ?? []).length > 0
-  const isDone = task.status === 'done'
+  const statusCfg = getStatus(task.status)
+  const priorityCfg = getPriority(task.priority)
+  const isDone = statusCfg?.is_completed_status ?? task.status === 'done'
   const overdue = !isDone && isOverdue(task.due_date)
+  // Slug for "done" state when checking off
+  const doneSlug = statuses.find((s) => s.is_completed_status && s.slug === 'done')?.slug ?? statuses.find((s) => s.is_completed_status)?.slug ?? 'done'
+  const defaultSlug = statuses.find((s) => s.is_default)?.slug ?? 'todo'
 
   const isAdmin = profile.role === 'super_admin'
   const isCreator = task.created_by === profile.id
@@ -65,8 +68,7 @@ export function TaskRow({
   const canEdit = isAdmin || isCreator || isAssignee
 
   async function handleCheckboxChange(checked: boolean) {
-    const newStatus: TaskStatus = checked ? 'done' : 'todo'
-    await handleStatusChange(newStatus)
+    await handleStatusChange(checked ? doneSlug : defaultSlug)
   }
 
   async function handleStatusChange(newStatus: string) {
@@ -152,14 +154,16 @@ export function TaskRow({
           </div>
 
           {/* Priority badge */}
-          <Badge
-            className={cn(
-              'hidden sm:flex border text-xs shrink-0',
-              getPriorityColor(task.priority)
-            )}
+          <span
+            className="hidden sm:inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium shrink-0"
+            style={{
+              backgroundColor: (priorityCfg?.color ?? '#f59e0b') + '20',
+              color: priorityCfg?.color ?? '#f59e0b',
+              borderColor: (priorityCfg?.color ?? '#f59e0b') + '40',
+            }}
           >
-            {formatStatus(task.priority)}
-          </Badge>
+            {priorityCfg?.name ?? task.priority}
+          </span>
 
           {/* Status select */}
           {canEdit ? (
@@ -169,22 +173,38 @@ export function TaskRow({
                 onValueChange={handleStatusChange}
                 disabled={updatingStatus}
               >
-                <SelectTrigger className="h-7 w-[110px] text-xs shrink-0">
-                  <SelectValue />
+                <SelectTrigger className="h-7 w-[120px] text-xs shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <div
+                      className="h-2 w-2 rounded-full shrink-0"
+                      style={{ backgroundColor: statusCfg?.color ?? '#94a3b8' }}
+                    />
+                    <span className="truncate">{statusCfg?.name ?? task.status}</span>
+                  </div>
                 </SelectTrigger>
                 <SelectContent>
-                  {TASK_STATUSES.map((s) => (
-                    <SelectItem key={s.value} value={s.value} className="text-xs">
-                      {s.label}
+                  {statuses.map((s) => (
+                    <SelectItem key={s.slug} value={s.slug} className="text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                        {s.name}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           ) : (
-            <Badge className={cn('border text-xs shrink-0', getStatusColor(task.status))}>
-              {formatStatus(task.status)}
-            </Badge>
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium shrink-0"
+              style={{
+                backgroundColor: (statusCfg?.color ?? '#94a3b8') + '20',
+                color: statusCfg?.color ?? '#94a3b8',
+                borderColor: (statusCfg?.color ?? '#94a3b8') + '40',
+              }}
+            >
+              {statusCfg?.name ?? task.status}
+            </span>
           )}
 
           {/* Due date */}
