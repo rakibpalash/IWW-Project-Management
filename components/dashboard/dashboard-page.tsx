@@ -290,7 +290,7 @@ function QuickActions({
           New Project
         </Button>
       )}
-      {(role === 'super_admin' || role === 'staff') && (
+      {role === 'staff' && (
         <>
           <Button
             size="sm"
