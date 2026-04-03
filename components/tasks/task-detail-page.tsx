@@ -38,6 +38,7 @@ import {
   List,
 } from 'lucide-react'
 import { TASK_STATUSES, PRIORITIES } from '@/lib/constants'
+import { updateTaskAction, updateTaskStatusAction } from '@/app/actions/tasks'
 import {
   cn,
   formatDate,
@@ -280,13 +281,10 @@ export function TaskDetailPage({
   async function handleStatusChange(newStatus: string) {
     const old = task.status
     setTask((p) => ({ ...p, status: newStatus as TaskStatus }))
-    const { error } = await supabase
-      .from('tasks')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', task.id)
-    if (error) {
+    const result = await updateTaskStatusAction(task.id, newStatus)
+    if (!result.success) {
       setTask((p) => ({ ...p, status: old }))
-      toast({ title: 'Error updating status', variant: 'destructive' })
+      toast({ title: 'Error updating status', description: result.error, variant: 'destructive' })
       return
     }
     const newLog: ActivityLog = {
@@ -300,19 +298,15 @@ export function TaskDetailPage({
       user: profile,
     }
     setActivityLogs((p) => [newLog, ...p])
-    await logActivity('status_changed', old, newStatus)
   }
 
   async function handlePriorityChange(newPriority: string) {
     const old = task.priority
     setTask((p) => ({ ...p, priority: newPriority as Priority }))
-    const { error } = await supabase
-      .from('tasks')
-      .update({ priority: newPriority, updated_at: new Date().toISOString() })
-      .eq('id', task.id)
-    if (error) {
+    const result = await updateTaskAction(task.id, { priority: newPriority })
+    if (!result.success) {
       setTask((p) => ({ ...p, priority: old }))
-      toast({ title: 'Error updating priority', variant: 'destructive' })
+      toast({ title: 'Error updating priority', description: result.error, variant: 'destructive' })
       return
     }
     await logActivity('priority_changed', old, newPriority)
@@ -321,13 +315,10 @@ export function TaskDetailPage({
   async function saveTitle() {
     if (!titleDraft.trim()) return
     setSavingTitle(true)
-    const { error } = await supabase
-      .from('tasks')
-      .update({ title: titleDraft.trim(), updated_at: new Date().toISOString() })
-      .eq('id', task.id)
+    const result = await updateTaskAction(task.id, { title: titleDraft.trim() })
     setSavingTitle(false)
-    if (error) {
-      toast({ title: 'Error saving title', variant: 'destructive' })
+    if (!result.success) {
+      toast({ title: 'Error saving title', description: result.error, variant: 'destructive' })
       return
     }
     setTask((p) => ({ ...p, title: titleDraft.trim() }))
@@ -337,13 +328,10 @@ export function TaskDetailPage({
   async function saveDescription() {
     setSavingDescription(true)
     const old = task.description
-    const { error } = await supabase
-      .from('tasks')
-      .update({ description: descriptionDraft, updated_at: new Date().toISOString() })
-      .eq('id', task.id)
+    const result = await updateTaskAction(task.id, { description: descriptionDraft })
     setSavingDescription(false)
-    if (error) {
-      toast({ title: 'Error saving description', variant: 'destructive' })
+    if (!result.success) {
+      toast({ title: 'Error saving description', description: result.error, variant: 'destructive' })
       return
     }
     setTask((p) => ({ ...p, description: descriptionDraft }))
