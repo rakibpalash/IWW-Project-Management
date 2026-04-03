@@ -271,6 +271,29 @@ export async function applyLeaveAction(data: {
       return { success: false, error: 'Not authenticated' }
     }
 
+    const currentYear = new Date(data.start_date).getFullYear()
+
+    // Auto-create a balance record with defaults if none exists yet
+    const { data: existing } = await supabase
+      .from('leave_balances')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('year', currentYear)
+      .single()
+
+    if (!existing) {
+      await supabase.from('leave_balances').insert({
+        user_id: user.id,
+        year: currentYear,
+        yearly_total: 18,
+        yearly_used: 0,
+        wfh_total: 10,
+        wfh_used: 0,
+        marriage_total: 0,
+        marriage_used: 0,
+      })
+    }
+
     const { error: insertError } = await supabase.from('leave_requests').insert({
       user_id: user.id,
       leave_type: data.leave_type,

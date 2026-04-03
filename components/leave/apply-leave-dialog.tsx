@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { format, parseISO, isWeekend, eachDayOfInterval } from 'date-fns'
 import {
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, CheckCircle2, InfoIcon } from 'lucide-react'
+import { Loader2, CheckCircle2 } from 'lucide-react'
 import { LeaveBalance, LeaveType } from '@/types'
 import { applyLeaveAction } from '@/app/actions/leave'
 
@@ -49,6 +49,16 @@ const leaveTypeLabels: Record<LeaveType, string> = {
   marriage: 'Marriage Leave',
 }
 
+// Same fallback defaults as StaffView in leave-page.tsx
+const DEFAULTS = {
+  yearly_total: 18,
+  yearly_used: 0,
+  wfh_total: 10,
+  wfh_used: 0,
+  marriage_total: 0,
+  marriage_used: 0,
+}
+
 export function ApplyLeaveDialog({ open, onOpenChange, balance }: ApplyLeaveDialogProps) {
   const router = useRouter()
   const [leaveType, setLeaveType] = useState<LeaveType>('yearly')
@@ -61,26 +71,38 @@ export function ApplyLeaveDialog({ open, onOpenChange, balance }: ApplyLeaveDial
 
   const totalDays = countWorkdays(startDate, endDate)
 
-  const getAvailableDays = (type: LeaveType): number => {
-    if (!balance) return 0
-    if (type === 'yearly') return Math.max(0, balance.yearly_total - balance.yearly_used)
-    if (type === 'work_from_home') return Math.max(0, balance.wfh_total - balance.wfh_used)
-    if (type === 'marriage') return Math.max(0, balance.marriage_total - balance.marriage_used)
-    return 0
+  // Compute per-type balance using same fallbacks as the balance cards
+  const getBalanceInfo = (type: LeaveType) => {
+    if (type === 'yearly') {
+      const total = balance?.yearly_total ?? DEFAULTS.yearly_total
+      const used = balance?.yearly_used ?? DEFAULTS.yearly_used
+      return { total, used, remaining: Math.max(0, total - used) }
+    }
+    if (type === 'work_from_home') {
+      const total = balance?.wfh_total ?? DEFAULTS.wfh_total
+      const used = balance?.wfh_used ?? DEFAULTS.wfh_used
+      return { total, used, remaining: Math.max(0, total - used) }
+    }
+    if (type === 'marriage') {
+      const total = balance?.marriage_total ?? DEFAULTS.marriage_total
+      const used = balance?.marriage_used ?? DEFAULTS.marriage_used
+      return { total, used, remaining: Math.max(0, total - used) }
+    }
+    return { total: 0, used: 0, remaining: 0 }
   }
 
-  const availableDays = getAvailableDays(leaveType)
+  const { total, used, remaining } = getBalanceInfo(leaveType)
 
   const validate = (): string | null => {
     if (!startDate) return 'Please select a start date'
     if (!endDate) return 'Please select an end date'
     if (endDate < startDate) return 'End date must be after start date'
     if (totalDays === 0) return 'Selected dates include no working days'
-    if (leaveType !== 'marriage' && totalDays > availableDays) {
-      return `Insufficient balance. You have ${availableDays} day(s) available but requested ${totalDays}`
-    }
-    if (leaveType === 'marriage' && availableDays === 0) {
+    if (leaveType === 'marriage' && total === 0) {
       return 'No marriage leave allocated. Please contact admin.'
+    }
+    if (totalDays > remaining) {
+      return `Insufficient balance. You have ${remaining} day(s) available but requested ${totalDays}`
     }
     return null
   }
@@ -131,6 +153,7 @@ export function ApplyLeaveDialog({ open, onOpenChange, balance }: ApplyLeaveDial
   }
 
   const today = format(new Date(), 'yyyy-MM-dd')
+  const isOverBalance = totalDays > 0 && totalDays > remaining && leaveType !== 'marriage'
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -161,7 +184,10 @@ export function ApplyLeaveDialog({ open, onOpenChange, balance }: ApplyLeaveDial
               <Label>Leave Type</Label>
               <Select
                 value={leaveType}
-                onValueChange={(v) => setLeaveType(v as LeaveType)}
+                onValueChange={(v) => {
+                  setLeaveType(v as LeaveType)
+                  setError(null)
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -173,17 +199,23 @@ export function ApplyLeaveDialog({ open, onOpenChange, balance }: ApplyLeaveDial
                 </SelectContent>
               </Select>
 
-              {balance && (
-                <div className="flex items-center gap-1.5 rounded-md bg-blue-50 px-3 py-1.5 text-sm text-blue-700">
-                  <InfoIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span>
-                    Available:{' '}
-                    <strong>
-                      {availableDays} day{availableDays !== 1 ? 's' : ''}
-                    </strong>
-                  </span>
+              {/* Balance summary row */}
+              <div className="grid grid-cols-3 gap-2 rounded-md border bg-gray-50 px-3 py-2 text-center text-xs">
+                <div>
+                  <p className="font-semibold text-foreground">{total}</p>
+                  <p className="text-muted-foreground">Total</p>
                 </div>
-              )}
+                <div>
+                  <p className="font-semibold text-amber-600">{used}</p>
+                  <p className="text-muted-foreground">Used</p>
+                </div>
+                <div>
+                  <p className={`font-semibold ${remaining === 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {remaining}
+                  </p>
+                  <p className="text-muted-foreground">Available</p>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -196,6 +228,7 @@ export function ApplyLeaveDialog({ open, onOpenChange, balance }: ApplyLeaveDial
                   onChange={(e) => {
                     setStartDate(e.target.value)
                     if (endDate && e.target.value > endDate) setEndDate(e.target.value)
+                    setError(null)
                   }}
                 />
               </div>
@@ -205,15 +238,23 @@ export function ApplyLeaveDialog({ open, onOpenChange, balance }: ApplyLeaveDial
                   type="date"
                   value={endDate}
                   min={startDate || today}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => {
+                    setEndDate(e.target.value)
+                    setError(null)
+                  }}
                 />
               </div>
             </div>
 
             {totalDays > 0 && (
-              <div className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2">
+              <div className={`flex items-center gap-2 rounded-md px-3 py-2 ${isOverBalance ? 'bg-red-50' : 'bg-gray-50'}`}>
                 <span className="text-sm text-muted-foreground">Working days:</span>
-                <Badge variant="secondary">{totalDays} day{totalDays !== 1 ? 's' : ''}</Badge>
+                <Badge variant={isOverBalance ? 'destructive' : 'secondary'}>
+                  {totalDays} day{totalDays !== 1 ? 's' : ''}
+                </Badge>
+                {isOverBalance && (
+                  <span className="text-xs text-red-600 ml-auto">Exceeds balance</span>
+                )}
               </div>
             )}
 
@@ -234,7 +275,10 @@ export function ApplyLeaveDialog({ open, onOpenChange, balance }: ApplyLeaveDial
             <Button variant="outline" onClick={handleClose} disabled={loading}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={loading}>
+            <Button
+              onClick={handleSubmit}
+              disabled={loading || isOverBalance}
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Submit Request
             </Button>
