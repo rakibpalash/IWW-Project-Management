@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Upload, CheckCircle2, User, Mail, Camera } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { updateUserProfileAction } from '@/app/actions/user'
 
 interface ProfileSettingsPageProps {
   profile: Profile
@@ -55,7 +56,7 @@ export function ProfileSettingsPage({ profile }: ProfileSettingsPageProps) {
     try {
       const supabase = createClient()
       const fileExt = file.name.split('.').pop()
-      const filePath = `avatars/${profile.id}.${fileExt}`
+      const filePath = `${profile.id}.${fileExt}`
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
@@ -85,30 +86,21 @@ export function ProfileSettingsPage({ profile }: ProfileSettingsPageProps) {
     setError(null)
     setSuccess(false)
 
-    try {
-      const supabase = createClient()
+    const result = await updateUserProfileAction({
+      full_name: fullName.trim(),
+      avatar_url: avatarUrl,
+    })
 
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          full_name: fullName.trim(),
-          avatar_url: avatarUrl,
-        })
-        .eq('id', profile.id)
+    setSaving(false)
 
-      if (updateError) {
-        setError(updateError.message)
-        return
-      }
-
-      setSuccess(true)
-      router.refresh()
-      setTimeout(() => setSuccess(false), 3000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save')
-    } finally {
-      setSaving(false)
+    if (!result.success) {
+      setError(result.error ?? 'Failed to save')
+      return
     }
+
+    setSuccess(true)
+    router.refresh()
+    setTimeout(() => setSuccess(false), 3000)
   }
 
   const hasChanges = fullName !== profile.full_name || avatarUrl !== profile.avatar_url
