@@ -69,16 +69,16 @@ export function computeStatusForRule(
   const total = toMinutes(checkInTime)
 
   if (rule === 'football') {
-    if (total <= toMinutes(settings.football_on_time_end))  return 'on_time'
-    if (total <= toMinutes(settings.football_late_150_end)) return 'late_150'
-    if (total <= toMinutes(settings.football_late_250_end)) return 'late_250'
+    if (total <= toMinutes(settings.football_on_time_end  ?? '09:00')) return 'on_time'
+    if (total <= toMinutes(settings.football_late_150_end ?? '10:00')) return 'late_150'
+    if (total <= toMinutes(settings.football_late_250_end ?? '11:00')) return 'late_250'
     return 'advance_absence'
   }
 
   if (rule === 'friday') {
-    if (total <= toMinutes(settings.friday_on_time_end))  return 'on_time'
-    if (total <= toMinutes(settings.friday_late_150_end)) return 'late_150'
-    if (total <= toMinutes(settings.friday_late_250_end)) return 'late_250'
+    if (total <= toMinutes(settings.friday_on_time_end  ?? '09:00')) return 'on_time'
+    if (total <= toMinutes(settings.friday_late_150_end ?? '10:00')) return 'late_150'
+    if (total <= toMinutes(settings.friday_late_250_end ?? '11:00')) return 'late_250'
     return 'absent'
   }
 
@@ -96,13 +96,14 @@ export function getExpectedExitTime(
   rule: AppliedRule,
   settings: AttendanceSettings
 ): string {
-  if (rule === 'football') return settings.exit_time_football
-  if (rule === 'friday')   return settings.exit_time_friday
-  return settings.exit_time_general
+  if (rule === 'football') return settings.exit_time_football ?? '14:00'
+  if (rule === 'friday')   return settings.exit_time_friday   ?? '13:00'
+  return settings.exit_time_general ?? '17:00'
 }
 
 /** Formats 'HH:MM' (24-h) to '2:15 PM' style. */
-export function formatExitTime(hhmm: string): string {
+export function formatExitTime(hhmm: string | undefined | null): string {
+  if (!hhmm) return ''
   const [h, m] = hhmm.split(':').map(Number)
   const period = h >= 12 ? 'PM' : 'AM'
   const hour12 = h % 12 === 0 ? 12 : h % 12
