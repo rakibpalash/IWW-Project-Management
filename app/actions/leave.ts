@@ -1,51 +1,50 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+
+async function notifyUser(
+  userId: string,
+  title: string,
+  message: string,
+  link?: string
+) {
+  const admin = createAdminClient()
+  await admin.from('notifications').insert({
+    user_id: userId,
+    type: 'status_changed',
+    title,
+    message,
+    link: link ?? null,
+    is_read: false,
+  })
+}
 
 export async function approveLeaveAction(
   requestId: string,
   notes: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Verify caller is super_admin
     const supabase = await createClient()
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      return { success: false, error: 'Not authenticated' }
-    }
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) return { success: false, error: 'Not authenticated' }
 
     const { data: caller } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
+      .from('profiles').select('role').eq('id', user.id).single()
     if (!caller || caller.role !== 'super_admin') {
       return { success: false, error: 'Unauthorized' }
     }
 
-    // Fetch the leave request first
-    const { data: request, error: fetchError } = await supabase
-      .from('leave_requests')
-      .select('*')
-      .eq('id', requestId)
-      .single()
+    // Use admin client for all DB writes to bypass RLS
+    const admin = createAdminClient()
 
-    if (fetchError || !request) {
-      return { success: false, error: 'Leave request not found' }
-    }
+    const { data: request, error: fetchError } = await admin
+      .from('leave_requests').select('*').eq('id', requestId).single()
+    if (fetchError || !request) return { success: false, error: 'Leave request not found' }
+    if (request.status !== 'pending') return { success: false, error: 'Request is not in pending state' }
 
-    if (request.status !== 'pending') {
-      return { success: false, error: 'Request is not in pending state' }
-    }
-
-    // Update status to approved
-    const { error: updateError } = await supabase
+    const { error: updateError } = await admin
       .from('leave_requests')
       .update({
         status: 'approved',
@@ -55,39 +54,40 @@ export async function approveLeaveAction(
       })
       .eq('id', requestId)
 
-    if (updateError) {
-      return { success: false, error: updateError.message }
-    }
+    if (updateError) return { success: false, error: updateError.message }
 
-    // Update leave balance - increment used days
+    // Update leave balance
     const currentYear = new Date(request.start_date).getFullYear()
-
-    const { data: balance, error: balanceError } = await supabase
+    const { data: balance } = await admin
       .from('leave_balances')
       .select('*')
       .eq('user_id', request.user_id)
       .eq('year', currentYear)
       .single()
 
-    if (!balanceError && balance) {
+    if (balance) {
       const leaveType = request.leave_type as string
       let updateData: Record<string, number> = {}
-
-      if (leaveType === 'yearly') {
-        updateData = { yearly_used: balance.yearly_used + request.total_days }
-      } else if (leaveType === 'work_from_home') {
-        updateData = { wfh_used: balance.wfh_used + request.total_days }
-      } else if (leaveType === 'marriage') {
-        updateData = { marriage_used: balance.marriage_used + request.total_days }
-      }
-
+      if (leaveType === 'yearly') updateData = { yearly_used: balance.yearly_used + request.total_days }
+      else if (leaveType === 'work_from_home') updateData = { wfh_used: balance.wfh_used + request.total_days }
+      else if (leaveType === 'marriage') updateData = { marriage_used: balance.marriage_used + request.total_days }
       if (Object.keys(updateData).length > 0) {
-        await supabase
-          .from('leave_balances')
-          .update(updateData)
-          .eq('id', balance.id)
+        await admin.from('leave_balances').update(updateData).eq('id', balance.id)
       }
     }
+
+    // Notify the staff member
+    const leaveTypeLabel =
+      request.leave_type === 'yearly' ? 'Annual Leave'
+      : request.leave_type === 'work_from_home' ? 'Work From Home'
+      : 'Marriage Leave'
+
+    await notifyUser(
+      request.user_id,
+      'Leave Request Approved ✓',
+      `Your ${leaveTypeLabel} request (${request.total_days} day${request.total_days !== 1 ? 's' : ''}) has been approved.${notes ? ` Note: ${notes}` : ''}`,
+      '/leave'
+    )
 
     revalidatePath('/leave')
     return { success: true }
@@ -102,28 +102,24 @@ export async function rejectLeaveAction(
   notes: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Verify caller is super_admin
     const supabase = await createClient()
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      return { success: false, error: 'Not authenticated' }
-    }
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) return { success: false, error: 'Not authenticated' }
 
     const { data: caller } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
+      .from('profiles').select('role').eq('id', user.id).single()
     if (!caller || caller.role !== 'super_admin') {
       return { success: false, error: 'Unauthorized' }
     }
 
-    const { error: updateError } = await supabase
+    // Use admin client for DB writes to bypass RLS
+    const admin = createAdminClient()
+
+    const { data: request } = await admin
+      .from('leave_requests').select('*').eq('id', requestId).single()
+
+    const { error: updateError } = await admin
       .from('leave_requests')
       .update({
         status: 'rejected',
@@ -134,8 +130,21 @@ export async function rejectLeaveAction(
       .eq('id', requestId)
       .eq('status', 'pending')
 
-    if (updateError) {
-      return { success: false, error: updateError.message }
+    if (updateError) return { success: false, error: updateError.message }
+
+    // Notify the staff member
+    if (request) {
+      const leaveTypeLabel =
+        request.leave_type === 'yearly' ? 'Annual Leave'
+        : request.leave_type === 'work_from_home' ? 'Work From Home'
+        : 'Marriage Leave'
+
+      await notifyUser(
+        request.user_id,
+        'Leave Request Rejected',
+        `Your ${leaveTypeLabel} request (${request.total_days} day${request.total_days !== 1 ? 's' : ''}) has been rejected.${notes ? ` Reason: ${notes}` : ''}`,
+        '/leave'
+      )
     }
 
     revalidatePath('/leave')
