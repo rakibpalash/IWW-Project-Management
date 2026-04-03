@@ -58,7 +58,15 @@ export const DEFAULT_ATTENDANCE_SETTINGS = {
   wfh_days: 10,
 }
 
-export const NAV_ITEMS = {
+const STAFF_NAV = [
+  { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
+  { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
+  { href: '/tasks', label: 'My Tasks', icon: 'CheckSquare' },
+  { href: '/attendance', label: 'Attendance', icon: 'Clock' },
+  { href: '/leave', label: 'Leave', icon: 'CalendarDays' },
+]
+
+export const NAV_ITEMS: Record<string, { href: string; label: string; icon: string }[]> = {
   super_admin: [
     { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
     { href: '/workspaces', label: 'Workspaces', icon: 'Building2' },
@@ -69,13 +77,9 @@ export const NAV_ITEMS = {
     { href: '/team', label: 'Team', icon: 'Users' },
     { href: '/settings', label: 'Settings', icon: 'Settings' },
   ],
-  staff: [
-    { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-    { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
-    { href: '/tasks', label: 'My Tasks', icon: 'CheckSquare' },
-    { href: '/attendance', label: 'Attendance', icon: 'Clock' },
-    { href: '/leave', label: 'Leave', icon: 'CalendarDays' },
-  ],
+  account_manager: STAFF_NAV,
+  project_manager: STAFF_NAV,
+  staff: STAFF_NAV,
   client: [
     { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
     { href: '/projects', label: 'Projects', icon: 'FolderKanban' },

@@ -38,6 +38,7 @@ import {
   List,
 } from 'lucide-react'
 import { updateTaskAction, updateTaskStatusAction } from '@/app/actions/tasks'
+import { startTimerAction, stopTimerAction } from '@/app/actions/time-entries'
 import { useTaskConfig } from '@/hooks/use-task-config'
 import {
   cn,
@@ -194,6 +195,7 @@ export function TaskDetailPage({
   const isCreator = task.created_by === profile.id
   const isAssignee = (task.assignees ?? []).some((a) => a.id === profile.id)
   const canEdit = isAdmin || isCreator || isAssignee
+  const canTrackTime = profile.role !== 'client'
 
   const { statuses, priorities, getStatus, getPriority } = useTaskConfig()
   const statusCfg = getStatus(task.status)
@@ -320,53 +322,35 @@ export function TaskDetailPage({
   }
 
   async function startTimer() {
+    if (!canTrackTime) return
     setTimerLoading(true)
-    const { data, error } = await supabase
-      .from('time_entries')
-      .insert({
-        task_id: task.id,
-        user_id: profile.id,
-        started_at: new Date().toISOString(),
-        is_running: true,
-        duration_minutes: 0,
-      })
-      .select('*')
-      .single()
+    const result = await startTimerAction(task.id)
     setTimerLoading(false)
-    if (error || !data) {
-      toast({ title: 'Failed to start timer', variant: 'destructive' })
+    if (!result.success || !result.entry) {
+      toast({ title: result.error ?? 'Failed to start timer', variant: 'destructive' })
       return
     }
-    setRunningEntry(data as TimeEntry)
+    setRunningEntry(result.entry)
     setTimerRunning(true)
-    setTimeEntries((p) => [data as TimeEntry, ...p])
+    setTimeEntries((p) => [result.entry!, ...p])
   }
 
   async function stopTimer() {
-    if (!runningEntry) return
+    if (!runningEntry || !canTrackTime) return
     setTimerLoading(true)
     const duration = Math.round(
       (Date.now() - new Date(runningEntry.started_at).getTime()) / 60000,
     )
-    const { data, error } = await supabase
-      .from('time_entries')
-      .update({
-        is_running: false,
-        duration_minutes: duration,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', runningEntry.id)
-      .select('*')
-      .single()
+    const result = await stopTimerAction(runningEntry.id, duration)
     setTimerLoading(false)
-    if (error || !data) {
-      toast({ title: 'Failed to stop timer', variant: 'destructive' })
+    if (!result.success || !result.entry) {
+      toast({ title: result.error ?? 'Failed to stop timer', variant: 'destructive' })
       return
     }
     setRunningEntry(null)
     setTimerRunning(false)
     setTimeEntries((p) =>
-      p.map((e) => (e.id === runningEntry.id ? (data as TimeEntry) : e)),
+      p.map((e) => (e.id === runningEntry.id ? result.entry! : e)),
     )
   }
 
@@ -686,15 +670,17 @@ export function TaskDetailPage({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold">Activity</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs gap-1.5"
-                    onClick={() => setShowTimeLogDialog(true)}
-                  >
-                    <Clock className="h-3.5 w-3.5" />
-                    Log Time
-                  </Button>
+                  {canTrackTime && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5"
+                      onClick={() => setShowTimeLogDialog(true)}
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      Log Time
+                    </Button>
+                  )}
                 </div>
 
                 {/* Comment input */}
@@ -730,49 +716,51 @@ export function TaskDetailPage({
           <div className="w-72 shrink-0 border-l">
             <div className="sticky top-[49px] h-[calc(100vh-49px)] overflow-y-auto bg-card/30 p-5 space-y-6">
 
-              {/* Timer ───────────────────────────────────────── */}
-              <div className="rounded-xl border bg-card p-4 space-y-3">
-                <div className="flex items-center gap-2.5">
-                  {timerRunning && runningEntry ? (
-                    <span className="relative flex h-2.5 w-2.5 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
-                    </span>
-                  ) : (
-                    <Circle className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
-                  )}
-                  <span className="text-3xl font-mono font-bold tabular-nums tracking-tight">
+              {/* Timer ─── hidden for client role ──────────── */}
+              {canTrackTime && (
+                <div className="rounded-xl border bg-card p-4 space-y-3">
+                  <div className="flex items-center gap-2.5">
                     {timerRunning && runningEntry ? (
-                      <ElapsedTimer startedAt={runningEntry.started_at} />
+                      <span className="relative flex h-2.5 w-2.5 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+                      </span>
                     ) : (
-                      '00:00:00'
+                      <Circle className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
                     )}
-                  </span>
+                    <span className="text-3xl font-mono font-bold tabular-nums tracking-tight">
+                      {timerRunning && runningEntry ? (
+                        <ElapsedTimer startedAt={runningEntry.started_at} />
+                      ) : (
+                        '00:00:00'
+                      )}
+                    </span>
+                  </div>
+                  <button
+                    onClick={timerRunning ? stopTimer : startTimer}
+                    disabled={timerLoading}
+                    className={cn(
+                      'flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors w-full',
+                      timerRunning
+                        ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                        : 'bg-primary text-primary-foreground hover:bg-primary/90',
+                      timerLoading && 'opacity-50 cursor-not-allowed',
+                    )}
+                  >
+                    {timerRunning ? (
+                      <>
+                        <Square className="h-3.5 w-3.5 fill-current" />
+                        Stop Timer
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-3.5 w-3.5 fill-current" />
+                        Start Timer
+                      </>
+                    )}
+                  </button>
                 </div>
-                <button
-                  onClick={timerRunning ? stopTimer : startTimer}
-                  disabled={timerLoading}
-                  className={cn(
-                    'flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors w-full',
-                    timerRunning
-                      ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
-                      : 'bg-primary text-primary-foreground hover:bg-primary/90',
-                    timerLoading && 'opacity-50 cursor-not-allowed',
-                  )}
-                >
-                  {timerRunning ? (
-                    <>
-                      <Square className="h-3.5 w-3.5 fill-current" />
-                      Stop Timer
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-3.5 w-3.5 fill-current" />
-                      Start Timer
-                    </>
-                  )}
-                </button>
-              </div>
+              )}
 
               {/* Time summary ────────────────────────────────── */}
               <div className="space-y-2">
@@ -974,8 +962,8 @@ export function TaskDetailPage({
 
         </div>
 
-        {/* Time log dialog */}
-        {showTimeLogDialog && (
+        {/* Time log dialog — only for non-client roles */}
+        {canTrackTime && showTimeLogDialog && (
           <TimeLogDialog
             open={showTimeLogDialog}
             onOpenChange={setShowTimeLogDialog}

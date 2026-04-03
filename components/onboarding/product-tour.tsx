@@ -137,6 +137,8 @@ const CLIENT_STEPS: DriveStep[] = [
 
 const TOUR_STEPS: Record<Role, DriveStep[]> = {
   super_admin: SUPER_ADMIN_STEPS,
+  account_manager: STAFF_STEPS,
+  project_manager: STAFF_STEPS,
   staff: STAFF_STEPS,
   client: CLIENT_STEPS,
 }

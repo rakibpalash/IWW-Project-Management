@@ -58,10 +58,12 @@ function getInitials(name: string): string {
 function getRoleBadgeLabel(role: Profile['role']): string {
   const labels: Record<Profile['role'], string> = {
     super_admin: 'Super Admin',
+    account_manager: 'Account Manager',
+    project_manager: 'Project Manager',
     staff: 'Staff',
     client: 'Client',
   }
-  return labels[role]
+  return labels[role] ?? role
 }
 
 export function Sidebar({

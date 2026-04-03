@@ -30,20 +30,42 @@ interface OnboardingModalProps {
 
 // ── Role-specific copy ────────────────────────────────────────────────────────
 
+const STAFF_GREETING = {
+  headline: 'Welcome aboard!',
+  sub: "You'll manage tasks and track your time right here. Let's get you set up.",
+}
+
 const ROLE_GREETING: Record<Role, { headline: string; sub: string }> = {
   super_admin: {
     headline: 'Welcome, Admin!',
     sub: 'You can manage workspaces, projects, and your entire team from one place.',
   },
-  staff: {
-    headline: 'Welcome aboard!',
-    sub: "You'll manage tasks and track your time right here. Let's get you set up.",
-  },
+  account_manager: STAFF_GREETING,
+  project_manager: STAFF_GREETING,
+  staff: STAFF_GREETING,
   client: {
     headline: 'Welcome!',
     sub: 'Track your project progress, view task statuses, and stay in the loop — all here.',
   },
 }
+
+const STAFF_FEATURES = [
+  {
+    icon: <CheckSquare className="h-6 w-6 text-blue-500" />,
+    title: 'My Tasks',
+    description: 'See all tasks assigned to you, update statuses, and add comments in real time.',
+  },
+  {
+    icon: <Clock className="h-6 w-6 text-orange-500" />,
+    title: 'Time Tracker',
+    description: 'Log time against tasks effortlessly and keep your timesheets accurate.',
+  },
+  {
+    icon: <CalendarCheck className="h-6 w-6 text-green-500" />,
+    title: 'Attendance & Leave',
+    description: 'Check in each morning, request leave, and view your remaining balance.',
+  },
+]
 
 const ROLE_FEATURES: Record<
   Role,
@@ -66,23 +88,9 @@ const ROLE_FEATURES: Record<
       description: 'Monitor daily check-ins, configure attendance rules, and approve leave requests.',
     },
   ],
-  staff: [
-    {
-      icon: <CheckSquare className="h-6 w-6 text-blue-500" />,
-      title: 'My Tasks',
-      description: 'See all tasks assigned to you, update statuses, and add comments in real time.',
-    },
-    {
-      icon: <Clock className="h-6 w-6 text-orange-500" />,
-      title: 'Time Tracker',
-      description: 'Log time against tasks effortlessly and keep your timesheets accurate.',
-    },
-    {
-      icon: <CalendarCheck className="h-6 w-6 text-green-500" />,
-      title: 'Attendance & Leave',
-      description: 'Check in each morning, request leave, and view your remaining balance.',
-    },
-  ],
+  account_manager: STAFF_FEATURES,
+  project_manager: STAFF_FEATURES,
+  staff: STAFF_FEATURES,
   client: [
     {
       icon: <FolderKanban className="h-6 w-6 text-blue-500" />,
@@ -102,6 +110,21 @@ const ROLE_FEATURES: Record<
   ],
 }
 
+const STAFF_TIPS = [
+  {
+    title: 'Check in every morning',
+    body: 'Open Attendance and hit Check In as soon as you start work to keep your record clean.',
+  },
+  {
+    title: 'Update your task statuses',
+    body: 'Move tasks through Todo → In Progress → In Review → Done as you work.',
+  },
+  {
+    title: 'Log time as you go',
+    body: 'Use the Time Tracker on each task to keep accurate records of your work hours.',
+  },
+]
+
 const ROLE_TIPS: Record<Role, { title: string; body: string }[]> = {
   super_admin: [
     {
@@ -117,20 +140,9 @@ const ROLE_TIPS: Record<Role, { title: string; body: string }[]> = {
       body: 'Visit Attendance → Settings to set check-in windows and late-arrival thresholds.',
     },
   ],
-  staff: [
-    {
-      title: 'Check in every morning',
-      body: 'Open Attendance and hit Check In as soon as you start work to keep your record clean.',
-    },
-    {
-      title: 'Update your task statuses',
-      body: 'Move tasks through Todo → In Progress → In Review → Done as you work.',
-    },
-    {
-      title: 'Log time as you go',
-      body: 'Use the Time Tracker on each task to keep accurate records of your work hours.',
-    },
-  ],
+  account_manager: STAFF_TIPS,
+  project_manager: STAFF_TIPS,
+  staff: STAFF_TIPS,
   client: [
     {
       title: 'Bookmark your dashboard',

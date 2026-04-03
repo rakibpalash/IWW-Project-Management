@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Profile, TimeEntry, Task } from '@/types'
+import { createTimeEntryAction } from '@/app/actions/time-entries'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,7 +42,6 @@ export function TimeLogDialog({
   tasks = [],
 }: TimeLogDialogProps) {
   const { toast } = useToast()
-  const supabase = createClient()
 
   const today = format(new Date(), 'yyyy-MM-dd')
 
@@ -73,33 +72,29 @@ export function TimeLogDialog({
     setSubmitting(true)
 
     try {
-      // Build started_at from date (use noon to avoid TZ issues)
       const startedAt = new Date(`${date}T12:00:00`).toISOString()
       const endedAt = new Date(
         new Date(`${date}T12:00:00`).getTime() + totalMinutes * 60 * 1000
       ).toISOString()
 
-      const { data, error } = await supabase
-        .from('time_entries')
-        .insert({
-          task_id: taskId,
-          user_id: profile.id,
-          description: description.trim() || null,
-          started_at: startedAt,
-          ended_at: endedAt,
-          duration_minutes: totalMinutes,
-          is_running: false,
-        })
-        .select('*')
-        .single()
+      const result = await createTimeEntryAction({
+        task_id: taskId,
+        started_at: startedAt,
+        ended_at: endedAt,
+        duration_minutes: totalMinutes,
+        description: description.trim() || null,
+        is_running: false,
+      })
 
-      if (error) throw error
+      if (!result.success || !result.entry) {
+        toast({ title: result.error ?? 'Failed to log time', variant: 'destructive' })
+        return
+      }
 
       toast({ title: 'Time logged successfully' })
-      onCreated(data as TimeEntry)
+      onCreated(result.entry)
       onOpenChange(false)
 
-      // Reset
       setHours('0')
       setMinutes('30')
       setDescription('')
