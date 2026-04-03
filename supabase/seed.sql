@@ -5,18 +5,15 @@
 -- Ensure attendance_settings singleton exists (schema.sql already inserts it,
 -- this is a safety guard in case it was missed)
 INSERT INTO public.attendance_settings (
-  on_time_end,
-  late_150_end,
-  late_250_end,
-  football_on_time_end,
-  football_late_150_end,
-  football_late_250_end,
-  yearly_leave_days,
-  wfh_days
+  on_time_end, late_150_end, late_250_end, exit_time_general,
+  friday_on_time_end, friday_late_150_end, friday_late_250_end, exit_time_friday,
+  football_on_time_end, football_late_150_end, football_late_250_end, exit_time_football,
+  yearly_leave_days, wfh_days
 )
 SELECT
-  '09:00', '09:30', '11:00',
-  '09:45', '10:30', '11:00',
+  '09:00', '09:30', '11:00', '14:15',
+  '08:30', '09:00', '11:00', '12:15',
+  '09:45', '10:30', '11:00', '14:30',
   18, 10
 WHERE NOT EXISTS (
   SELECT 1 FROM public.attendance_settings LIMIT 1

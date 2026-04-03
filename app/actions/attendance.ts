@@ -2,34 +2,12 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { AttendanceRecord, AttendanceSettings, AttendanceStatus } from '@/types'
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function getAttendanceStatus(
-  checkInTime: string,
-  settings: AttendanceSettings,
-  isFootballRule: boolean
-): AttendanceStatus {
-  const timePart = checkInTime.substring(11, 16) // 'HH:MM' from ISO string
-
-  const onTimeEnd = isFootballRule
-    ? settings.football_on_time_end
-    : settings.on_time_end
-
-  const late150End = isFootballRule
-    ? settings.football_late_150_end
-    : settings.late_150_end
-
-  const late250End = isFootballRule
-    ? settings.football_late_250_end
-    : settings.late_250_end
-
-  if (timePart <= onTimeEnd) return 'on_time'
-  if (timePart <= late150End) return 'late_150'
-  if (timePart <= late250End) return 'late_250'
-  return 'absent'
-}
+import { AttendanceRecord, AttendanceSettings, AttendanceStatus, AppliedRule } from '@/types'
+import {
+  getDayType,
+  resolveAppliedRule,
+  computeStatusForRule,
+} from '@/lib/attendance-rules'
 
 // ── Check in ──────────────────────────────────────────────────────────────────
 
@@ -50,10 +28,16 @@ export async function checkInAction(): Promise<{
       return { success: false, error: 'Not authenticated' }
     }
 
-    const today = new Date().toISOString().slice(0, 10)
-    const now = new Date().toISOString()
+    const now = new Date()
+    const today = now.toISOString().slice(0, 10)
 
-    // Prevent duplicate check-ins
+    // ── Rule priority 1: Sunday → holiday, block check-in ─────────────────
+    const dayType = getDayType(now)
+    if (dayType === 'sunday') {
+      return { success: false, error: 'Today is a public holiday (Sunday). No attendance required.' }
+    }
+
+    // ── Prevent duplicate check-ins ───────────────────────────────────────
     const { data: existing } = await supabase
       .from('attendance_records')
       .select('id')
@@ -65,33 +49,44 @@ export async function checkInAction(): Promise<{
       return { success: false, error: 'Already checked in today' }
     }
 
-    // Fetch attendance settings
+    // ── Fetch settings ────────────────────────────────────────────────────
     const { data: settings } = await supabase
       .from('attendance_settings')
       .select('*')
       .single()
 
-    // Check if Football Rule applies today for this user
+    if (!settings) {
+      return { success: false, error: 'Attendance settings not configured' }
+    }
+
+    // ── Rule priority 2: Football assignment overrides Friday/General ─────
     const { data: footballRule } = await supabase
       .from('football_rules')
       .select('user_ids')
       .eq('date', today)
       .maybeSingle()
 
-    const isFootballRule =
-      footballRule?.user_ids?.includes(user.id) ?? false
+    const isFootballRule = footballRule?.user_ids?.includes(user.id) ?? false
 
-    const status = settings
-      ? getAttendanceStatus(now, settings as AttendanceSettings, isFootballRule)
-      : 'on_time'
+    // ── Resolve applied rule (sunday already blocked above) ───────────────
+    const appliedRule: AppliedRule = resolveAppliedRule(dayType, isFootballRule)
+
+    // ── Compute status from check-in time ─────────────────────────────────
+    const checkInTime = now.toTimeString().slice(0, 5) // 'HH:MM'
+    const status = computeStatusForRule(
+      checkInTime,
+      appliedRule,
+      settings as AttendanceSettings
+    )
 
     const { data: record, error } = await supabase
       .from('attendance_records')
       .insert({
         user_id: user.id,
         date: today,
-        check_in_time: now,
+        check_in_time: checkInTime,
         status,
+        applied_rule: appliedRule,
         is_football_rule: isFootballRule,
       })
       .select('*')
@@ -143,10 +138,12 @@ export async function checkOutAction(
       return { success: false, error: 'Already checked out' }
     }
 
+    const checkOutTime = new Date().toTimeString().slice(0, 5) // 'HH:MM'
+
     const { data: record, error } = await supabase
       .from('attendance_records')
       .update({
-        check_out_time: new Date().toISOString(),
+        check_out_time: checkOutTime,
         updated_at: new Date().toISOString(),
       })
       .eq('id', recordId)
@@ -173,6 +170,7 @@ export async function adminSetAttendanceAction(data: {
   user_id: string
   date: string
   status: AttendanceStatus
+  applied_rule?: AppliedRule
   check_in_time?: string
   check_out_time?: string
 }): Promise<{ success: boolean; error?: string }> {
@@ -188,7 +186,6 @@ export async function adminSetAttendanceAction(data: {
       return { success: false, error: 'Not authenticated' }
     }
 
-    // Verify admin role
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -199,16 +196,34 @@ export async function adminSetAttendanceAction(data: {
       return { success: false, error: 'Insufficient permissions' }
     }
 
+    // Derive applied_rule from date if not supplied
+    let appliedRule: AppliedRule = data.applied_rule ?? 'general'
+    if (!data.applied_rule) {
+      const targetDate = new Date(data.date + 'T00:00:00')
+      const dayType = getDayType(targetDate)
+
+      // Check football rule for the target date and user
+      const { data: footballRule } = await supabase
+        .from('football_rules')
+        .select('user_ids')
+        .eq('date', data.date)
+        .maybeSingle()
+
+      const isFootball = footballRule?.user_ids?.includes(data.user_id) ?? false
+      appliedRule = resolveAppliedRule(dayType, isFootball)
+    }
+
     const payload: Record<string, unknown> = {
       user_id: data.user_id,
       date: data.date,
       status: data.status,
+      applied_rule: appliedRule,
+      is_football_rule: appliedRule === 'football',
       check_in_time: data.check_in_time ?? null,
       check_out_time: data.check_out_time ?? null,
       updated_at: new Date().toISOString(),
     }
 
-    // Upsert – create or overwrite
     const { error } = await supabase
       .from('attendance_records')
       .upsert(payload, { onConflict: 'user_id,date' })
@@ -254,7 +269,12 @@ export async function setFootballRuleAction(data: {
       return { success: false, error: 'Insufficient permissions' }
     }
 
-    // Upsert football rule for the given date
+    // Block setting football rule on Sunday (holiday)
+    const targetDate = new Date(data.date + 'T00:00:00')
+    if (getDayType(targetDate) === 'sunday') {
+      return { success: false, error: 'Cannot set football rule on a Sunday (holiday)' }
+    }
+
     const { error } = await supabase
       .from('football_rules')
       .upsert(
@@ -302,7 +322,6 @@ export async function updateAttendanceSettingsAction(
       return { success: false, error: 'Insufficient permissions' }
     }
 
-    // Remove id from payload to avoid overwriting PK
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _id, ...updatePayload } = data as AttendanceSettings
 
@@ -315,7 +334,7 @@ export async function updateAttendanceSettingsAction(
     const { error } = await supabase
       .from('attendance_settings')
       .update(payload)
-      .neq('id', '') // update the single settings row
+      .neq('id', '')
 
     if (error) {
       return { success: false, error: error.message }

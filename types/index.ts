@@ -4,6 +4,8 @@ export type ProjectStatus = 'planning' | 'in_progress' | 'on_hold' | 'completed'
 export type Priority = 'low' | 'medium' | 'high' | 'urgent'
 export type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled'
 export type AttendanceStatus = 'on_time' | 'late_150' | 'late_250' | 'absent' | 'advance_absence'
+export type AppliedRule = 'general' | 'friday' | 'football' | 'holiday'
+export type DayType = 'sunday' | 'friday' | 'general'
 export type LeaveType = 'yearly' | 'work_from_home' | 'marriage'
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
@@ -152,6 +154,7 @@ export interface AttendanceRecord {
   check_in_time: string | null
   check_out_time: string | null
   status: AttendanceStatus
+  applied_rule: AppliedRule
   is_football_rule: boolean
   notes: string | null
   created_at: string
@@ -203,12 +206,22 @@ export interface LeaveRequest {
 
 export interface AttendanceSettings {
   id: string
-  on_time_end: string      // '09:00'
-  late_150_end: string     // '09:30'
-  late_250_end: string     // '11:00'
+  // General day rule (Sat–Thu, excluding Friday)
+  on_time_end: string        // '09:00'
+  late_150_end: string       // '09:30'
+  late_250_end: string       // '11:00'
+  exit_time_general: string  // '14:15'
+  // Friday rule
+  friday_on_time_end: string   // '08:30'
+  friday_late_150_end: string  // '09:00'
+  friday_late_250_end: string  // '11:00'
+  exit_time_friday: string     // '12:15'
+  // Football rule (per-date override for selected staff)
   football_on_time_end: string   // '09:45'
   football_late_150_end: string  // '10:30'
   football_late_250_end: string  // '11:00'
+  exit_time_football: string     // '14:30'
+  // Leave defaults
   yearly_leave_days: number
   wfh_days: number
   updated_by: string | null

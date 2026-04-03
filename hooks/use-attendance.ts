@@ -2,14 +2,21 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { AttendanceRecord, AttendanceSettings, FootballRule } from '@/types'
-import { computeAttendanceStatus } from '@/lib/utils'
+import { AttendanceRecord, AttendanceSettings, FootballRule, AppliedRule, DayType } from '@/types'
+import {
+  getDayType,
+  resolveAppliedRule,
+  computeStatusForRule,
+} from '@/lib/attendance-rules'
 import { useToast } from '@/components/ui/use-toast'
 
 interface UseAttendanceReturn {
   todayRecord: AttendanceRecord | null
   hasCheckedIn: boolean
   hasCheckedOut: boolean
+  dayType: DayType
+  appliedRule: AppliedRule
+  /** @deprecated use appliedRule === 'football' instead */
   isFootballDay: boolean
   settings: AttendanceSettings | null
   loading: boolean
@@ -20,12 +27,14 @@ interface UseAttendanceReturn {
 
 export function useAttendance(userId: string): UseAttendanceReturn {
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null)
-  const [isFootballDay, setIsFootballDay] = useState(false)
+  const [isFootballAssigned, setIsFootballAssigned] = useState(false)
   const [settings, setSettings] = useState<AttendanceSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
   const today = new Date().toISOString().slice(0, 10)
+  const dayType = getDayType(new Date())
+  const appliedRule = resolveAppliedRule(dayType, isFootballAssigned)
 
   const fetchData = useCallback(async () => {
     if (!userId) return
@@ -60,9 +69,9 @@ export function useAttendance(userId: string): UseAttendanceReturn {
 
       if (footballRule) {
         const rule = footballRule as FootballRule
-        setIsFootballDay(Array.isArray(rule.user_ids) && rule.user_ids.includes(userId))
+        setIsFootballAssigned(Array.isArray(rule.user_ids) && rule.user_ids.includes(userId))
       } else {
-        setIsFootballDay(false)
+        setIsFootballAssigned(false)
       }
     } catch (err) {
       console.error('useAttendance fetch error:', err)
@@ -77,12 +86,21 @@ export function useAttendance(userId: string): UseAttendanceReturn {
 
   const checkIn = useCallback(async () => {
     if (!settings || !userId) return
-    const supabase = createClient()
-    const checkInTime = new Date().toTimeString().slice(0, 5) // HH:MM
 
-    // For absent (no check-in after 11:00 on non-football day) we still allow check-in
-    // but status will reflect the actual time
-    const status = computeAttendanceStatus(checkInTime, isFootballDay, settings)
+    // Block Sunday check-in on the client side as well
+    if (dayType === 'sunday') {
+      toast({
+        title: 'Holiday',
+        description: 'Today is Sunday — no attendance required.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const supabase = createClient()
+    const checkInTime = new Date().toTimeString().slice(0, 5) // 'HH:MM'
+    const rule = resolveAppliedRule(dayType, isFootballAssigned)
+    const status = computeStatusForRule(checkInTime, rule, settings)
 
     const { data, error } = await supabase
       .from('attendance_records')
@@ -91,7 +109,8 @@ export function useAttendance(userId: string): UseAttendanceReturn {
         date: today,
         check_in_time: checkInTime,
         status,
-        is_football_rule: isFootballDay,
+        applied_rule: rule,
+        is_football_rule: rule === 'football',
         notes: null,
       })
       .select('*')
@@ -109,14 +128,14 @@ export function useAttendance(userId: string): UseAttendanceReturn {
     setTodayRecord(data as AttendanceRecord)
     toast({
       title: 'Checked in!',
-      description: `Status: ${status.replace(/_/g, ' ')} at ${checkInTime}`,
+      description: `${status.replace(/_/g, ' ')} · ${rule} rule · ${checkInTime}`,
     })
-  }, [settings, userId, isFootballDay, today, toast])
+  }, [settings, userId, dayType, isFootballAssigned, today, toast])
 
   const checkOut = useCallback(async () => {
     if (!todayRecord || !userId) return
     const supabase = createClient()
-    const checkOutTime = new Date().toTimeString().slice(0, 5) // HH:MM
+    const checkOutTime = new Date().toTimeString().slice(0, 5) // 'HH:MM'
 
     const { data, error } = await supabase
       .from('attendance_records')
@@ -148,7 +167,9 @@ export function useAttendance(userId: string): UseAttendanceReturn {
     todayRecord,
     hasCheckedIn,
     hasCheckedOut,
-    isFootballDay,
+    dayType,
+    appliedRule,
+    isFootballDay: appliedRule === 'football',
     settings,
     loading,
     checkIn,

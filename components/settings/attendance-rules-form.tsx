@@ -24,14 +24,25 @@ import { AttendanceSettings } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 
 const timePattern = /^([01]\d|2[0-3]):([0-5]\d)$/
+const timeField = z.string().regex(timePattern, 'Must be in HH:MM format')
 
 const formSchema = z.object({
-  on_time_end: z.string().regex(timePattern, 'Must be in HH:MM format'),
-  late_150_end: z.string().regex(timePattern, 'Must be in HH:MM format'),
-  late_250_end: z.string().regex(timePattern, 'Must be in HH:MM format'),
-  football_on_time_end: z.string().regex(timePattern, 'Must be in HH:MM format'),
-  football_late_150_end: z.string().regex(timePattern, 'Must be in HH:MM format'),
-  football_late_250_end: z.string().regex(timePattern, 'Must be in HH:MM format'),
+  // General rule
+  on_time_end:       timeField,
+  late_150_end:      timeField,
+  late_250_end:      timeField,
+  exit_time_general: timeField,
+  // Friday rule
+  friday_on_time_end:  timeField,
+  friday_late_150_end: timeField,
+  friday_late_250_end: timeField,
+  exit_time_friday:    timeField,
+  // Football rule
+  football_on_time_end:  timeField,
+  football_late_150_end: timeField,
+  football_late_250_end: timeField,
+  exit_time_football:    timeField,
+  // Leave
   yearly_leave_days: z.coerce.number().int().min(1).max(365),
   wfh_days: z.coerce.number().int().min(0).max(365),
 })
@@ -51,12 +62,22 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      on_time_end: settings?.on_time_end ?? '09:00',
-      late_150_end: settings?.late_150_end ?? '09:30',
-      late_250_end: settings?.late_250_end ?? '11:00',
-      football_on_time_end: settings?.football_on_time_end ?? '09:45',
+      // General
+      on_time_end:       settings?.on_time_end       ?? '09:00',
+      late_150_end:      settings?.late_150_end       ?? '09:30',
+      late_250_end:      settings?.late_250_end       ?? '11:00',
+      exit_time_general: settings?.exit_time_general  ?? '14:15',
+      // Friday
+      friday_on_time_end:  settings?.friday_on_time_end  ?? '08:30',
+      friday_late_150_end: settings?.friday_late_150_end ?? '09:00',
+      friday_late_250_end: settings?.friday_late_250_end ?? '11:00',
+      exit_time_friday:    settings?.exit_time_friday    ?? '12:15',
+      // Football
+      football_on_time_end:  settings?.football_on_time_end  ?? '09:45',
       football_late_150_end: settings?.football_late_150_end ?? '10:30',
       football_late_250_end: settings?.football_late_250_end ?? '11:00',
+      exit_time_football:    settings?.exit_time_football    ?? '14:30',
+      // Leave
       yearly_leave_days: settings?.yearly_leave_days ?? 18,
       wfh_days: settings?.wfh_days ?? 10,
     },
@@ -116,137 +137,157 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
           </Alert>
         )}
 
-        {/* Default Attendance Rules */}
+        {/* General Rule (Sat–Thu) */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Clock className="h-4 w-4" />
-              Default Attendance Rules
+              General Rule <span className="text-xs font-normal text-muted-foreground ml-1">(Sat – Thu)</span>
             </CardTitle>
             <CardDescription>
-              Standard check-in time boundaries for attendance classification
+              Standard check-in boundaries for all days except Friday and Sunday
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <FormField
-                control={form.control}
-                name="on_time_end"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>On Time Until</FormLabel>
-                    <FormControl>
-                      <Input type="time" {...field} />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Check-in before this = On Time (no deduction)
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="late_150_end"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Late 1.5x Until</FormLabel>
-                    <FormControl>
-                      <Input type="time" {...field} />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Check-in before this = 1.5x deduction
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="late_250_end"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Late 2.5x Until</FormLabel>
-                    <FormControl>
-                      <Input type="time" {...field} />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Check-in before this = 2.5x deduction
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <FormField control={form.control} name="on_time_end" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>On Time Until</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">No deduction</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="late_150_end" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Late 1.5× Until</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">1.5× deduction</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="late_250_end" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Late 2.5× Until</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">2.5× deduction; after = Absent</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="exit_time_general" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Exit Time</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">Expected check-out</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Football Rules */}
+        {/* Friday Rule */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Clock className="h-4 w-4" />
-              Football Day Rules
+              Friday Rule
             </CardTitle>
             <CardDescription>
-              Alternative time boundaries applied on football match days
+              Earlier entry cutoffs and shorter workday for Fridays
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <FormField
-                control={form.control}
-                name="football_on_time_end"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>On Time Until</FormLabel>
-                    <FormControl>
-                      <Input type="time" {...field} />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Football day on-time cutoff
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="football_late_150_end"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Late 1.5x Until</FormLabel>
-                    <FormControl>
-                      <Input type="time" {...field} />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Football day 1.5x deduction cutoff
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="football_late_250_end"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Late 2.5x Until</FormLabel>
-                    <FormControl>
-                      <Input type="time" {...field} />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Football day 2.5x deduction cutoff
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <FormField control={form.control} name="friday_on_time_end" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>On Time Until</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">No deduction</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="friday_late_150_end" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Late 1.5× Until</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">1.5× deduction</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="friday_late_250_end" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Late 2.5× Until</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">2.5× deduction; after = Absent</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="exit_time_friday" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Exit Time</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">Expected check-out</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Leave Settings */}
+        {/* Football Rule */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock className="h-4 w-4" />
+              Football Rule ⚽
+            </CardTitle>
+            <CardDescription>
+              Extended entry window for selected staff on football match days.
+              After the 2.5× cutoff, status becomes <strong>Advance Absence</strong> (not plain Absent).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <FormField control={form.control} name="football_on_time_end" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>On Time Until</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">No deduction</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="football_late_150_end" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Late 1.5× Until</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">1.5× deduction</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="football_late_250_end" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Late 2.5× Until</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">2.5× → Advance Absence</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="exit_time_football" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Exit Time</FormLabel>
+                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormDescription className="text-xs">Expected check-out</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Separator />
+
+        {/* Leave Defaults */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -259,38 +300,30 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="yearly_leave_days"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Annual Leave Days</FormLabel>
-                    <FormControl>
-                      <Input type="number" min={1} max={365} {...field} />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Default yearly leave allocation per staff
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="wfh_days"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Work From Home Days</FormLabel>
-                    <FormControl>
-                      <Input type="number" min={0} max={365} {...field} />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Default WFH allocation per staff
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={form.control} name="yearly_leave_days" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Annual Leave Days</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={1} max={365} {...field} />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    Default yearly leave allocation per staff
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="wfh_days" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Work From Home Days</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} max={365} {...field} />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    Default WFH allocation per staff
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
           </CardContent>
         </Card>

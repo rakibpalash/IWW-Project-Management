@@ -173,12 +173,22 @@ CREATE TABLE IF NOT EXISTS public.activity_logs (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.attendance_settings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  -- General day rule (Sat–Thu, excluding Friday)
   on_time_end TIME NOT NULL DEFAULT '09:00',
   late_150_end TIME NOT NULL DEFAULT '09:30',
   late_250_end TIME NOT NULL DEFAULT '11:00',
+  exit_time_general TIME NOT NULL DEFAULT '14:15',
+  -- Friday rule
+  friday_on_time_end TIME NOT NULL DEFAULT '08:30',
+  friday_late_150_end TIME NOT NULL DEFAULT '09:00',
+  friday_late_250_end TIME NOT NULL DEFAULT '11:00',
+  exit_time_friday TIME NOT NULL DEFAULT '12:15',
+  -- Football rule (per-date override for selected staff)
   football_on_time_end TIME NOT NULL DEFAULT '09:45',
   football_late_150_end TIME NOT NULL DEFAULT '10:30',
   football_late_250_end TIME NOT NULL DEFAULT '11:00',
+  exit_time_football TIME NOT NULL DEFAULT '14:30',
+  -- Leave defaults
   yearly_leave_days INTEGER NOT NULL DEFAULT 18,
   wfh_days INTEGER NOT NULL DEFAULT 10,
   updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -196,6 +206,8 @@ CREATE TABLE IF NOT EXISTS public.attendance_records (
   check_out_time TIME,
   status TEXT NOT NULL DEFAULT 'absent'
     CHECK (status IN ('on_time', 'late_150', 'late_250', 'absent', 'advance_absence')),
+  applied_rule TEXT NOT NULL DEFAULT 'general'
+    CHECK (applied_rule IN ('general', 'friday', 'football', 'holiday')),
   is_football_rule BOOLEAN NOT NULL DEFAULT false,
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

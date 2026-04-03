@@ -105,43 +105,4 @@ export function generateTempPassword(): string {
   return password
 }
 
-export function computeAttendanceStatus(
-  checkInTime: string,
-  isFootball: boolean,
-  settings: {
-    on_time_end: string
-    late_150_end: string
-    late_250_end: string
-    football_on_time_end: string
-    football_late_150_end: string
-    football_late_250_end: string
-  }
-): string {
-  const [hours, minutes] = checkInTime.split(':').map(Number)
-  const totalMinutes = hours * 60 + minutes
-
-  const parse = (t: string) => {
-    const [h, m] = t.split(':').map(Number)
-    return h * 60 + m
-  }
-
-  if (isFootball) {
-    const onTimeEnd = parse(settings.football_on_time_end)
-    const late150End = parse(settings.football_late_150_end)
-    const late250End = parse(settings.football_late_250_end)
-
-    if (totalMinutes <= onTimeEnd) return 'on_time'
-    if (totalMinutes <= late150End) return 'late_150'
-    if (totalMinutes <= late250End) return 'late_250'
-    return 'advance_absence'
-  } else {
-    const onTimeEnd = parse(settings.on_time_end)
-    const late150End = parse(settings.late_150_end)
-    const late250End = parse(settings.late_250_end)
-
-    if (totalMinutes <= onTimeEnd) return 'on_time'
-    if (totalMinutes <= late150End) return 'late_150'
-    if (totalMinutes <= late250End) return 'late_250'
-    return 'absent'
-  }
-}
+export { computeStatusForRule as computeAttendanceStatus } from '@/lib/attendance-rules'

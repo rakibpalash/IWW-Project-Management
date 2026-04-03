@@ -33,8 +33,12 @@ import {
   getAttendanceColor,
   formatStatus,
   getInitials,
-  computeAttendanceStatus,
 } from '@/lib/utils'
+import {
+  getDayType,
+  resolveAppliedRule,
+  computeStatusForRule,
+} from '@/lib/attendance-rules'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 import { FootballRuleDialog } from './football-rule-dialog'
@@ -204,17 +208,21 @@ export function AdminAttendanceTable({
     try {
       const supabase = createClient()
       const isFootball = footballUserIds.has(editState.userId)
+      const targetDate = new Date(selectedDate + 'T00:00:00')
+      const dayType = getDayType(targetDate)
+      const appliedRule = resolveAppliedRule(dayType, isFootball)
 
       // Auto-compute status if check-in time provided and settings exist
       let computedStatus = editState.status
       if (editState.checkIn && settings) {
-        computedStatus = computeAttendanceStatus(editState.checkIn, isFootball, settings)
+        computedStatus = computeStatusForRule(editState.checkIn, appliedRule, settings)
       }
 
       const payload = {
         check_in_time: editState.checkIn || null,
         check_out_time: editState.checkOut || null,
         status: computedStatus,
+        applied_rule: appliedRule,
         is_football_rule: isFootball,
         updated_at: new Date().toISOString(),
       }
