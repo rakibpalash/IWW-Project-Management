@@ -2,11 +2,24 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Building2, Search } from 'lucide-react'
+import { Plus, Building2, Search, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { WorkspaceCard } from './workspace-card'
 import { CreateWorkspaceDialog } from './create-workspace-dialog'
+import { RenameWorkspaceDialog } from './rename-workspace-dialog'
+import { useToast } from '@/components/ui/use-toast'
+import { deleteWorkspaceAction, cloneWorkspaceAction } from '@/app/actions/workspaces'
 import { Workspace } from '@/types'
 
 interface WorkspacesPageProps {
@@ -18,9 +31,21 @@ interface WorkspacesPageProps {
 
 export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPageProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [, startTransition] = useTransition()
-  const [showCreate, setShowCreate] = useState(false)
+
   const [search, setSearch] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
+
+  // Rename state
+  const [renameTarget, setRenameTarget] = useState<Workspace | null>(null)
+
+  // Delete state
+  const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  // Clone state
+  const [cloningId, setCloningId] = useState<string | null>(null)
 
   const filtered = initialWorkspaces.filter(
     (w) =>
@@ -28,10 +53,42 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
       (w.description ?? '').toLowerCase().includes(search.toLowerCase())
   )
 
-  function handleSuccess() {
-    startTransition(() => {
-      router.refresh()
-    })
+  function refresh() {
+    startTransition(() => router.refresh())
+  }
+
+  // ── Clone ─────────────────────────────────────────────────────────────────
+  async function handleClone(workspace: Workspace) {
+    setCloningId(workspace.id)
+    try {
+      const result = await cloneWorkspaceAction(workspace.id)
+      if (!result.success) {
+        toast({ title: 'Clone failed', description: result.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: 'Workspace cloned', description: `"${workspace.name} (Copy)" created.` })
+      refresh()
+    } finally {
+      setCloningId(null)
+    }
+  }
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      const result = await deleteWorkspaceAction(deleteTarget.id)
+      if (!result.success) {
+        toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: 'Workspace deleted', description: `"${deleteTarget.name}" was deleted.` })
+      setDeleteTarget(null)
+      refresh()
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -83,20 +140,69 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((workspace) => (
-            <WorkspaceCard
-              key={workspace.id}
-              workspace={workspace}
-              onClick={() => router.push(`/workspaces/${workspace.id}`)}
-            />
+            <div key={workspace.id} className="relative">
+              {/* Clone loading overlay */}
+              {cloningId === workspace.id && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/80 backdrop-blur-sm">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cloning…
+                  </div>
+                </div>
+              )}
+              <WorkspaceCard
+                workspace={workspace}
+                onClick={() => router.push(`/workspaces/${workspace.id}`)}
+                onRename={(ws) => setRenameTarget(ws)}
+                onClone={(ws) => handleClone(ws)}
+                onDelete={(ws) => setDeleteTarget(ws)}
+              />
+            </div>
           ))}
         </div>
       )}
 
+      {/* Create dialog */}
       <CreateWorkspaceDialog
         open={showCreate}
         onOpenChange={setShowCreate}
-        onSuccess={handleSuccess}
+        onSuccess={refresh}
       />
+
+      {/* Rename dialog */}
+      <RenameWorkspaceDialog
+        workspace={renameTarget}
+        open={!!renameTarget}
+        onOpenChange={(open) => { if (!open) setRenameTarget(null) }}
+        onSuccess={refresh}
+      />
+
+      {/* Delete confirmation */}
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>&quot;{deleteTarget?.name}&quot;</strong> and all
+              its projects, tasks, and data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
