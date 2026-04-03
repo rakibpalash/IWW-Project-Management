@@ -51,7 +51,7 @@ export default async function LeaveServerPage() {
       .order('created_at', { ascending: false })
 
     // Admin: fetch all staff balances for current year
-    const { data: allBalances } = await supabase
+    const { data: allBalancesRaw } = await supabase
       .from('leave_balances')
       .select(
         `
@@ -61,6 +61,32 @@ export default async function LeaveServerPage() {
       )
       .eq('year', currentYear)
       .order('created_at', { ascending: false })
+
+    // Admin: compute used days from approved requests (override stale counters)
+    const { data: allApprovedRaw } = await supabase
+      .from('leave_requests')
+      .select('user_id, leave_type, total_days, start_date')
+      .eq('status', 'approved')
+      .gte('start_date', `${currentYear}-01-01`)
+      .lte('start_date', `${currentYear}-12-31`)
+
+    const allApproved = allApprovedRaw ?? []
+
+    const allBalances = (allBalancesRaw ?? []).map((bal: any) => {
+      const userApproved = allApproved.filter((r) => r.user_id === bal.user_id)
+      return {
+        ...bal,
+        yearly_used: userApproved
+          .filter((r) => r.leave_type === 'yearly')
+          .reduce((s: number, r: any) => s + (r.total_days ?? 0), 0),
+        wfh_used: userApproved
+          .filter((r) => r.leave_type === 'work_from_home')
+          .reduce((s: number, r: any) => s + (r.total_days ?? 0), 0),
+        marriage_used: userApproved
+          .filter((r) => r.leave_type === 'marriage')
+          .reduce((s: number, r: any) => s + (r.total_days ?? 0), 0),
+      }
+    })
 
     // Fetch all staff profiles for grant marriage dialog
     const { data: staffProfiles } = await supabase
@@ -81,16 +107,16 @@ export default async function LeaveServerPage() {
       />
     )
   } else {
-    // Staff: fetch own balance
-    const { data: myBalance } = await supabase
+    // Staff: fetch own balance (totals only — used is computed from approved requests)
+    const { data: myBalanceRaw } = await supabase
       .from('leave_balances')
       .select('*')
       .eq('user_id', user.id)
       .eq('year', currentYear)
       .single()
 
-    // Staff: fetch own requests
-    const { data: myRequests } = await supabase
+    // Staff: fetch own requests (all statuses)
+    const { data: myRequestsRaw } = await supabase
       .from('leave_requests')
       .select(
         `
@@ -101,6 +127,51 @@ export default async function LeaveServerPage() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
+    const myRequests = (myRequestsRaw ?? []) as LeaveRequest[]
+
+    // Compute used days from approved requests this year (source of truth)
+    // This bypasses the leave_balances counter which can get out of sync
+    const approvedThisYear = myRequests.filter(
+      (r) =>
+        r.status === 'approved' &&
+        new Date(r.start_date).getFullYear() === currentYear
+    )
+
+    const yearlyUsed = approvedThisYear
+      .filter((r) => r.leave_type === 'yearly')
+      .reduce((sum, r) => sum + (r.total_days ?? 0), 0)
+
+    const wfhUsed = approvedThisYear
+      .filter((r) => r.leave_type === 'work_from_home')
+      .reduce((sum, r) => sum + (r.total_days ?? 0), 0)
+
+    const marriageUsed = approvedThisYear
+      .filter((r) => r.leave_type === 'marriage')
+      .reduce((sum, r) => sum + (r.total_days ?? 0), 0)
+
+    // Merge computed used values into balance (override stale counters)
+    const myBalance: LeaveBalance | null = myBalanceRaw
+      ? {
+          ...(myBalanceRaw as LeaveBalance),
+          yearly_used: yearlyUsed,
+          wfh_used: wfhUsed,
+          marriage_used: marriageUsed,
+        }
+      : {
+          // No balance record yet — construct defaults with computed used
+          id: '',
+          user_id: user.id,
+          year: currentYear,
+          yearly_total: 18,
+          yearly_used: yearlyUsed,
+          wfh_total: 10,
+          wfh_used: wfhUsed,
+          marriage_total: 0,
+          marriage_used: marriageUsed,
+          created_at: '',
+          updated_at: '',
+        }
+
     return (
       <LeavePage
         profile={profile as Profile}
@@ -108,8 +179,8 @@ export default async function LeaveServerPage() {
         allRequests={[]}
         allBalances={[]}
         staffProfiles={[]}
-        myBalance={(myBalance as LeaveBalance) ?? null}
-        myRequests={(myRequests as LeaveRequest[]) ?? []}
+        myBalance={myBalance}
+        myRequests={myRequests}
       />
     )
   }

@@ -56,8 +56,10 @@ export async function approveLeaveAction(
 
     if (updateError) return { success: false, error: updateError.message }
 
-    // Update leave balance
+    // Update leave balance — upsert so missing records don't silently skip the update
     const currentYear = new Date(request.start_date).getFullYear()
+    const leaveType = request.leave_type as string
+
     const { data: balance } = await admin
       .from('leave_balances')
       .select('*')
@@ -66,14 +68,30 @@ export async function approveLeaveAction(
       .single()
 
     if (balance) {
-      const leaveType = request.leave_type as string
+      // Record exists — increment the correct counter
       let updateData: Record<string, number> = {}
-      if (leaveType === 'yearly') updateData = { yearly_used: balance.yearly_used + request.total_days }
-      else if (leaveType === 'work_from_home') updateData = { wfh_used: balance.wfh_used + request.total_days }
-      else if (leaveType === 'marriage') updateData = { marriage_used: balance.marriage_used + request.total_days }
+      if (leaveType === 'yearly') {
+        updateData = { yearly_used: (balance.yearly_used ?? 0) + request.total_days }
+      } else if (leaveType === 'work_from_home') {
+        updateData = { wfh_used: (balance.wfh_used ?? 0) + request.total_days }
+      } else if (leaveType === 'marriage') {
+        updateData = { marriage_used: (balance.marriage_used ?? 0) + request.total_days }
+      }
       if (Object.keys(updateData).length > 0) {
         await admin.from('leave_balances').update(updateData).eq('id', balance.id)
       }
+    } else {
+      // No balance record exists — create one with the correct used days set
+      await admin.from('leave_balances').insert({
+        user_id: request.user_id,
+        year: currentYear,
+        yearly_total: 18,
+        yearly_used: leaveType === 'yearly' ? request.total_days : 0,
+        wfh_total: 10,
+        wfh_used: leaveType === 'work_from_home' ? request.total_days : 0,
+        marriage_total: leaveType === 'marriage' ? request.total_days : 0,
+        marriage_used: leaveType === 'marriage' ? request.total_days : 0,
+      })
     }
 
     // Notify the staff member
