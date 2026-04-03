@@ -433,16 +433,6 @@ RETURNS BOOLEAN AS $$
   SELECT get_my_role() = 'super_admin';
 $$ LANGUAGE SQL STABLE SECURITY DEFINER;
 
--- Helper: check if current user is a task assignee (SECURITY DEFINER bypasses RLS
--- on task_assignees to prevent infinite recursion in tasks_update policy)
-CREATE OR REPLACE FUNCTION is_task_assignee(p_task_id UUID)
-RETURNS BOOLEAN AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM task_assignees
-    WHERE task_id = p_task_id AND user_id = auth.uid()
-  );
-$$ LANGUAGE SQL STABLE SECURITY DEFINER;
-
 -- Helper: user is in workspace
 CREATE OR REPLACE FUNCTION is_in_workspace(p_workspace_id UUID)
 RETURNS BOOLEAN AS $$
@@ -535,7 +525,10 @@ CREATE POLICY "tasks_update" ON tasks
   FOR UPDATE USING (
     is_super_admin()
     OR created_by = auth.uid()
-    OR is_task_assignee(id)
+    OR EXISTS (
+      SELECT 1 FROM task_assignees ta
+      WHERE ta.task_id = tasks.id AND ta.user_id = auth.uid()
+    )
   );
 
 DROP POLICY IF EXISTS "tasks_delete_admin" ON tasks;
@@ -548,11 +541,25 @@ CREATE POLICY "ta_select" ON task_assignees
   FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "ta_write" ON task_assignees;
-CREATE POLICY "ta_write" ON task_assignees
-  FOR ALL USING (is_super_admin() OR EXISTS (
-    SELECT 1 FROM tasks t WHERE t.id = task_assignees.task_id
-    AND (t.created_by = auth.uid() OR is_super_admin())
-  ));
+DROP POLICY IF EXISTS "ta_insert" ON task_assignees;
+CREATE POLICY "ta_insert" ON task_assignees
+  FOR INSERT WITH CHECK (
+    is_super_admin()
+    OR EXISTS (
+      SELECT 1 FROM tasks t
+      WHERE t.id = task_assignees.task_id AND t.created_by = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "ta_delete" ON task_assignees;
+CREATE POLICY "ta_delete" ON task_assignees
+  FOR DELETE USING (
+    is_super_admin()
+    OR EXISTS (
+      SELECT 1 FROM tasks t
+      WHERE t.id = task_assignees.task_id AND t.created_by = auth.uid()
+    )
+  );
 
 -- ---- TASK WATCHERS ----
 DROP POLICY IF EXISTS "tw_select" ON task_watchers;
