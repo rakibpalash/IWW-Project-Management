@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Task, Profile, TaskStatus } from '@/types'
+import { updateTaskStatusAction } from '@/app/actions/tasks'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -52,7 +52,6 @@ export function TaskRow({
   level = 0,
 }: TaskRowProps) {
   const { toast } = useToast()
-  const supabase = createClient()
   const [expanded, setExpanded] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
 
@@ -75,29 +74,22 @@ export function TaskRow({
     setUpdatingStatus(true)
     const oldStatus = task.status
 
-    const updatedTask = { ...task, status: newStatus as TaskStatus }
-    onTaskUpdated(updatedTask)
+    // Optimistic update
+    onTaskUpdated({ ...task, status: newStatus as TaskStatus })
 
-    const { error } = await supabase
-      .from('tasks')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', task.id)
+    const result = await updateTaskStatusAction(task.id, newStatus)
 
     setUpdatingStatus(false)
 
-    if (error) {
+    if (!result.success) {
+      // Revert optimistic update
       onTaskUpdated({ ...task, status: oldStatus })
-      toast({ title: 'Error updating status', variant: 'destructive' })
-      return
+      toast({
+        title: 'Error updating status',
+        description: result.error,
+        variant: 'destructive',
+      })
     }
-
-    await supabase.from('activity_logs').insert({
-      task_id: task.id,
-      user_id: profile.id,
-      action: 'status_changed',
-      old_value: oldStatus,
-      new_value: newStatus,
-    })
   }
 
   return (
