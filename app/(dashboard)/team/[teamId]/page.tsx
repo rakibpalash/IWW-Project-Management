@@ -27,13 +27,28 @@ export default async function TeamDetailServerPage({
     .single()
   if (!profile) redirect('/login')
 
-  const { data: team } = await admin
+  // Fetch team basic data first
+  const { data: teamBase } = await admin
     .from('teams')
-    .select('*, members:team_members(*, profile:profiles(' + profileSelect + '))')
+    .select('*')
     .eq('id', teamId)
     .single()
 
-  if (!team) notFound()
+  if (!teamBase) notFound()
+
+  // Fetch members separately — graceful if team_members table isn't migrated yet
+  let members: any[] = []
+  try {
+    const { data: membersData } = await admin
+      .from('team_members')
+      .select('*, profile:profiles(' + profileSelect + ')')
+      .eq('team_id', teamId)
+    members = membersData ?? []
+  } catch {
+    members = []
+  }
+
+  const team = { ...teamBase, members }
 
   const { data: allProfiles } = await admin
     .from('profiles')
