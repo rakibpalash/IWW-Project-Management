@@ -13,6 +13,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Search, X, CheckCircle2, Users } from 'lucide-react'
 import { Profile } from '@/types'
@@ -221,24 +224,21 @@ export function CreateTeamDialog({
               </div>
             )}
 
-            {/* Role filter + Search */}
-            <div className="flex gap-2 flex-wrap">
-              <div className="flex rounded-md border border-gray-200 overflow-hidden text-xs font-medium shrink-0 flex-wrap">
-                {['all', ...availableRoles].map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setMemberRoleFilter(r)}
-                    className={`px-3 py-1.5 transition-colors whitespace-nowrap ${
-                      memberRoleFilter === r
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white text-gray-500 hover:bg-gray-50'
-                    }`}
-                  >
-                    {r === 'all' ? 'All' : (ROLE_LABELS[r] ?? r)}
-                  </button>
-                ))}
-              </div>
+            {/* Role filter dropdown + Search */}
+            <div className="flex gap-2">
+              <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
+                <SelectTrigger className="w-36 shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {availableRoles.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {ROLE_LABELS[r] ?? r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
