@@ -13,15 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Search, X, CheckCircle2, Globe, Lock, Users } from 'lucide-react'
+import { Search, X, CheckCircle2, Users } from 'lucide-react'
 import { Profile } from '@/types'
 import { getInitials } from '@/lib/utils'
 import { createTeamAction } from '@/app/actions/teams'
@@ -65,7 +58,6 @@ export function CreateTeamDialog({
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [teamType, setTeamType] = useState<'official' | 'private' | 'public'>('official')
   const [color, setColor] = useState('#ec4899')
   const [memberSearch, setMemberSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -90,7 +82,6 @@ export function CreateTeamDialog({
   const handleClose = () => {
     setName('')
     setDescription('')
-    setTeamType('official')
     setColor('#ec4899')
     setMemberSearch('')
     setSelectedIds([])
@@ -106,7 +97,7 @@ export function CreateTeamDialog({
       const result = await createTeamAction({
         name: name.trim(),
         description: description.trim() || undefined,
-        team_type: teamType,
+        team_type: 'official',
         color,
         memberIds: selectedIds,
       })
@@ -159,33 +150,6 @@ export function CreateTeamDialog({
               rows={2}
               className="resize-none"
             />
-          </div>
-
-          {/* Team type */}
-          <div className="space-y-1.5">
-            <Label>Team type</Label>
-            <Select value={teamType} onValueChange={(v) => setTeamType(v as typeof teamType)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="official">
-                  <span className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-blue-500" /> Official team
-                  </span>
-                </SelectItem>
-                <SelectItem value="private">
-                  <span className="flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-gray-500" /> Private
-                  </span>
-                </SelectItem>
-                <SelectItem value="public">
-                  <span className="flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-green-500" /> Public
-                  </span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Color */}
