@@ -59,6 +59,7 @@ export function CreateTaskDialog({
   const { toast } = useToast()
   const supabase = createClient()
   const titleRef = useRef<HTMLInputElement>(null)
+  const assigneeRef = useRef<HTMLDivElement>(null)
   const { statuses, priorities, defaultStatus, defaultPriority } = useTaskConfig()
 
   const [title, setTitle] = useState('')
@@ -117,10 +118,23 @@ export function CreateTaskDialog({
     fetchMembers()
   }, [selectedProjectId, defaultProjectId, projects])
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (assigneeRef.current && !assigneeRef.current.contains(e.target as Node)) {
+        setShowAssigneeDropdown(false)
+      }
+    }
+    if (showAssigneeDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showAssigneeDropdown])
+
   function toggleAssignee(userId: string) {
     setSelectedAssigneeIds((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     )
+    setShowAssigneeDropdown(false)
   }
 
   function assignToMe() {
@@ -435,7 +449,7 @@ export function CreateTaskDialog({
               </button>
             </div>
 
-            <div className="relative">
+            <div className="relative" ref={assigneeRef}>
               <button
                 type="button"
                 onClick={() => !loadingMembers && setShowAssigneeDropdown((v) => !v)}
