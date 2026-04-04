@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import {
   FolderKanban,
   CheckSquare,
@@ -13,11 +14,15 @@ import {
   LogIn,
   Activity,
   TrendingUp,
+  Play,
+  Square,
+  ExternalLink,
 } from 'lucide-react'
 import { StatCard } from './stat-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   cn,
   formatDate,
@@ -26,6 +31,7 @@ import {
   getPriorityColor,
   timeAgo,
   formatStatus,
+  getInitials,
 } from '@/lib/utils'
 import {
   Profile,
@@ -36,6 +42,19 @@ import {
   ActivityLog,
   LeaveRequest,
 } from '@/types'
+
+export interface DashboardTimeEntry {
+  id: string
+  task_id: string
+  task_title: string
+  project_id: string
+  project_name: string
+  user_full_name: string
+  user_avatar_url: string | null
+  duration_minutes: number | null
+  started_at: string
+  is_running: boolean
+}
 
 interface DashboardPageProps {
   profile: Profile
@@ -48,11 +67,13 @@ interface DashboardPageProps {
   totalStaff?: number
   recentActivity?: ActivityLog[]
   recentProjects?: Project[]
-  // Staff
+  recentTeamTimeEntries?: DashboardTimeEntry[]
+  // Staff / Manager
   myTasks?: Task[]
   myAttendanceToday?: AttendanceRecord | null
   myLeaveBalance?: LeaveBalance | null
   timeTrackedTodayMinutes?: number
+  myRecentTimeEntries?: DashboardTimeEntry[]
   // Client
   clientProjects?: Project[]
 }
@@ -67,10 +88,12 @@ export function DashboardPage({
   totalStaff,
   recentActivity,
   recentProjects,
+  recentTeamTimeEntries,
   myTasks,
   myAttendanceToday,
   myLeaveBalance,
   timeTrackedTodayMinutes,
+  myRecentTimeEntries,
   clientProjects,
 }: DashboardPageProps) {
   const router = useRouter()
@@ -145,6 +168,13 @@ export function DashboardPage({
             <RecentProjectsList projects={recentProjects ?? []} />
             <ActivityFeed activities={recentActivity ?? []} />
           </div>
+
+          {/* Team time log */}
+          <TimeLogWidget
+            entries={recentTeamTimeEntries ?? []}
+            title="Team Time Logs"
+            showUser
+          />
         </>
       )}
 
@@ -231,6 +261,16 @@ export function DashboardPage({
 
           {/* Quick actions */}
           <QuickActions role={role} router={router} />
+
+          {/* Time logs + tasks in 2-col grid */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <TimeLogWidget
+              entries={myRecentTimeEntries ?? []}
+              title="My Time Logs"
+              showUser={false}
+            />
+            <div />
+          </div>
 
           {/* My tasks */}
           <MyTasksList tasks={myTasks ?? []} />
@@ -496,6 +536,147 @@ function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
         )}
       </div>
     </li>
+  )
+}
+
+// ─── Time Log Widget ──────────────────────────────────────────────────────────
+
+const avatarColors = [
+  'bg-pink-500', 'bg-purple-500', 'bg-indigo-500', 'bg-blue-500',
+  'bg-cyan-500', 'bg-teal-500', 'bg-green-500', 'bg-orange-500',
+]
+function getAvatarColor(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return avatarColors[Math.abs(hash) % avatarColors.length]
+}
+
+function formatDurationDisplay(minutes: number | null): string {
+  const m = Math.max(0, minutes ?? 0)
+  const h = Math.floor(m / 60)
+  const min = m % 60
+  if (h === 0 && min === 0) return '0m'
+  if (h === 0) return `${min}m`
+  if (min === 0) return `${h}h`
+  return `${h}h ${min}m`
+}
+
+function formatRunningTimer(startedAt: string, tick: number): string {
+  const elapsed = Math.max(0, Math.floor((tick - new Date(startedAt).getTime()) / 1000))
+  const h = Math.floor(elapsed / 3600)
+  const m = Math.floor((elapsed % 3600) / 60)
+  const s = elapsed % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function TimeLogWidget({
+  entries,
+  title,
+  showUser,
+}: {
+  entries: DashboardTimeEntry[]
+  title: string
+  showUser: boolean
+}) {
+  const router = useRouter()
+  const [tick, setTick] = useState(Date.now())
+  const hasRunning = entries.some((e) => e.is_running)
+
+  useEffect(() => {
+    if (!hasRunning) return
+    const id = setInterval(() => setTick(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [hasRunning])
+
+  const runningEntry = entries.find((e) => e.is_running)
+  const pastEntries = entries.filter((e) => !e.is_running).slice(0, 6)
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+        <div className="flex items-center gap-2">
+          <Timer className="h-4 w-4 text-gray-400" />
+          <h3 className="font-semibold text-gray-900">{title}</h3>
+          {hasRunning && (
+            <span className="flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              Live
+            </span>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1 text-xs text-gray-500"
+          onClick={() => router.push('/timesheet')}
+        >
+          View all
+          <ExternalLink className="h-3 w-3" />
+        </Button>
+      </div>
+
+      {entries.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 px-5 py-8 text-center">
+          <Timer className="h-8 w-8 text-gray-200" />
+          <p className="text-sm text-gray-400">No time logged yet</p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-gray-50">
+          {/* Running entry first */}
+          {runningEntry && (
+            <li className="flex items-center gap-3 bg-green-50/50 px-5 py-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-100">
+                <Play className="h-3.5 w-3.5 fill-green-600 text-green-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-gray-900">{runningEntry.task_title}</p>
+                <p className="truncate text-xs text-gray-400">
+                  {runningEntry.project_name}
+                  {showUser && ` · ${runningEntry.user_full_name}`}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="font-mono text-sm font-semibold text-green-600">
+                  {formatRunningTimer(runningEntry.started_at, tick)}
+                </p>
+                <p className="text-[10px] text-gray-400">Running</p>
+              </div>
+            </li>
+          )}
+
+          {/* Past entries */}
+          {pastEntries.map((entry) => (
+            <li key={entry.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
+              {showUser ? (
+                <Avatar className="h-7 w-7 shrink-0">
+                  <AvatarImage src={entry.user_avatar_url ?? undefined} />
+                  <AvatarFallback className={`text-[9px] font-bold text-white ${getAvatarColor(entry.user_full_name)}`}>
+                    {getInitials(entry.user_full_name)}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100">
+                  <Square className="h-3 w-3 text-gray-400" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-gray-900">{entry.task_title}</p>
+                <p className="truncate text-xs text-gray-400">
+                  {entry.project_name}
+                  {showUser && ` · ${entry.user_full_name}`}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <Badge className="bg-orange-500 hover:bg-orange-500 text-white font-mono text-xs px-2">
+                  {formatDurationDisplay(entry.duration_minutes)}
+                </Badge>
+                <p className="mt-0.5 text-[10px] text-gray-400">{timeAgo(entry.started_at)}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 

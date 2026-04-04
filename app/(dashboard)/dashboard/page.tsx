@@ -1,10 +1,43 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { DashboardPage } from '@/components/dashboard/dashboard-page'
 import { Profile, Project, Task, AttendanceRecord, LeaveBalance, ActivityLog } from '@/types'
 
 export const metadata = {
   title: 'Dashboard — IWW PM',
+}
+
+const profileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+
+async function fetchTimeEntriesWithMeta(admin: ReturnType<typeof createAdminClient>, userIds?: string[], limit = 8) {
+  // Two-step: time_entries + task+project join (works), then profiles separately (FK is to auth.users)
+  const query = admin
+    .from('time_entries')
+    .select('id, task_id, user_id, duration_minutes, is_running, started_at, task:tasks(id, title, project:projects(id, name))')
+    .order('started_at', { ascending: false })
+    .limit(limit)
+
+  const { data: entries } = userIds ? await query.in('user_id', userIds) : await query
+
+  if (!entries || entries.length === 0) return []
+
+  // Fetch profiles for user_ids
+  const userIdSet = [...new Set(entries.map((e: any) => e.user_id))]
+  const { data: profilesData } = await admin.from('profiles').select('id, full_name, avatar_url').in('id', userIdSet)
+  const profilesById = Object.fromEntries((profilesData ?? []).map((p: any) => [p.id, p]))
+
+  return entries.map((e: any) => ({
+    id: e.id,
+    task_id: e.task_id,
+    task_title: e.task?.title ?? 'Deleted task',
+    project_id: e.task?.project?.id ?? '',
+    project_name: e.task?.project?.name ?? 'Unknown project',
+    user_full_name: (profilesById[e.user_id] as any)?.full_name ?? 'Unknown',
+    user_avatar_url: (profilesById[e.user_id] as any)?.avatar_url ?? null,
+    duration_minutes: e.duration_minutes,
+    started_at: e.started_at,
+    is_running: e.is_running,
+  }))
 }
 
 export default async function DashboardRoute() {
@@ -16,17 +49,19 @@ export default async function DashboardRoute() {
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
+  const admin = createAdminClient()
+
+  const { data: profile } = await admin
     .from('profiles')
-    .select('*')
+    .select(profileSelect)
     .eq('id', user.id)
     .single()
 
   if (!profile) redirect('/login')
 
-  const role = profile.role as Profile['role']
+  const role = (profile as Profile).role
 
-  // ── Super Admin ───────────────────────────────────────────────────────────
+  // ── Super Admin ─────────────────────────────────────────────────────────────
   if (role === 'super_admin') {
     const today = new Date().toISOString().slice(0, 10)
 
@@ -38,33 +73,16 @@ export default async function DashboardRoute() {
       { data: staffProfiles },
       { data: recentActivity },
       { data: recentProjects },
+      recentTeamTimeEntries,
     ] = await Promise.all([
-      supabase.from('projects').select('id, status'),
-      supabase
-        .from('tasks')
-        .select('id')
-        .lt('due_date', new Date().toISOString())
-        .not('status', 'in', '("done","cancelled")'),
-      supabase
-        .from('leave_requests')
-        .select('id')
-        .eq('status', 'pending'),
-      supabase
-        .from('attendance_records')
-        .select('id')
-        .eq('date', today)
-        .not('check_in_time', 'is', null),
-      supabase.from('profiles').select('id').eq('role', 'staff'),
-      supabase
-        .from('activity_logs')
-        .select('*, user:profiles(id, full_name, avatar_url)')
-        .order('created_at', { ascending: false })
-        .limit(5),
-      supabase
-        .from('projects')
-        .select('id, name, status, priority, progress, due_date, created_at')
-        .order('created_at', { ascending: false })
-        .limit(5),
+      admin.from('projects').select('id, status'),
+      admin.from('tasks').select('id').lt('due_date', new Date().toISOString()).not('status', 'in', '("done","cancelled")'),
+      admin.from('leave_requests').select('id').eq('status', 'pending'),
+      admin.from('attendance_records').select('id').eq('date', today).not('check_in_time', 'is', null),
+      admin.from('profiles').select('id').eq('role', 'staff'),
+      admin.from('activity_logs').select('*, user:profiles(id, full_name, avatar_url)').order('created_at', { ascending: false }).limit(5),
+      admin.from('projects').select('id, name, status, priority, progress, due_date, created_at').order('created_at', { ascending: false }).limit(5),
+      fetchTimeEntriesWithMeta(admin, undefined, 10),
     ])
 
     return (
@@ -78,61 +96,36 @@ export default async function DashboardRoute() {
         totalStaff={staffProfiles?.length ?? 0}
         recentActivity={(recentActivity as unknown as ActivityLog[]) ?? []}
         recentProjects={(recentProjects as unknown as Project[]) ?? []}
+        recentTeamTimeEntries={recentTeamTimeEntries}
       />
     )
   }
 
-  // ── Staff ─────────────────────────────────────────────────────────────────
-  if (role === 'staff') {
+  // ── Staff / Manager ──────────────────────────────────────────────────────────
+  if (role !== 'client') {
     const today = new Date().toISOString().slice(0, 10)
 
-    // Fetch assigned task IDs first for the staff view
-    const { data: assignedRows } = await supabase
-      .from('task_assignees')
-      .select('task_id')
-      .eq('user_id', user.id)
-
+    const { data: assignedRows } = await supabase.from('task_assignees').select('task_id').eq('user_id', user.id)
     const assignedTaskIds: string[] = (assignedRows ?? []).map((r: { task_id: string }) => r.task_id)
 
     const [
       { data: myTasks },
       { data: myAttendanceToday },
       { data: myLeaveBalance },
-      { data: timeEntries },
+      myRecentTimeEntries,
+      { data: todayTimeEntries },
     ] = await Promise.all([
       assignedTaskIds.length > 0
-        ? supabase
-            .from('tasks')
-            .select(
-              'id, title, description, status, priority, due_date, created_at, project:projects(id, name)'
-            )
-            .in('id', assignedTaskIds)
-            .not('status', 'in', '("done","cancelled")')
-            .order('due_date', { ascending: true, nullsFirst: false })
-            .limit(20)
+        ? supabase.from('tasks').select('id, title, description, status, priority, due_date, created_at, project:projects(id, name)').in('id', assignedTaskIds).not('status', 'in', '("done","cancelled")').order('due_date', { ascending: true, nullsFirst: false }).limit(20)
         : Promise.resolve({ data: [] }),
-      supabase
-        .from('attendance_records')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('date', today)
-        .maybeSingle(),
-      supabase
-        .from('leave_balances')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('year', new Date().getFullYear())
-        .maybeSingle(),
-      supabase
-        .from('time_entries')
-        .select('duration_minutes, is_running, started_at')
-        .eq('user_id', user.id)
-        .gte('started_at', `${today}T00:00:00`)
-        .lt('started_at', `${today}T23:59:59`),
+      supabase.from('attendance_records').select('*').eq('user_id', user.id).eq('date', today).maybeSingle(),
+      supabase.from('leave_balances').select('*').eq('user_id', user.id).eq('year', new Date().getFullYear()).maybeSingle(),
+      fetchTimeEntriesWithMeta(admin, [user.id], 8),
+      supabase.from('time_entries').select('duration_minutes, is_running, started_at').eq('user_id', user.id).gte('started_at', `${today}T00:00:00`).lt('started_at', `${today}T23:59:59`),
     ])
 
     const timeTrackedTodayMinutes =
-      timeEntries?.reduce((acc, e) => acc + (e.duration_minutes ?? 0), 0) ?? 0
+      todayTimeEntries?.reduce((acc, e) => acc + (e.duration_minutes ?? 0), 0) ?? 0
 
     return (
       <DashboardPage
@@ -141,11 +134,12 @@ export default async function DashboardRoute() {
         myAttendanceToday={(myAttendanceToday as AttendanceRecord) ?? null}
         myLeaveBalance={(myLeaveBalance as LeaveBalance) ?? null}
         timeTrackedTodayMinutes={timeTrackedTodayMinutes}
+        myRecentTimeEntries={myRecentTimeEntries}
       />
     )
   }
 
-  // ── Client ────────────────────────────────────────────────────────────────
+  // ── Client ───────────────────────────────────────────────────────────────────
   const { data: clientProjects } = await supabase
     .from('projects')
     .select('id, name, description, status, priority, progress, due_date, created_at')
