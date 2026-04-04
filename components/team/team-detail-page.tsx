@@ -24,22 +24,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
-  Users,
-  MoreHorizontal,
-  Star,
-  Settings,
-  LogOut,
-  Archive,
-  Trash2,
-  UserPlus,
-  CheckCircle2,
-  Globe,
-  Lock,
-  Crown,
-  X,
-  ArrowLeft,
-  FileText,
-  Link2,
+  Users, MoreHorizontal, Star, Settings, LogOut, Archive,
+  Trash2, UserPlus, Crown, X, ArrowLeft, FileText, Link2,
 } from 'lucide-react'
 import { getInitials, formatDate } from '@/lib/utils'
 import {
@@ -61,30 +47,6 @@ function getAvatarColor(name: string) {
   return avatarColors[Math.abs(hash) % avatarColors.length]
 }
 
-function TeamTypeBadge({ type }: { type: string }) {
-  if (type === 'official') {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-0.5">
-        <CheckCircle2 className="h-3.5 w-3.5" />
-        Official team
-      </span>
-    )
-  }
-  if (type === 'private') {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 bg-gray-100 border border-gray-200 rounded-full px-2.5 py-0.5">
-        <Lock className="h-3.5 w-3.5" />
-        Private
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
-      <Globe className="h-3.5 w-3.5" />
-      Public
-    </span>
-  )
-}
 
 interface TeamDetailPageProps {
   team: Team & { members?: (TeamMember & { profile?: Profile })[] }
@@ -111,14 +73,8 @@ export function TeamDetailPage({ team, profile, allProfiles }: TeamDetailPagePro
   const isCreator = team.created_by === profile.id
   const canManage = isAdmin || isCreator
   const isMember = members.some((m) => m.user_id === profile.id)
-
   const existingMemberIds = members.map((m) => m.user_id)
-
-  // Build gradient from team color
   const teamColor = team.color || '#ec4899'
-  const coverStyle = {
-    background: `linear-gradient(135deg, ${teamColor}dd 0%, ${teamColor}88 50%, ${teamColor}33 100%)`,
-  }
 
   const handleDelete = () => {
     startTransition(async () => {
@@ -172,115 +128,83 @@ export function TeamDetailPage({ team, profile, allProfiles }: TeamDetailPagePro
 
   return (
     <div className="-mx-6 -my-6">
-      {/* Cover banner */}
-      <div className="relative h-36 w-full" style={coverStyle}>
+      {/* Header */}
+      <div className="px-6 pt-5 pb-0 border-b border-gray-200 bg-white">
+        {/* Back */}
         <button
           onClick={() => router.push('/team')}
-          className="absolute top-4 left-4 flex items-center gap-1.5 text-white/80 hover:text-white text-sm font-medium transition-colors bg-black/10 hover:bg-black/20 rounded-lg px-3 py-1.5"
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
         >
-          <ArrowLeft className="h-4 w-4" />
-          Teams
+          <ArrowLeft className="h-4 w-4" /> Teams
         </button>
-      </div>
 
-      {/* Team header */}
-      <div className="px-6 pb-0 border-b border-gray-200 bg-white">
-        <div className="flex items-end gap-4 -mt-8 mb-4">
-          {/* Team icon */}
-          <div
-            className="h-16 w-16 rounded-xl flex items-center justify-center shadow-lg border-4 border-white flex-shrink-0"
-            style={{ backgroundColor: teamColor }}
-          >
-            <Users className="h-8 w-8 text-white" />
+        {/* Team identity row */}
+        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div
+              className="h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
+              style={{ backgroundColor: teamColor }}
+            >
+              <Users className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 leading-tight">{team.name}</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {memberCount} member{memberCount !== 1 ? 's' : ''}
+                {team.description && <span className="mx-1.5">·</span>}
+                {team.description && <span className="text-gray-400 truncate max-w-xs inline-block align-bottom">{team.description}</span>}
+              </p>
+            </div>
           </div>
 
-          <div className="flex-1 min-w-0 pb-1">
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div>
-                <h1 className="text-xl font-bold text-gray-900 leading-tight">{team.name}</h1>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <TeamTypeBadge type={team.team_type} />
-                  <span className="text-xs text-gray-400">
-                    {memberCount} member{memberCount !== 1 ? 's' : ''}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pb-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowAddMembers(true)}
-                  className="gap-1.5"
-                >
-                  <UserPlus className="h-3.5 w-3.5" />
-                  Add people
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => setShowAddMembers(true)} className="gap-1.5">
+              <UserPlus className="h-3.5 w-3.5" />
+              Add people
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="px-2">
+                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline" className="px-2">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem className="gap-2 cursor-pointer">
-                      <Star className="h-4 w-4 text-yellow-500" />
-                      Star team
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem className="gap-2 cursor-pointer">
+                  <Star className="h-4 w-4 text-yellow-500" />Star team
+                </DropdownMenuItem>
+                {canManage && (
+                  <DropdownMenuItem className="gap-2 cursor-pointer">
+                    <Settings className="h-4 w-4 text-gray-500" />Team settings
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                {isMember && !isCreator && (
+                  <DropdownMenuItem className="gap-2 cursor-pointer text-orange-600 focus:text-orange-600" onClick={() => setShowLeaveConfirm(true)}>
+                    <LogOut className="h-4 w-4" />Leave team
+                  </DropdownMenuItem>
+                )}
+                {canManage && (
+                  <>
+                    <DropdownMenuItem className="gap-2 cursor-pointer text-orange-600 focus:text-orange-600" onClick={() => setShowArchiveConfirm(true)}>
+                      <Archive className="h-4 w-4" />Archive team
                     </DropdownMenuItem>
-                    {canManage && (
-                      <DropdownMenuItem className="gap-2 cursor-pointer">
-                        <Settings className="h-4 w-4 text-gray-500" />
-                        Team settings
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator />
-                    {isMember && !isCreator && (
-                      <DropdownMenuItem
-                        className="gap-2 cursor-pointer text-orange-600 focus:text-orange-600"
-                        onClick={() => setShowLeaveConfirm(true)}
-                      >
-                        <LogOut className="h-4 w-4" />
-                        Leave team
-                      </DropdownMenuItem>
-                    )}
-                    {canManage && (
-                      <>
-                        <DropdownMenuItem
-                          className="gap-2 cursor-pointer text-orange-600 focus:text-orange-600"
-                          onClick={() => setShowArchiveConfirm(true)}
-                        >
-                          <Archive className="h-4 w-4" />
-                          Archive team
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="gap-2 cursor-pointer text-red-600 focus:text-red-600"
-                          onClick={() => setShowDeleteConfirm(true)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete team
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
+                    <DropdownMenuItem className="gap-2 cursor-pointer text-red-600 focus:text-red-600" onClick={() => setShowDeleteConfirm(true)}>
+                      <Trash2 className="h-4 w-4" />Delete team
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 -mb-px">
           {(['about', 'members'] as TabType[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors capitalize ${
-                activeTab === tab
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}>
               {tab === 'members' ? `Members (${memberCount})` : 'About'}
             </button>
           ))}
@@ -341,20 +265,13 @@ export function TeamDetailPage({ team, profile, allProfiles }: TeamDetailPagePro
 
                 <div className="space-y-2.5 text-sm">
                   <div className="flex items-start gap-2">
-                    <span className="text-gray-400 min-w-[80px] text-xs pt-0.5">Team type</span>
-                    <TeamTypeBadge type={team.team_type} />
-                  </div>
-
-                  <div className="flex items-start gap-2">
                     <span className="text-gray-400 min-w-[80px] text-xs pt-0.5">Created</span>
                     <span className="text-gray-600 text-xs">{formatDate(team.created_at)}</span>
                   </div>
-
                   <div className="flex items-start gap-2">
-                    <span className="text-gray-400 min-w-[80px] text-xs pt-0.5">Parent team</span>
-                    <span className="text-gray-400 text-xs italic">No parent team</span>
+                    <span className="text-gray-400 min-w-[80px] text-xs pt-0.5">Members</span>
+                    <span className="text-gray-600 text-xs">{memberCount}</span>
                   </div>
-
                   <div className="flex items-start gap-2">
                     <span className="text-gray-400 min-w-[80px] text-xs pt-0.5">Sub-teams</span>
                     <span className="text-gray-400 text-xs italic">No sub-teams</span>
