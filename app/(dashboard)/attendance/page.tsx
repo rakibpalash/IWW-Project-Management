@@ -77,28 +77,26 @@ export default async function AttendanceRoute() {
     )
   }
 
-  // ── Staff view ───────────────────────────────────────────────────────────
+  // ── Staff / Manager view — fetch 3 months back + 1 month ahead ───────────
   const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10)
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    .toISOString()
-    .slice(0, 10)
+  const rangeStart = new Date(now.getFullYear(), now.getMonth() - 2, 1)
+    .toLocaleDateString('en-CA')
+  const rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    .toLocaleDateString('en-CA')
 
-  const { data: monthRecords } = await supabase
+  const { data: allRecords } = await supabase
     .from('attendance_records')
     .select('*')
     .eq('user_id', user.id)
-    .gte('date', monthStart)
-    .lte('date', monthEnd)
+    .gte('date', rangeStart)
+    .lte('date', rangeEnd)
     .order('date', { ascending: true })
 
   return (
     <AttendancePage
       profile={profile as Profile}
       settings={settings}
-      monthRecords={(monthRecords as AttendanceRecord[]) ?? []}
+      monthRecords={(allRecords as AttendanceRecord[]) ?? []}
     />
   )
 }

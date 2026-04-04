@@ -2,11 +2,8 @@
 
 import { useState } from 'react'
 import { Profile, AttendanceRecord, FootballRule, AttendanceSettings } from '@/types'
-import { CheckInCard } from './check-in-card'
-import { MonthlySummaryCard } from './monthly-summary-card'
-import { AttendanceCalendar } from './attendance-calendar'
 import { AdminAttendanceTable } from './admin-attendance-table'
-import { AttendanceStats } from './attendance-stats'
+import { AttendanceSummaryPage } from './attendance-summary-page'
 
 // ── Staff props ──────────────────────────────────────────────────────────────
 interface StaffProps {
@@ -77,30 +74,12 @@ export function AttendancePage(props: Props) {
   // ── Staff view ───────────────────────────────────────────────────────────
   const staffProps = props as StaffProps
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Attendance</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Track your daily attendance and monthly summary.
-        </p>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Left column: Check-in card + stats */}
-        <div className="space-y-6">
-          <CheckInCard
-            userId={profile.id}
-            settings={settings}
-          />
-          <AttendanceStats monthRecords={staffProps.monthRecords} />
-        </div>
-
-        {/* Right column: Calendar */}
-        <div className="space-y-6">
-          <AttendanceCalendar monthRecords={staffProps.monthRecords} />
-          <MonthlySummaryCard monthRecords={staffProps.monthRecords} />
-        </div>
-      </div>
+    <div className="p-6">
+      <AttendanceSummaryPage
+        profile={profile}
+        settings={settings}
+        allRecords={staffProps.monthRecords}
+      />
     </div>
   )
 }
