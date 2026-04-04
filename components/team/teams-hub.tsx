@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Profile, Team } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -212,8 +212,12 @@ function EditPersonDialog({
   const [name, setName] = useState(person?.full_name ?? '')
   const [role, setRole] = useState<string>(person?.role ?? 'staff')
 
-  // sync when person changes
-  useState(() => { setName(person?.full_name ?? ''); setRole(person?.role ?? 'staff') })
+  useEffect(() => {
+    if (person) {
+      setName(person.full_name)
+      setRole(person.role)
+    }
+  }, [person])
 
   function handleSave() {
     if (!person) return
