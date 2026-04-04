@@ -27,8 +27,12 @@ import {
   Plus, RefreshCw, ChevronDown, ChevronRight, SlidersHorizontal,
   Share2, Maximize2, UserPlus, FolderKanban, LayoutList, Calendar,
   ExternalLink, CheckCircle2, PenLine, FilePlus2, Clock, Activity,
-  BarChart2, Globe, ChevronLeft,
+  BarChart2, Globe, ChevronLeft, Check, Pencil,
 } from 'lucide-react'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabType = 'summary' | 'list' | 'board' | 'calendar' | 'timeline'
@@ -148,6 +152,46 @@ export function WorkspaceDetailPage({
   const [calSearch, setCalSearch] = useState('')
   const [tlSearch, setTlSearch] = useState('')
   const [listView, setListView] = useState<'list' | 'grid'>('list')
+
+  // ── Tab customisation ──
+  const ALL_TABS: { key: TabType; label: string; icon: React.ReactNode }[] = [
+    { key: 'summary',  label: 'Summary',  icon: <Globe className="h-3.5 w-3.5" /> },
+    { key: 'list',     label: 'List',     icon: <LayoutList className="h-3.5 w-3.5" /> },
+    { key: 'board',    label: 'Board',    icon: <LayoutGrid className="h-3.5 w-3.5" /> },
+    { key: 'calendar', label: 'Calendar', icon: <Calendar className="h-3.5 w-3.5" /> },
+    { key: 'timeline', label: 'Timeline', icon: <BarChart2 className="h-3.5 w-3.5" /> },
+  ]
+  const [tabOrder, setTabOrder] = useState<TabType[]>(['summary', 'list', 'board', 'calendar', 'timeline'])
+  const [tabLabels, setTabLabels] = useState<Record<TabType, string>>({
+    summary: 'Summary', list: 'List', board: 'Board', calendar: 'Calendar', timeline: 'Timeline',
+  })
+  const [defaultTab, setDefaultTab] = useState<TabType>('summary')
+  const [tabMenuOpen, setTabMenuOpen] = useState<TabType | null>(null)
+  const [renamingTab, setRenamingTab] = useState<TabType | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+
+  function moveTab(key: TabType, dir: -1 | 1) {
+    setTabOrder(prev => {
+      const idx = prev.indexOf(key)
+      const next = idx + dir
+      if (next < 0 || next >= prev.length) return prev
+      const arr = [...prev]
+      ;[arr[idx], arr[next]] = [arr[next], arr[idx]]
+      return arr
+    })
+  }
+
+  function openRename(key: TabType) {
+    setRenamingTab(key)
+    setRenameValue(tabLabels[key])
+  }
+
+  function confirmRename() {
+    if (renamingTab && renameValue.trim()) {
+      setTabLabels(prev => ({ ...prev, [renamingTab]: renameValue.trim() }))
+    }
+    setRenamingTab(null)
+  }
 
   function refresh() { startTransition(() => router.refresh()) }
 
@@ -314,13 +358,10 @@ export function WorkspaceDetailPage({
     return weeks
   }, [tlStart, tlEnd, tlTotalDays])
 
-  const tabs: { key: TabType; label: string; icon: React.ReactNode }[] = [
-    { key: 'summary',  label: 'Summary',  icon: <Globe className="h-3.5 w-3.5" /> },
-    { key: 'list',     label: 'List',     icon: <LayoutList className="h-3.5 w-3.5" /> },
-    { key: 'board',    label: 'Board',    icon: <LayoutGrid className="h-3.5 w-3.5" /> },
-    { key: 'calendar', label: 'Calendar', icon: <Calendar className="h-3.5 w-3.5" /> },
-    { key: 'timeline', label: 'Timeline', icon: <BarChart2 className="h-3.5 w-3.5" /> },
-  ]
+  const tabs = tabOrder.map(key => ({
+    ...ALL_TABS.find(t => t.key === key)!,
+    label: tabLabels[key],
+  }))
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] -m-6 overflow-hidden">
@@ -407,22 +448,96 @@ export function WorkspaceDetailPage({
       {/* Tab bar */}
       <div className="px-6 border-b">
         <div className="flex items-center">
-          {tabs.map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px',
-                activeTab === tab.key
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}>
-              {tab.icon}{tab.label}
-            </button>
+          {tabs.map((tab, idx) => (
+            <div key={tab.key} className="relative group flex items-center">
+              <button
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  'flex items-center gap-1.5 pl-3 pr-1 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px',
+                  activeTab === tab.key
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {tab.icon}
+                {tab.label}
+                {defaultTab === tab.key && (
+                  <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-blue-500" title="Default tab" />
+                )}
+              </button>
+
+              {/* "..." tab menu */}
+              <DropdownMenu
+                open={tabMenuOpen === tab.key}
+                onOpenChange={open => setTabMenuOpen(open ? tab.key : null)}
+              >
+                <DropdownMenuTrigger asChild>
+                  <button
+                    onClick={e => { e.stopPropagation(); setTabMenuOpen(tab.key) }}
+                    className={cn(
+                      'h-5 w-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground transition-opacity -mb-px mr-1',
+                      tabMenuOpen === tab.key ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    )}
+                  >
+                    <MoreHorizontal className="h-3 w-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuItem
+                    onClick={() => { setDefaultTab(tab.key); setActiveTab(tab.key); setTabMenuOpen(null) }}
+                    className="flex items-center justify-between"
+                  >
+                    <span>Set as default</span>
+                    {defaultTab === tab.key && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => { openRename(tab.key); setTabMenuOpen(null) }}
+                    className="flex items-center gap-2"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => { moveTab(tab.key, -1); setTabMenuOpen(null) }}
+                    disabled={idx === 0}
+                    className="flex items-center gap-2"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />Move tab left
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => { moveTab(tab.key, 1); setTabMenuOpen(null) }}
+                    disabled={idx === tabs.length - 1}
+                    className="flex items-center gap-2"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />Move tab right
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           ))}
-          <button className="flex items-center px-3 py-2.5 text-sm text-muted-foreground border-b-2 border-transparent -mb-px">
-            <Plus className="h-3.5 w-3.5" />
-          </button>
         </div>
       </div>
+
+      {/* Rename tab dialog */}
+      <Dialog open={!!renamingTab} onOpenChange={open => !open && setRenamingTab(null)}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Rename tab</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Label className="text-xs text-muted-foreground mb-1 block">Tab name</Label>
+            <Input
+              value={renameValue}
+              onChange={e => setRenameValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') confirmRename() }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setRenamingTab(null)}>Cancel</Button>
+            <Button size="sm" onClick={confirmRename} disabled={!renameValue.trim()}>Rename</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ══════════════════════════════════════════════════════════════════════
           SUMMARY TAB
