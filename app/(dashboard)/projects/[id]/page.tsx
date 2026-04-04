@@ -161,13 +161,14 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     .filter(Boolean) as Profile[]
 
   // Fetch project members (two-step: project_members → profiles)
+  // Use base select without custom_role_id — safe before migration is run
   const admin = createAdminClient()
-  const profileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, custom_role_id'
+  const pmProfileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
   const [{ data: pmData }, { data: allProfilesData }, { data: customRolesData }] =
     await Promise.all([
       admin.from('project_members').select('*').eq('project_id', id).order('created_at'),
-      admin.from('profiles').select(profileSelect).neq('role', 'client').order('full_name'),
+      admin.from('profiles').select(pmProfileSelect).neq('role', 'client').order('full_name'),
       admin.from('custom_roles').select('*').order('name'),
     ])
 
@@ -176,7 +177,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   if (pmUserIds.length > 0) {
     const { data: pmProfilesData } = await admin
       .from('profiles')
-      .select(profileSelect)
+      .select(pmProfileSelect)
       .in('id', pmUserIds)
     pmProfiles = (pmProfilesData as Profile[]) ?? []
   }

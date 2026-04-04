@@ -8,7 +8,7 @@ export const metadata = {
 }
 
 const profileSelect =
-  'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, custom_role_id'
+  'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
 export default async function SettingsServerPage() {
   const supabase = await createClient()
@@ -49,14 +49,13 @@ export default async function SettingsServerPage() {
   let customRoles: CustomRole[] = []
 
   if (isAdmin) {
-    const [staffData, workspacesData, assignmentsData, statusesData, prioritiesData, rolesData] =
+    const [staffData, workspacesData, assignmentsData, statusesData, prioritiesData] =
       await Promise.all([
         supabase.from('profiles').select(profileSelect).order('full_name'),
         supabase.from('workspaces').select('*').order('name'),
         supabase.from('workspace_assignments').select('*, workspace:workspaces(*)'),
         supabase.from('task_statuses').select('*').order('sort_order'),
         supabase.from('task_priorities').select('*').order('sort_order'),
-        supabase.from('custom_roles').select('*').order('name'),
       ])
 
     allStaff = (staffData.data as Profile[]) ?? []
@@ -64,7 +63,10 @@ export default async function SettingsServerPage() {
     workspaceAssignments = assignmentsData.data ?? []
     taskStatuses = (statusesData.data as CustomTaskStatus[]) ?? []
     taskPriorities = (prioritiesData.data as CustomTaskPriority[]) ?? []
-    customRoles = (rolesData.data as CustomRole[]) ?? []
+
+    // custom_roles table only exists after migration — ignore error if table missing
+    const { data: rolesData } = await supabase.from('custom_roles').select('*').order('name')
+    customRoles = (rolesData as CustomRole[]) ?? []
   }
 
   return (
