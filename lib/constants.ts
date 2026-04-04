@@ -62,6 +62,7 @@ const STAFF_NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
   { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
   { href: '/tasks', label: 'My Tasks', icon: 'CheckSquare' },
+  { href: '/timesheet', label: 'Timesheet', icon: 'Timer' },
   { href: '/attendance', label: 'Attendance', icon: 'Clock' },
   { href: '/leave', label: 'Leave', icon: 'CalendarDays' },
 ]
@@ -72,6 +73,7 @@ export const NAV_ITEMS: Record<string, { href: string; label: string; icon: stri
     { href: '/workspaces', label: 'Workspaces', icon: 'Building2' },
     { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
     { href: '/tasks', label: 'My Tasks', icon: 'CheckSquare' },
+    { href: '/timesheet', label: 'Timesheet', icon: 'Timer' },
     { href: '/attendance', label: 'Attendance', icon: 'Clock' },
     { href: '/leave', label: 'Leave', icon: 'CalendarDays' },
     { href: '/team', label: 'Team', icon: 'Users' },

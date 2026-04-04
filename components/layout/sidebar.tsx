@@ -11,6 +11,7 @@ import {
   CalendarDays,
   Users,
   Settings,
+  Timer,
   ChevronLeft,
   ChevronRight,
   LucideIcon,
@@ -36,6 +37,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   CalendarDays,
   Users,
   Settings,
+  Timer,
 }
 
 interface SidebarProps {
