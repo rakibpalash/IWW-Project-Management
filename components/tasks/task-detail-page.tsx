@@ -65,13 +65,18 @@ type FeedItem =
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 function ElapsedTimer({ startedAt }: { startedAt: string }) {
-  const [elapsed, setElapsed] = useState(0)
+  const base = new Date(startedAt).getTime()
+  const [elapsed, setElapsed] = useState(() => Math.max(0, Math.floor((Date.now() - base) / 1000)))
   useEffect(() => {
-    const base = new Date(startedAt).getTime()
     const tick = () => setElapsed(Math.max(0, Math.floor((Date.now() - base) / 1000)))
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
+    // sync to next second boundary so ticks fire right as each second turns
+    const msUntilNextSecond = 1000 - ((Date.now() - base) % 1000)
+    let intervalId: ReturnType<typeof setInterval>
+    const timeoutId = setTimeout(() => {
+      tick()
+      intervalId = setInterval(tick, 1000)
+    }, msUntilNextSecond)
+    return () => { clearTimeout(timeoutId); clearInterval(intervalId) }
   }, [startedAt])
   const h = Math.floor(elapsed / 3600).toString().padStart(2, '0')
   const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0')
