@@ -102,6 +102,7 @@ export function CreateTeamDialog({
     setDescription('')
     setColor('#ec4899')
     setMemberSearch('')
+    setMemberRoleFilter('all')
     setSelectedIds([])
     onClose()
   }

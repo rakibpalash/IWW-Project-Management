@@ -217,7 +217,7 @@ function EditPersonDialog({
       setName(person.full_name)
       setRole(person.role)
     }
-  }, [person])
+  }, [person?.id])
 
   function handleSave() {
     if (!person) return
@@ -275,6 +275,14 @@ function EditTeamDialog({
   const [name, setName] = useState(team?.name ?? '')
   const [description, setDescription] = useState(team?.description ?? '')
   const [color, setColor] = useState(team?.color ?? '#ec4899')
+
+  useEffect(() => {
+    if (team) {
+      setName(team.name ?? '')
+      setDescription(team.description ?? '')
+      setColor(team.color ?? '#ec4899')
+    }
+  }, [team?.id])
 
   function handleSave() {
     if (!team) return

@@ -6,6 +6,11 @@ import { Profile, Team, TeamMember } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +30,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import {
   Users, MoreHorizontal, Star, Settings, LogOut, Archive,
-  Trash2, UserPlus, Crown, X, ArrowLeft, FileText, Link2,
+  Trash2, UserPlus, Crown, X, ArrowLeft, FileText,
 } from 'lucide-react'
 import { getInitials, formatDate } from '@/lib/utils'
 import {
@@ -66,6 +71,10 @@ export function TeamDetailPage({ team, profile, allProfiles }: TeamDetailPagePro
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [removingUserId, setRemovingUserId] = useState<string | null>(null)
+  const [showEditTeam, setShowEditTeam] = useState(false)
+  const [editName, setEditName] = useState(team.name)
+  const [editDescription, setEditDescription] = useState(team.description ?? '')
+  const [editColor, setEditColor] = useState(team.color)
 
   const members = team.members ?? []
   const memberCount = members.length
@@ -169,11 +178,11 @@ export function TeamDetailPage({ team, profile, allProfiles }: TeamDetailPagePro
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem className="gap-2 cursor-pointer">
+                <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => toast({ title: 'Team starred' })}>
                   <Star className="h-4 w-4 text-yellow-500" />Star team
                 </DropdownMenuItem>
                 {canManage && (
-                  <DropdownMenuItem className="gap-2 cursor-pointer">
+                  <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => setShowEditTeam(true)}>
                     <Settings className="h-4 w-4 text-gray-500" />Team settings
                   </DropdownMenuItem>
                 )}
@@ -272,23 +281,9 @@ export function TeamDetailPage({ team, profile, allProfiles }: TeamDetailPagePro
                     <span className="text-gray-400 min-w-[80px] text-xs pt-0.5">Members</span>
                     <span className="text-gray-600 text-xs">{memberCount}</span>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-400 min-w-[80px] text-xs pt-0.5">Sub-teams</span>
-                    <span className="text-gray-400 text-xs italic">No sub-teams</span>
-                  </div>
                 </div>
               </div>
 
-              {/* Team links */}
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                  Team links
-                </h3>
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <Link2 className="h-4 w-4" />
-                  <span className="text-xs italic">No links added</span>
-                </div>
-              </div>
             </aside>
           </div>
         )}
@@ -398,6 +393,48 @@ export function TeamDetailPage({ team, profile, allProfiles }: TeamDetailPagePro
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Team Dialog */}
+      <Dialog open={showEditTeam} onOpenChange={(v) => !v && setShowEditTeam(false)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Team settings</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Team name</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="What does this team do?" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Team color</Label>
+              <div className="flex gap-2">
+                {(['#ec4899','#3b82f6','#22c55e','#f97316','#a855f7','#ef4444'] as const).map((c) => (
+                  <button key={c} type="button" onClick={() => setEditColor(c)}
+                    className="h-7 w-7 rounded-full hover:scale-110 transition-transform relative"
+                    style={{ backgroundColor: c }}>
+                    {editColor === c && <span className="absolute inset-0 flex items-center justify-center"><span className="h-2 w-2 rounded-full bg-white" /></span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditTeam(false)} disabled={isPending}>Cancel</Button>
+            <Button disabled={isPending || !editName.trim()} onClick={() => {
+              startTransition(async () => {
+                const { updateTeamAction } = await import('@/app/actions/teams')
+                const result = await updateTeamAction(team.id, { name: editName.trim(), description: editDescription.trim() || undefined, color: editColor })
+                if (result.success) { toast({ title: 'Team updated' }); setShowEditTeam(false); router.refresh() }
+                else toast({ title: 'Failed to update', description: result.error, variant: 'destructive' })
+              })
+            }}>
+              {isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -476,10 +513,10 @@ function MemberRowFull({
         <button
           onClick={onRemove}
           disabled={isRemoving}
-          className="p-1 text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
+          className={`p-1 transition-colors flex-shrink-0 ${isRemoving ? 'text-gray-200 cursor-not-allowed' : 'text-gray-300 hover:text-red-500'}`}
           title="Remove member"
         >
-          <X className="h-4 w-4" />
+          {isRemoving ? <span className="h-4 w-4 block border-2 border-gray-300 border-t-red-400 rounded-full animate-spin" /> : <X className="h-4 w-4" />}
         </button>
       )}
     </div>
