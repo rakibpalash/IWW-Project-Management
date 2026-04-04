@@ -60,10 +60,13 @@ export function CreateTeamDialog({
   const [description, setDescription] = useState('')
   const [color, setColor] = useState('#ec4899')
   const [memberSearch, setMemberSearch] = useState('')
+  const [memberRoleFilter, setMemberRoleFilter] = useState<'all' | 'staff' | 'client'>('all')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const filteredProfiles = allProfiles.filter((p) => {
     if (p.id === currentUserId) return false
+    if (memberRoleFilter === 'staff' && p.role !== 'staff') return false
+    if (memberRoleFilter === 'client' && p.role !== 'client') return false
     if (!memberSearch) return true
     return (
       p.full_name.toLowerCase().includes(memberSearch.toLowerCase()) ||
@@ -206,15 +209,33 @@ export function CreateTeamDialog({
               </div>
             )}
 
-            {/* Search input */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search people..."
-                value={memberSearch}
-                onChange={(e) => setMemberSearch(e.target.value)}
-                className="pl-9"
-              />
+            {/* Role filter + Search */}
+            <div className="flex gap-2">
+              <div className="flex rounded-md border border-gray-200 overflow-hidden text-xs font-medium shrink-0">
+                {(['all', 'staff', 'client'] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setMemberRoleFilter(r)}
+                    className={`px-3 py-1.5 capitalize transition-colors ${
+                      memberRoleFilter === r
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    {r === 'all' ? 'All' : r.charAt(0).toUpperCase() + r.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search people..."
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
             </div>
 
             {/* People list */}
