@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Profile, Workspace, WorkspaceAssignment, Role } from '@/types'
+import { Profile, Workspace, WorkspaceAssignment, Role, CustomRole } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -31,13 +31,15 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CreateUserDialog } from './create-user-dialog'
-import { Plus, Search, MoreVertical, UserCog, Loader2 } from 'lucide-react'
+import { Plus, Search, MoreVertical, UserCog, Loader2, Tag } from 'lucide-react'
 import { updateUserRoleAction } from '@/app/actions/user'
+import { assignCustomRoleToUserAction } from '@/app/actions/custom-roles'
 
 interface TeamManagementProps {
   users: Profile[]
   workspaces: Workspace[]
   workspaceAssignments: (WorkspaceAssignment & { workspace?: Workspace })[]
+  customRoles?: CustomRole[]
 }
 
 const roleConfig: Record<string, { label: string; className: string }> = {
@@ -55,12 +57,13 @@ function getInitials(name: string): string {
     .slice(0, 2)
 }
 
-export function TeamManagement({ users, workspaces, workspaceAssignments }: TeamManagementProps) {
+export function TeamManagement({ users, workspaces, workspaceAssignments, customRoles = [] }: TeamManagementProps) {
   const router = useRouter()
   const [createOpen, setCreateOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null)
+  const [assigningRoleUserId, setAssigningRoleUserId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const filteredUsers = users.filter((u) => {
@@ -85,6 +88,18 @@ export function TeamManagement({ users, workspaces, workspaceAssignments }: Team
     setUpdatingUserId(null)
     if (!result.success) {
       setError(result.error ?? 'Failed to update role')
+    } else {
+      router.refresh()
+    }
+  }
+
+  const handleCustomRoleAssign = async (userId: string, customRoleId: string | null) => {
+    setAssigningRoleUserId(userId)
+    setError(null)
+    const result = await assignCustomRoleToUserAction(userId, customRoleId)
+    setAssigningRoleUserId(null)
+    if (result.error) {
+      setError(result.error)
     } else {
       router.refresh()
     }
@@ -130,7 +145,8 @@ export function TeamManagement({ users, workspaces, workspaceAssignments }: Team
           <TableHeader>
             <TableRow className="bg-gray-50">
               <TableHead>User</TableHead>
-              <TableHead>Role</TableHead>
+              <TableHead>System Role</TableHead>
+              <TableHead>Job Title</TableHead>
               <TableHead>Workspaces</TableHead>
               <TableHead className="w-[60px]"></TableHead>
             </TableRow>
@@ -138,7 +154,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments }: Team
           <TableBody>
             {filteredUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                   No users found
                 </TableCell>
               </TableRow>
@@ -147,6 +163,8 @@ export function TeamManagement({ users, workspaces, workspaceAssignments }: Team
                 const rc = roleConfig[user.role] ?? roleConfig.staff
                 const userWorkspaces = getUserWorkspaces(user.id)
                 const isUpdating = updatingUserId === user.id
+                const isAssigningRole = assigningRoleUserId === user.id
+                const assignedCustomRole = customRoles.find((r) => r.id === user.custom_role_id)
 
                 return (
                   <TableRow key={user.id}>
@@ -180,6 +198,65 @@ export function TeamManagement({ users, workspaces, workspaceAssignments }: Team
                       </span>
                     </TableCell>
                     <TableCell>
+                      {isAssigningRole ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : customRoles.length > 0 ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+                              {assignedCustomRole ? (
+                                <Badge
+                                  style={{
+                                    backgroundColor: assignedCustomRole.color + '20',
+                                    color: assignedCustomRole.color,
+                                    borderColor: assignedCustomRole.color + '40',
+                                  }}
+                                  variant="outline"
+                                  className="text-xs font-medium cursor-pointer"
+                                >
+                                  {assignedCustomRole.name}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Tag className="h-3 w-3" />
+                                  Assign role
+                                </span>
+                              )}
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-48">
+                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                              Assign Job Title
+                            </div>
+                            <DropdownMenuSeparator />
+                            {assignedCustomRole && (
+                              <DropdownMenuItem
+                                onClick={() => handleCustomRoleAssign(user.id, null)}
+                                className="text-muted-foreground"
+                              >
+                                Remove role
+                              </DropdownMenuItem>
+                            )}
+                            {customRoles.map((cr) => (
+                              <DropdownMenuItem
+                                key={cr.id}
+                                onClick={() => handleCustomRoleAssign(user.id, cr.id)}
+                                className="gap-2"
+                              >
+                                <span
+                                  className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: cr.color }}
+                                />
+                                {cr.name}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {userWorkspaces.length === 0 ? (
                           <span className="text-xs text-muted-foreground">No workspaces</span>
@@ -204,7 +281,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments }: Team
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                              Change Role
+                              Change System Role
                             </div>
                             <DropdownMenuSeparator />
                             {user.role !== 'super_admin' && (

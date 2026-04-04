@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Project, Task, Profile, ActivityLog } from '@/types'
+import { Project, Task, Profile, ActivityLog, ProjectMember, CustomRole } from '@/types'
 import { ProjectHeader } from './project-header'
 import { TimeSummary } from './time-summary'
+import { ProjectTeamSection } from './project-team-section'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -42,6 +43,9 @@ interface ProjectDetailPageProps {
   activityLogs: ActivityLog[]
   members: Profile[]
   profile: Profile
+  projectMembers: ProjectMember[]
+  allProfiles: Profile[]
+  customRoles: CustomRole[]
 }
 
 export function ProjectDetailPage({
@@ -50,6 +54,9 @@ export function ProjectDetailPage({
   activityLogs,
   members,
   profile,
+  projectMembers,
+  allProfiles,
+  customRoles,
 }: ProjectDetailPageProps) {
   const [project, setProject] = useState<Project>(initialProject)
 
@@ -301,13 +308,21 @@ export function ProjectDetailPage({
         {/* MEMBERS TAB                                                       */}
         {/* ---------------------------------------------------------------- */}
         <TabsContent value="members" className="space-y-4">
-          {members.length === 0 ? (
-            <EmptyState
-              icon={<Users className="h-10 w-10 text-muted-foreground" />}
-              title="No members assigned"
-              description="Members are assigned via workspace assignments."
-            />
-          ) : (
+          {/* Project team (leads + assigned members) */}
+          <ProjectTeamSection
+            projectId={project.id}
+            initialMembers={projectMembers}
+            allProfiles={allProfiles}
+            customRoles={customRoles}
+            canManage={profile.role === 'super_admin'}
+          />
+
+          {/* Workspace members */}
+          {members.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                Workspace Members
+              </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {members.map((member) => (
                 <div
@@ -350,6 +365,7 @@ export function ProjectDetailPage({
                   </Badge>
                 </div>
               )}
+            </div>
             </div>
           )}
         </TabsContent>

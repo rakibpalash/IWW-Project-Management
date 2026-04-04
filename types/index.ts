@@ -9,6 +9,15 @@ export type DayType = 'sunday' | 'friday' | 'general'
 export type LeaveType = 'yearly' | 'work_from_home' | 'marriage'
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
+export interface CustomRole {
+  id: string
+  name: string
+  color: string
+  description?: string
+  created_by?: string
+  created_at: string
+}
+
 export interface Profile {
   id: string
   email: string
@@ -19,6 +28,8 @@ export interface Profile {
   onboarding_completed: boolean
   created_at: string
   updated_at: string
+  custom_role_id?: string | null
+  custom_role?: CustomRole
 }
 
 export interface Workspace {
@@ -252,6 +263,15 @@ export interface CustomTaskPriority {
   is_default: boolean
   created_by: string | null
   created_at: string
+}
+
+export interface ProjectMember {
+  id: string
+  project_id: string
+  user_id: string
+  project_role: 'lead' | 'member'
+  created_at: string
+  profile?: Profile
 }
 
 export interface DashboardStats {

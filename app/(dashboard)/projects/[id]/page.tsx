@@ -1,7 +1,8 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProjectDetailPage } from '@/components/projects/project-detail-page'
-import { Project, Task, Profile, ActivityLog } from '@/types'
+import { Project, Task, Profile, ActivityLog, ProjectMember, CustomRole } from '@/types'
+import { createAdminClient } from '@/lib/supabase/server'
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>
@@ -159,6 +160,35 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     .map((a: any) => a.user)
     .filter(Boolean) as Profile[]
 
+  // Fetch project members (two-step: project_members → profiles)
+  const admin = createAdminClient()
+  const profileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, custom_role_id'
+
+  const [{ data: pmData }, { data: allProfilesData }, { data: customRolesData }] =
+    await Promise.all([
+      admin.from('project_members').select('*').eq('project_id', id).order('created_at'),
+      admin.from('profiles').select(profileSelect).neq('role', 'client').order('full_name'),
+      admin.from('custom_roles').select('*').order('name'),
+    ])
+
+  const pmUserIds = (pmData ?? []).map((m: any) => m.user_id)
+  let pmProfiles: Profile[] = []
+  if (pmUserIds.length > 0) {
+    const { data: pmProfilesData } = await admin
+      .from('profiles')
+      .select(profileSelect)
+      .in('id', pmUserIds)
+    pmProfiles = (pmProfilesData as Profile[]) ?? []
+  }
+
+  const pmProfileById: Record<string, Profile> = {}
+  for (const p of pmProfiles) pmProfileById[p.id] = p
+
+  const projectMembers: ProjectMember[] = (pmData ?? []).map((m: any) => ({
+    ...m,
+    profile: pmProfileById[m.user_id],
+  }))
+
   const projectWithHours = {
     ...project,
     actual_hours: actualHours,
@@ -171,6 +201,9 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       activityLogs={(activityLogs as ActivityLog[]) ?? []}
       members={members}
       profile={profile as Profile}
+      projectMembers={projectMembers}
+      allProfiles={(allProfilesData as Profile[]) ?? []}
+      customRoles={(customRolesData as CustomRole[]) ?? []}
     />
   )
 }

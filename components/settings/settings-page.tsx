@@ -1,15 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { Profile, AttendanceSettings, Workspace, WorkspaceAssignment, CustomTaskStatus, CustomTaskPriority } from '@/types'
+import { Profile, AttendanceSettings, Workspace, WorkspaceAssignment, CustomTaskStatus, CustomTaskPriority, CustomRole } from '@/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { AttendanceRulesForm } from './attendance-rules-form'
 import { TeamManagement } from './team-management'
 import { TaskStatusesForm } from './task-statuses-form'
 import { TaskPrioritiesForm } from './task-priorities-form'
+import { CustomRolesTab } from './custom-roles-tab'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Clock, Users, User, Shield, ExternalLink, ListTodo, Flag } from 'lucide-react'
+import { Clock, Users, User, Shield, ExternalLink, ListTodo, Flag, Tag } from 'lucide-react'
 
 interface SettingsPageProps {
   profile: Profile
@@ -20,6 +21,7 @@ interface SettingsPageProps {
   workspaceAssignments: (WorkspaceAssignment & { workspace?: Workspace })[]
   taskStatuses: CustomTaskStatus[]
   taskPriorities: CustomTaskPriority[]
+  customRoles: CustomRole[]
 }
 
 export function SettingsPage({
@@ -31,6 +33,7 @@ export function SettingsPage({
   workspaceAssignments,
   taskStatuses,
   taskPriorities,
+  customRoles,
 }: SettingsPageProps) {
   return (
     <div className="space-y-6">
@@ -61,6 +64,10 @@ export function SettingsPage({
                 <Flag className="h-4 w-4" />
                 Task Priorities
               </TabsTrigger>
+              <TabsTrigger value="roles" className="gap-2">
+                <Tag className="h-4 w-4" />
+                Job Roles
+              </TabsTrigger>
             </>
           )}
           <TabsTrigger value="profile" className="gap-2">
@@ -84,6 +91,7 @@ export function SettingsPage({
                 users={allStaff}
                 workspaces={workspaces}
                 workspaceAssignments={workspaceAssignments}
+                customRoles={customRoles}
               />
             </TabsContent>
 
@@ -93,6 +101,10 @@ export function SettingsPage({
 
             <TabsContent value="priorities">
               <TaskPrioritiesForm initialPriorities={taskPriorities} />
+            </TabsContent>
+
+            <TabsContent value="roles">
+              <CustomRolesTab initialRoles={customRoles} />
             </TabsContent>
           </>
         )}
