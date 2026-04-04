@@ -104,7 +104,7 @@ function TeamCard({
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="font-semibold text-sm text-gray-900 group-hover:text-blue-600 transition-colors truncate">{team.name}</h3>
-          <TeamTypeBadge type={team.team_type} />
+          {team.description && <p className="text-xs text-gray-400 truncate mt-0.5">{team.description}</p>}
         </div>
         {isAdmin && (
           <DropdownMenu>
