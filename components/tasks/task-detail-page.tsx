@@ -64,12 +64,12 @@ type FeedItem =
   | { type: 'time'; id: string; date: string; data: TimeEntry }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-function ElapsedTimer({ startedAt }: { startedAt: string }) {
-  const base = new Date(startedAt).getTime()
+function ElapsedTimer({ startedAt, clientBase }: { startedAt: string; clientBase?: number }) {
+  // Use the earlier of server timestamp vs client-recorded start to avoid clock-drift freeze
+  const base = Math.min(new Date(startedAt).getTime(), clientBase ?? Infinity)
   const [elapsed, setElapsed] = useState(() => Math.max(0, Math.floor((Date.now() - base) / 1000)))
   useEffect(() => {
     const tick = () => setElapsed(Math.max(0, Math.floor((Date.now() - base) / 1000)))
-    // sync to next second boundary so ticks fire right as each second turns
     const msUntilNextSecond = 1000 - ((Date.now() - base) % 1000)
     let intervalId: ReturnType<typeof setInterval>
     const timeoutId = setTimeout(() => {
@@ -77,7 +77,7 @@ function ElapsedTimer({ startedAt }: { startedAt: string }) {
       intervalId = setInterval(tick, 1000)
     }, msUntilNextSecond)
     return () => { clearTimeout(timeoutId); clearInterval(intervalId) }
-  }, [startedAt])
+  }, [base])
   const h = Math.floor(elapsed / 3600).toString().padStart(2, '0')
   const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0')
   const s = (elapsed % 60).toString().padStart(2, '0')
@@ -194,6 +194,7 @@ export function TaskDetailPage({
   const [showTimeLogDialog, setShowTimeLogDialog] = useState(false)
   const [timerRunning, setTimerRunning] = useState(false)
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null)
+  const [timerClientBase, setTimerClientBase] = useState<number | undefined>(undefined)
   const [timerLoading, setTimerLoading] = useState(false)
 
   const isAdmin = profile.role === 'super_admin'
@@ -328,6 +329,7 @@ export function TaskDetailPage({
 
   async function startTimer() {
     if (!canTrackTime) return
+    const clickedAt = Date.now()
     setTimerLoading(true)
     const result = await startTimerAction(task.id)
     setTimerLoading(false)
@@ -336,6 +338,7 @@ export function TaskDetailPage({
       return
     }
     setRunningEntry(result.entry)
+    setTimerClientBase(clickedAt)
     setTimerRunning(true)
     setTimeEntries((p) => [result.entry!, ...p])
   }
@@ -353,6 +356,7 @@ export function TaskDetailPage({
       return
     }
     setRunningEntry(null)
+    setTimerClientBase(undefined)
     setTimerRunning(false)
     setTimeEntries((p) =>
       p.map((e) => (e.id === runningEntry.id ? result.entry! : e)),
@@ -735,7 +739,7 @@ export function TaskDetailPage({
                     )}
                     <span className="text-3xl font-mono font-bold tabular-nums tracking-tight">
                       {timerRunning && runningEntry ? (
-                        <ElapsedTimer startedAt={runningEntry.started_at} />
+                        <ElapsedTimer startedAt={runningEntry.started_at} clientBase={timerClientBase} />
                       ) : (
                         '00:00:00'
                       )}
