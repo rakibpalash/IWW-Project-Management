@@ -123,8 +123,8 @@ export function CreateTeamDialog({
       if (result.success) {
         toast({ title: 'Team created successfully' })
         handleClose()
+        router.refresh()
         if (result.team) router.push(`/team/${result.team.id}`)
-        else router.refresh()
       } else {
         toast({ title: 'Failed to create team', description: result.error, variant: 'destructive' })
       }

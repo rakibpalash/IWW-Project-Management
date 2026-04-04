@@ -27,26 +27,37 @@ export default async function TeamDetailServerPage({
     .single()
   if (!profile) redirect('/login')
 
-  // Fetch team basic data first
+  // Fetch team base data
   const { data: teamBase } = await admin
     .from('teams')
     .select('*')
     .eq('id', teamId)
     .single()
-
   if (!teamBase) notFound()
 
-  // Fetch members separately — graceful if team_members table isn't migrated yet
-  let members: any[] = []
-  try {
-    const { data: membersData } = await admin
-      .from('team_members')
-      .select('*, profile:profiles(' + profileSelect + ')')
-      .eq('team_id', teamId)
-    members = membersData ?? []
-  } catch {
-    members = []
+  // Step 1: fetch team_members rows
+  const { data: memberRows } = await admin
+    .from('team_members')
+    .select('*')
+    .eq('team_id', teamId)
+
+  // Step 2: fetch profiles for those user_ids
+  const memberUserIds = (memberRows ?? []).map((m) => m.user_id)
+  let memberProfiles: any[] = []
+  if (memberUserIds.length > 0) {
+    const { data } = await admin
+      .from('profiles')
+      .select(profileSelect)
+      .in('id', memberUserIds)
+    memberProfiles = data ?? []
   }
+
+  // Step 3: merge
+  const profilesById = Object.fromEntries(memberProfiles.map((p) => [p.id, p]))
+  const members = (memberRows ?? []).map((m) => ({
+    ...m,
+    profile: profilesById[m.user_id] ?? null,
+  }))
 
   const team = { ...teamBase, members }
 
