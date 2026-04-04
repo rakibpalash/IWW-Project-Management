@@ -262,3 +262,25 @@ export interface DashboardStats {
   pending_leaves: number
   todays_attendance?: AttendanceRecord
 }
+
+export interface Team {
+  id: string
+  name: string
+  description: string | null
+  team_type: 'official' | 'private' | 'public'
+  color: string
+  is_archived: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  members?: TeamMember[]
+}
+
+export interface TeamMember {
+  id: string
+  team_id: string
+  user_id: string
+  role: 'lead' | 'member'
+  created_at: string
+  profile?: Profile
+}
