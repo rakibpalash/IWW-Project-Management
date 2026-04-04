@@ -137,16 +137,19 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     }
   }
 
-  // Fetch activity logs for timeline
-  const { data: activityLogs } = await supabase
-    .from('activity_logs')
-    .select(`
-      *,
-      user:profiles(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
-    `)
-    .eq('task_id', id)
-    .order('created_at', { ascending: false })
-    .limit(50)
+  // Fetch activity logs for timeline — filter by task IDs belonging to this project
+  const allTaskIds = (tasksRaw ?? []).map((t: any) => t.id)
+  const { data: activityLogs } = allTaskIds.length > 0
+    ? await supabase
+        .from('activity_logs')
+        .select(`
+          *,
+          user:profiles(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
+        `)
+        .in('task_id', allTaskIds)
+        .order('created_at', { ascending: false })
+        .limit(50)
+    : { data: [] }
 
   // Fetch workspace members
   const { data: assignments } = await supabase
@@ -161,24 +164,34 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     .filter(Boolean) as Profile[]
 
   // Fetch project members (two-step: project_members → profiles)
-  // Use base select without custom_role_id — safe before migration is run
+  // Includes custom_role_id for job title display; columns fall back to null if not yet migrated
   const admin = createAdminClient()
-  const pmProfileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+  const pmProfileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, custom_role_id'
 
-  const [{ data: pmData }, { data: allProfilesData }, { data: customRolesData }] =
+  const baseProfileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+
+  const [pmResult, allProfilesResult, customRolesResult] =
     await Promise.all([
       admin.from('project_members').select('*').eq('project_id', id).order('created_at'),
       admin.from('profiles').select(pmProfileSelect).neq('role', 'client').order('full_name'),
       admin.from('custom_roles').select('*').order('name'),
     ])
 
+  // If custom_role_id column not yet migrated, fall back to base select
+  const allProfilesData = allProfilesResult.error
+    ? (await admin.from('profiles').select(baseProfileSelect).neq('role', 'client').order('full_name')).data
+    : allProfilesResult.data
+
+  const pmData = pmResult.data
+  const customRolesData = customRolesResult.data
+
   const pmUserIds = (pmData ?? []).map((m: any) => m.user_id)
   let pmProfiles: Profile[] = []
   if (pmUserIds.length > 0) {
-    const { data: pmProfilesData } = await admin
-      .from('profiles')
-      .select(pmProfileSelect)
-      .in('id', pmUserIds)
+    const pmProfilesResult = await admin.from('profiles').select(pmProfileSelect).in('id', pmUserIds)
+    const pmProfilesData = pmProfilesResult.error
+      ? (await admin.from('profiles').select(baseProfileSelect).in('id', pmUserIds)).data
+      : pmProfilesResult.data
     pmProfiles = (pmProfilesData as Profile[]) ?? []
   }
 

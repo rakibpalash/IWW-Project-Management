@@ -34,6 +34,7 @@ import { CreateUserDialog } from './create-user-dialog'
 import { Plus, Search, MoreVertical, UserCog, Loader2, Tag } from 'lucide-react'
 import { updateUserRoleAction } from '@/app/actions/user'
 import { assignCustomRoleToUserAction } from '@/app/actions/custom-roles'
+import { getInitials } from '@/lib/utils'
 
 interface TeamManagementProps {
   users: Profile[]
@@ -48,14 +49,6 @@ const roleConfig: Record<string, { label: string; className: string }> = {
   client: { label: 'Client', className: 'bg-gray-100 text-gray-700' },
 }
 
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-}
 
 export function TeamManagement({ users, workspaces, workspaceAssignments, customRoles = [] }: TeamManagementProps) {
   const router = useRouter()
@@ -99,7 +92,11 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
     const result = await assignCustomRoleToUserAction(userId, customRoleId)
     setAssigningRoleUserId(null)
     if (result.error) {
-      setError(result.error)
+      setError(
+        result.error.includes('schema cache') || result.error.includes('does not exist') || result.error.includes('column')
+          ? 'Database migration required. Run supabase/migrations/006_custom_roles.sql in your Supabase SQL Editor.'
+          : result.error
+      )
     } else {
       router.refresh()
     }

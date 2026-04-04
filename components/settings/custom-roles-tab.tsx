@@ -73,6 +73,11 @@ export function CustomRolesTab({ initialRoles }: CustomRolesTabProps) {
     setDialogOpen(true)
   }
 
+  const friendlyError = (msg: string) =>
+    msg.includes('schema cache') || msg.includes('does not exist') || msg.includes('relation')
+      ? 'Database migration required. Run supabase/migrations/006_custom_roles.sql in your Supabase SQL Editor first.'
+      : msg
+
   const handleSave = () => {
     if (!form.name.trim()) {
       setError('Role name is required')
@@ -86,7 +91,7 @@ export function CustomRolesTab({ initialRoles }: CustomRolesTabProps) {
           color: form.color,
           description: form.description.trim() || undefined,
         })
-        if (result.error) { setError(result.error); return }
+        if (result.error) { setError(friendlyError(result.error)); return }
         setRoles((prev) =>
           prev.map((r) => (r.id === editing.id ? { ...r, ...form, name: form.name.trim() } : r))
         )
@@ -96,7 +101,7 @@ export function CustomRolesTab({ initialRoles }: CustomRolesTabProps) {
           color: form.color,
           description: form.description.trim() || undefined,
         })
-        if (result.error) { setError(result.error); return }
+        if (result.error) { setError(friendlyError(result.error)); return }
         if (result.role) setRoles((prev) => [...prev, result.role as CustomRole])
       }
       setDialogOpen(false)
@@ -107,7 +112,7 @@ export function CustomRolesTab({ initialRoles }: CustomRolesTabProps) {
     if (!deleteTarget) return
     startTransition(async () => {
       const result = await deleteCustomRoleAction(deleteTarget.id)
-      if (result.error) { setError(result.error); return }
+      if (result.error) { setError(friendlyError(result.error)); return }
       setRoles((prev) => prev.filter((r) => r.id !== deleteTarget.id))
       setDeleteTarget(null)
     })

@@ -10,6 +10,10 @@ export const metadata = {
 const profileSelect =
   'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
+// Includes custom_role_id — only used after 006_custom_roles migration is run
+const staffProfileSelect =
+  'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, custom_role_id'
+
 export default async function SettingsServerPage() {
   const supabase = await createClient()
 
@@ -51,14 +55,20 @@ export default async function SettingsServerPage() {
   if (isAdmin) {
     const [staffData, workspacesData, assignmentsData, statusesData, prioritiesData] =
       await Promise.all([
-        supabase.from('profiles').select(profileSelect).order('full_name'),
+        supabase.from('profiles').select(staffProfileSelect).order('full_name'),
         supabase.from('workspaces').select('*').order('name'),
         supabase.from('workspace_assignments').select('*, workspace:workspaces(*)'),
         supabase.from('task_statuses').select('*').order('sort_order'),
         supabase.from('task_priorities').select('*').order('sort_order'),
       ])
 
-    allStaff = (staffData.data as Profile[]) ?? []
+    // Fall back to profileSelect if staffProfileSelect fails (migration not run yet)
+    if (staffData.error) {
+      const { data: fallbackStaff } = await supabase.from('profiles').select(profileSelect).order('full_name')
+      allStaff = (fallbackStaff as Profile[]) ?? []
+    } else {
+      allStaff = (staffData.data as Profile[]) ?? []
+    }
     workspaces = workspacesData.data ?? []
     workspaceAssignments = assignmentsData.data ?? []
     taskStatuses = (statusesData.data as CustomTaskStatus[]) ?? []
