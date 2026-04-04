@@ -94,6 +94,53 @@ export async function updateUserRoleAction(
   }
 }
 
+export async function deleteUserAction(
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = createAdminClient()
+    const { createClient: createRegularClient } = await import('@/lib/supabase/server')
+    const userClient = await createRegularClient()
+    const { data: { user: callerUser } } = await userClient.auth.getUser()
+    if (!callerUser) return { success: false, error: 'Not authenticated' }
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerUser.id).single()
+    if (!callerProfile || callerProfile.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    const { error } = await supabase.auth.admin.deleteUser(userId)
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath('/settings')
+    revalidatePath('/team')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function updatePersonAction(
+  userId: string,
+  data: { full_name?: string; role?: string }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = createAdminClient()
+    const { createClient: createRegularClient } = await import('@/lib/supabase/server')
+    const userClient = await createRegularClient()
+    const { data: { user: callerUser } } = await userClient.auth.getUser()
+    if (!callerUser) return { success: false, error: 'Not authenticated' }
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerUser.id).single()
+    if (!callerProfile || callerProfile.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    const { error } = await supabase.from('profiles').update(data).eq('id', userId)
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath('/settings')
+    revalidatePath('/team')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 export async function updateUserProfileAction(data: {
   full_name: string
   avatar_url?: string | null
