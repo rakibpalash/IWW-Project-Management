@@ -60,13 +60,25 @@ export function CreateTeamDialog({
   const [description, setDescription] = useState('')
   const [color, setColor] = useState('#ec4899')
   const [memberSearch, setMemberSearch] = useState('')
-  const [memberRoleFilter, setMemberRoleFilter] = useState<'all' | 'staff' | 'client'>('all')
+  const [memberRoleFilter, setMemberRoleFilter] = useState<string>('all')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  const ROLE_LABELS: Record<string, string> = {
+    super_admin: 'Admin',
+    account_manager: 'Account Manager',
+    project_manager: 'Project Manager',
+    staff: 'Staff',
+    client: 'Client',
+  }
+
+  // Dynamically build filter tabs from roles present in allProfiles (excluding current user)
+  const availableRoles = Array.from(
+    new Set(allProfiles.filter((p) => p.id !== currentUserId).map((p) => p.role))
+  ).sort()
 
   const filteredProfiles = allProfiles.filter((p) => {
     if (p.id === currentUserId) return false
-    if (memberRoleFilter === 'staff' && p.role !== 'staff') return false
-    if (memberRoleFilter === 'client' && p.role !== 'client') return false
+    if (memberRoleFilter !== 'all' && p.role !== memberRoleFilter) return false
     if (!memberSearch) return true
     return (
       p.full_name.toLowerCase().includes(memberSearch.toLowerCase()) ||
@@ -210,20 +222,20 @@ export function CreateTeamDialog({
             )}
 
             {/* Role filter + Search */}
-            <div className="flex gap-2">
-              <div className="flex rounded-md border border-gray-200 overflow-hidden text-xs font-medium shrink-0">
-                {(['all', 'staff', 'client'] as const).map((r) => (
+            <div className="flex gap-2 flex-wrap">
+              <div className="flex rounded-md border border-gray-200 overflow-hidden text-xs font-medium shrink-0 flex-wrap">
+                {['all', ...availableRoles].map((r) => (
                   <button
                     key={r}
                     type="button"
                     onClick={() => setMemberRoleFilter(r)}
-                    className={`px-3 py-1.5 capitalize transition-colors ${
+                    className={`px-3 py-1.5 transition-colors whitespace-nowrap ${
                       memberRoleFilter === r
                         ? 'bg-blue-600 text-white'
                         : 'bg-white text-gray-500 hover:bg-gray-50'
                     }`}
                   >
-                    {r === 'all' ? 'All' : r.charAt(0).toUpperCase() + r.slice(1)}
+                    {r === 'all' ? 'All' : (ROLE_LABELS[r] ?? r)}
                   </button>
                 ))}
               </div>
