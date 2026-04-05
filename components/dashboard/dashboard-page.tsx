@@ -40,7 +40,6 @@ import {
   AttendanceRecord,
   LeaveBalance,
   ActivityLog,
-  LeaveRequest,
 } from '@/types'
 
 export interface DashboardTimeEntry {
@@ -104,7 +103,7 @@ export function DashboardPage({
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          Welcome back, {profile.full_name.split(' ')[0]}
+          Welcome back, {(profile.full_name ?? 'there').split(' ')[0]}
         </h1>
         <p className="mt-1 text-sm text-gray-500">
           {new Date().toLocaleDateString('en-US', {
@@ -179,7 +178,7 @@ export function DashboardPage({
       )}
 
       {/* ── STAFF ── */}
-      {role === 'staff' && (
+      {(role === 'staff' || role === 'account_manager' || role === 'project_manager') && (
         <>
           {/* Stats row */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -330,7 +329,7 @@ function QuickActions({
           New Project
         </Button>
       )}
-      {role === 'staff' && (
+      {(role === 'staff' || role === 'account_manager' || role === 'project_manager') && (
         <>
           <Button
             size="sm"
