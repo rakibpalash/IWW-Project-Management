@@ -36,8 +36,20 @@ import {
   Bold,
   Code,
   List,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react'
-import { updateTaskAction, updateTaskStatusAction } from '@/app/actions/tasks'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { updateTaskAction, updateTaskStatusAction, deleteTaskAction } from '@/app/actions/tasks'
 import { startTimerAction, stopTimerAction } from '@/app/actions/time-entries'
 import { useTaskConfig } from '@/hooks/use-task-config'
 import {
@@ -195,6 +207,9 @@ export function TaskDetailPage({
   const [savingDescription, setSavingDescription] = useState(false)
 
   const [showTimeLogDialog, setShowTimeLogDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deletingTask, setDeletingTask] = useState(false)
+  const [taskDeleted, setTaskDeleted] = useState(false)
   const [timerRunning, setTimerRunning] = useState(false)
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null)
   const [timerClientBase, setTimerClientBase] = useState<number | undefined>(undefined)
@@ -241,6 +256,19 @@ export function TaskDetailPage({
           setTitleDraft((prev) =>
             prev === task.title ? (payload.new as { title: string }).title : prev
           )
+        }
+      )
+
+      // Task deleted by someone else while this page is open
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'tasks', filter: `id=eq.${task.id}` },
+        () => {
+          setTaskDeleted(true)
+          // Auto-redirect after 4 seconds
+          setTimeout(() => {
+            router.push(`/projects/${task.project_id}`)
+          }, 4000)
         }
       )
 
@@ -487,6 +515,18 @@ export function TaskDetailPage({
     })
   }
 
+  async function handleDeleteTask() {
+    setDeletingTask(true)
+    const result = await deleteTaskAction(task.id)
+    setDeletingTask(false)
+    setShowDeleteDialog(false)
+    if (!result.success) {
+      toast({ title: 'Failed to delete task', description: result.error, variant: 'destructive' })
+      return
+    }
+    router.push(`/projects/${task.project_id}`)
+  }
+
   function handleSubtaskCreated(subtask: Task) {
     setTask((p) => ({ ...p, subtasks: [...(p.subtasks ?? []), subtask] }))
   }
@@ -507,6 +547,26 @@ export function TaskDetailPage({
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background">
+
+        {/* ── Task deleted banner ── */}
+        {taskDeleted && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-4 rounded-2xl border bg-card p-8 shadow-xl text-center max-w-sm mx-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+                <Trash2 className="h-7 w-7 text-destructive" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">Task Deleted</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  This task was deleted. Redirecting you back to the project…
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => router.push(`/projects/${task.project_id}`)}>
+                Go back now
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* ── Top nav ── */}
         <div className="sticky top-0 z-20 flex items-center gap-2 border-b bg-background/95 backdrop-blur-sm px-4 h-[49px]">
@@ -535,7 +595,68 @@ export function TaskDetailPage({
           <span className="text-xs text-foreground font-medium truncate max-w-[220px]">
             {task.title}
           </span>
+
+          {/* Delete button — admin only */}
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-8 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
+
+        {/* ── Delete confirm dialog ── */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                Delete this task?
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3">
+                  <p>
+                    <strong className="text-foreground">&ldquo;{task.title}&rdquo;</strong> will be permanently deleted.
+                    This cannot be undone.
+                  </p>
+                  {(task.assignees ?? []).length > 0 && (
+                    <div className="rounded-lg border bg-amber-50 border-amber-200 p-3">
+                      <p className="text-xs font-medium text-amber-800 mb-2 flex items-center gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        {(task.assignees ?? []).length} assigned {(task.assignees ?? []).length === 1 ? 'person' : 'people'} will be notified
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(task.assignees ?? []).map((a) => (
+                          <div key={a.id} className="flex items-center gap-1.5">
+                            <Avatar className="h-5 w-5">
+                              <AvatarImage src={a.avatar_url ?? undefined} />
+                              <AvatarFallback className="text-[9px]">{getInitials(a.full_name)}</AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs text-amber-900">{a.full_name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deletingTask}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteTask}
+                disabled={deletingTask}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deletingTask ? 'Deleting…' : 'Delete Task'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* ── Body ── */}
         <div className="flex h-[calc(100vh-49px)]">

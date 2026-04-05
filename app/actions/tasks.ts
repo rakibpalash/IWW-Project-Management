@@ -326,6 +326,7 @@ export async function deleteTaskAction(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient()
+    const admin = createAdminClient()
 
     const {
       data: { user },
@@ -336,13 +337,49 @@ export async function deleteTaskAction(
       return { success: false, error: 'Not authenticated' }
     }
 
-    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    // Fetch task title + all assignees before deleting
+    const { data: task } = await admin
+      .from('tasks')
+      .select('id, title, project_id, task_assignees(user_id)')
+      .eq('id', id)
+      .single()
+
+    // Fetch deleter's name for the notification message
+    const { data: deleter } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single()
+
+    const deleterName = deleter?.full_name ?? 'Someone'
+    const taskTitle = task?.title ?? 'a task'
+    const assigneeIds: string[] = (task?.task_assignees ?? [])
+      .map((a: { user_id: string }) => a.user_id)
+      .filter((uid: string) => uid !== user.id) // don't notify the deleter themselves
+
+    // Delete the task (cascades to task_assignees, comments, activity_logs, time_entries)
+    const { error } = await admin.from('tasks').delete().eq('id', id)
 
     if (error) {
       return { success: false, error: error.message }
     }
 
+    // Send in-app notifications to all assignees
+    if (assigneeIds.length > 0) {
+      const notifications = assigneeIds.map((uid) => ({
+        user_id: uid,
+        type: 'task_deleted',
+        title: 'Task deleted',
+        message: `"${taskTitle}" was deleted by ${deleterName}.`,
+        link: task?.project_id ? `/projects/${task.project_id}` : '/tasks',
+        is_read: false,
+      }))
+
+      await admin.from('notifications').insert(notifications)
+    }
+
     revalidatePath('/tasks')
+    revalidatePath(`/projects/${task?.project_id}`)
 
     return { success: true }
   } catch (err) {
