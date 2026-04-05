@@ -12,6 +12,7 @@ import {
   Users,
   Settings,
   Timer,
+  Zap,
   ChevronLeft,
   ChevronRight,
   LucideIcon,
@@ -38,6 +39,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Users,
   Settings,
   Timer,
+  Zap,
 }
 
 interface SidebarProps {

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Comment, Profile } from '@/types'
 import { MentionInput, MentionInputHandle } from './mention-input'
@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
 import { Lock, MessageSquare, Reply, CornerDownRight } from 'lucide-react'
 import { cn, getInitials, timeAgo } from '@/lib/utils'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface CommentSectionProps {
   taskId: string
@@ -32,13 +33,119 @@ export function CommentSection({
   inputOnly = false,
 }: CommentSectionProps) {
   const { toast } = useToast()
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
 
   const [newComment, setNewComment] = useState('')
   const [isInternal, setIsInternal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([])
   const inputRef = useRef<MentionInputHandle>(null)
+
+  // ── Typing indicator ────────────────────────────────────────────────────────
+  const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map())
+  const channelRef = useRef<RealtimeChannel | null>(null)
+  const stopTypingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const userTypingTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+  useEffect(() => {
+    const channel = supabase.channel(`typing:task:${taskId}`, {
+      config: { broadcast: { self: false } },
+    })
+
+    channel
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        const { userId, name, isTyping } = payload as {
+          userId: string
+          name: string
+          isTyping: boolean
+        }
+        if (userId === profile.id) return
+
+        // Auto-clear a user's typing state after 4s in case stop event is missed
+        const existing = userTypingTimeouts.current.get(userId)
+        if (existing) clearTimeout(existing)
+
+        if (isTyping) {
+          setTypingUsers((prev) => new Map(prev).set(userId, name))
+          const t = setTimeout(() => {
+            setTypingUsers((prev) => {
+              const next = new Map(prev)
+              next.delete(userId)
+              return next
+            })
+            userTypingTimeouts.current.delete(userId)
+          }, 4000)
+          userTypingTimeouts.current.set(userId, t)
+        } else {
+          setTypingUsers((prev) => {
+            const next = new Map(prev)
+            next.delete(userId)
+            return next
+          })
+          userTypingTimeouts.current.delete(userId)
+        }
+      })
+      .subscribe()
+
+    channelRef.current = channel
+
+    return () => {
+      supabase.removeChannel(channel)
+      if (stopTypingTimeout.current) clearTimeout(stopTypingTimeout.current)
+      userTypingTimeouts.current.forEach((t) => clearTimeout(t))
+    }
+  }, [taskId, profile.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const broadcastTyping = useCallback(
+    (isTyping: boolean) => {
+      channelRef.current?.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: profile.id, name: profile.full_name, isTyping },
+      })
+    },
+    [profile.id, profile.full_name]
+  )
+
+  function handleCommentChange(value: string) {
+    setNewComment(value)
+
+    if (value.trim()) {
+      broadcastTyping(true)
+      if (stopTypingTimeout.current) clearTimeout(stopTypingTimeout.current)
+      stopTypingTimeout.current = setTimeout(() => broadcastTyping(false), 2500)
+    } else {
+      if (stopTypingTimeout.current) clearTimeout(stopTypingTimeout.current)
+      broadcastTyping(false)
+    }
+  }
+
+  function TypingIndicator() {
+    if (typingUsers.size === 0) return null
+    const names = Array.from(typingUsers.values())
+    const label =
+      names.length === 1
+        ? `${names[0]} is typing`
+        : names.length === 2
+        ? `${names[0]} and ${names[1]} are typing`
+        : `${names[0]} and ${names.length - 1} others are typing`
+
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground h-4">
+        <span className="flex items-end gap-0.5 pb-0.5">
+          {[0, 150, 300].map((delay) => (
+            <span
+              key={delay}
+              className="block w-1 h-1 rounded-full bg-muted-foreground animate-bounce"
+              style={{ animationDelay: `${delay}ms` }}
+            />
+          ))}
+        </span>
+        <span>{label}…</span>
+      </div>
+    )
+  }
 
   const isStaffOrAdmin =
     profile.role === 'super_admin' || profile.role === 'staff'
@@ -49,6 +156,10 @@ export function CommentSection({
     parentCommentId?: string
   ) {
     if (!content.trim()) return
+
+    // Clear typing indicator when submitting
+    if (stopTypingTimeout.current) clearTimeout(stopTypingTimeout.current)
+    broadcastTyping(false)
 
     setSubmitting(true)
 
@@ -131,7 +242,7 @@ export function CommentSection({
 
   if (inputOnly) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex items-start gap-3">
           <Avatar className="h-8 w-8 shrink-0 mt-0.5">
             <AvatarImage src={profile.avatar_url ?? undefined} />
@@ -141,7 +252,7 @@ export function CommentSection({
             <MentionInput
               ref={inputRef}
               value={newComment}
-              onChange={setNewComment}
+              onChange={handleCommentChange}
               members={members}
               placeholder="Your thoughts on this…"
               onMentionedUsers={setMentionedUserIds}
@@ -153,6 +264,7 @@ export function CommentSection({
             )}
           </div>
         </div>
+        <TypingIndicator />
       </div>
     )
   }
@@ -212,13 +324,14 @@ export function CommentSection({
             <MentionInput
               ref={inputRef}
               value={newComment}
-              onChange={setNewComment}
+              onChange={handleCommentChange}
               members={members}
               placeholder="Write a comment… Use @ to mention someone"
               rows={3}
               onMentionedUsers={setMentionedUserIds}
               disabled={submitting}
             />
+            <TypingIndicator />
             <div className="flex items-center justify-between">
               {isStaffOrAdmin && (
                 <div className="flex items-center gap-2">

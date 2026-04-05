@@ -176,7 +176,10 @@ export function TaskDetailPage({
 }: TaskDetailPageProps) {
   const router = useRouter()
   const { toast } = useToast()
-  const supabase = createClient()
+  // Stable client reference — createBrowserClient returns a singleton but we
+  // keep it in a ref so it never appears in useEffect dependency arrays.
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
   const descTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const [task, setTask] = useState<Task>(initialTask)
@@ -222,6 +225,85 @@ export function TaskDetailPage({
       setTimerRunning(true)
     }
   }, [])
+
+  // ── Live realtime updates ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel(`task-live:${task.id}`)
+
+      // Task field changes (status, priority, title, description, etc.)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'tasks', filter: `id=eq.${task.id}` },
+        (payload) => {
+          setTask((prev) => ({ ...prev, ...payload.new }))
+          // Keep draft in sync if not currently editing
+          setTitleDraft((prev) =>
+            prev === task.title ? (payload.new as { title: string }).title : prev
+          )
+        }
+      )
+
+      // New activity logs
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'activity_logs', filter: `task_id=eq.${task.id}` },
+        async (payload) => {
+          const row = payload.new as { id: string; user_id: string }
+          // Skip own actions — already updated locally via logActivity
+          if (row.user_id === profile.id) return
+          const { data } = await supabase
+            .from('activity_logs')
+            .select('*, user:profiles(id, full_name, avatar_url)')
+            .eq('id', row.id)
+            .single()
+          if (data) setActivityLogs((prev) => [data as ActivityLog, ...prev])
+        }
+      )
+
+      // New / updated time entries (updates the shared time summary only)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'time_entries', filter: `task_id=eq.${task.id}` },
+        (payload) => {
+          const row = payload.new as TimeEntry
+          if (row.user_id === profile.id) return // already added locally by startTimer
+          setTimeEntries((prev) => [row, ...prev])
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'time_entries', filter: `task_id=eq.${task.id}` },
+        (payload) => {
+          const row = payload.new as TimeEntry
+          setTimeEntries((prev) =>
+            prev.map((e) => (e.id === row.id ? { ...e, ...row } : e))
+          )
+        }
+      )
+
+      // New comments from other users
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'comments', filter: `task_id=eq.${task.id}` },
+        async (payload) => {
+          const row = payload.new as { id: string; user_id: string }
+          if (row.user_id === profile.id) return
+          const { data } = await supabase
+            .from('comments')
+            .select('*, user:profiles(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)')
+            .eq('id', row.id)
+            .single()
+          if (data) setComments((prev) => [...prev, data as Comment])
+        }
+      )
+
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [task.id, profile.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const feedItems = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = [
@@ -745,29 +827,40 @@ export function TaskDetailPage({
                       )}
                     </span>
                   </div>
-                  <button
-                    onClick={timerRunning ? stopTimer : startTimer}
-                    disabled={timerLoading}
-                    className={cn(
-                      'flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors w-full',
-                      timerRunning
-                        ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
-                        : 'bg-primary text-primary-foreground hover:bg-primary/90',
-                      timerLoading && 'opacity-50 cursor-not-allowed',
-                    )}
-                  >
-                    {timerRunning ? (
-                      <>
-                        <Square className="h-3.5 w-3.5 fill-current" />
-                        Stop Timer
-                      </>
-                    ) : (
-                      <>
-                        <Play className="h-3.5 w-3.5 fill-current" />
-                        Start Timer
-                      </>
-                    )}
-                  </button>
+                  {/* Only the timer owner can stop it; observers see a read-only label */}
+                  {timerRunning && runningEntry && runningEntry.user_id !== profile.id ? (
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground w-full py-2">
+                      <span className="truncate">
+                        {runningEntry.user_id === profile.id
+                          ? 'Your timer'
+                          : 'Timer running by teammate'}
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={timerRunning ? stopTimer : startTimer}
+                      disabled={timerLoading}
+                      className={cn(
+                        'flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors w-full',
+                        timerRunning
+                          ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                          : 'bg-primary text-primary-foreground hover:bg-primary/90',
+                        timerLoading && 'opacity-50 cursor-not-allowed',
+                      )}
+                    >
+                      {timerRunning ? (
+                        <>
+                          <Square className="h-3.5 w-3.5 fill-current" />
+                          Stop Timer
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-3.5 w-3.5 fill-current" />
+                          Start Timer
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
 
