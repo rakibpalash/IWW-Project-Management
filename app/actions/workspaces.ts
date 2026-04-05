@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 // ── Auth + admin guard ────────────────────────────────────────────────────────
@@ -57,42 +57,72 @@ export async function renameWorkspaceAction(
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 export async function deleteWorkspaceAction(
-  workspaceId: string
+  workspaceId: string,
+  opts?: { moveProjectsToWorkspaceId?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const { supabase } = await requireAdmin()
+    const admin = createAdminClient()
 
-    // Delete task assignees for all tasks in this workspace's projects
-    const { data: projectIds } = await supabase
+    const { data: projects } = await supabase
       .from('projects')
       .select('id')
       .eq('workspace_id', workspaceId)
 
-    if (projectIds && projectIds.length > 0) {
-      const ids = projectIds.map((p) => p.id)
+    const ids = (projects ?? []).map((p) => p.id)
 
-      const { data: taskIds } = await supabase
-        .from('tasks')
-        .select('id')
-        .in('project_id', ids)
-
-      if (taskIds && taskIds.length > 0) {
-        const tids = taskIds.map((t) => t.id)
-        await supabase.from('task_assignees').delete().in('task_id', tids)
-        await supabase.from('task_watchers').delete().in('task_id', tids)
-        await supabase.from('time_entries').delete().in('task_id', tids)
-        await supabase.from('activity_logs').delete().in('task_id', tids)
-        await supabase.from('comments').delete().in('task_id', tids)
-        await supabase.from('tasks').delete().in('project_id', ids)
+    if (ids.length > 0) {
+      if (opts?.moveProjectsToWorkspaceId) {
+        // Move projects to another workspace instead of deleting
+        await admin
+          .from('projects')
+          .update({ workspace_id: opts.moveProjectsToWorkspaceId })
+          .in('id', ids)
+      } else {
+        const { data: taskIds } = await supabase.from('tasks').select('id').in('project_id', ids)
+        if (taskIds && taskIds.length > 0) {
+          const tids = taskIds.map((t) => t.id)
+          await supabase.from('task_assignees').delete().in('task_id', tids)
+          await supabase.from('task_watchers').delete().in('task_id', tids)
+          await supabase.from('time_entries').delete().in('task_id', tids)
+          await supabase.from('activity_logs').delete().in('task_id', tids)
+          await supabase.from('comments').delete().in('task_id', tids)
+          await supabase.from('tasks').delete().in('project_id', ids)
+        }
+        await supabase.from('projects').delete().in('id', ids)
       }
-
-      await supabase.from('projects').delete().in('id', ids)
     }
+
+    // Notify affected workspace members
+    const { data: members } = await supabase
+      .from('workspace_assignments')
+      .select('user_id')
+      .eq('workspace_id', workspaceId)
+
+    const { data: deleter } = await admin.from('profiles').select('full_name, id').eq(
+      'id', (await supabase.auth.getUser()).data.user?.id ?? ''
+    ).single()
 
     await supabase.from('workspace_assignments').delete().eq('workspace_id', workspaceId)
     const { error } = await supabase.from('workspaces').delete().eq('id', workspaceId)
-
     if (error) return { success: false, error: error.message }
+
+    // Send notifications
+    if (members && members.length > 0 && deleter) {
+      const notifications = members
+        .filter((m) => m.user_id !== deleter.id)
+        .map((m) => ({
+          user_id: m.user_id,
+          type: 'task_deleted',
+          title: 'Workspace removed',
+          message: opts?.moveProjectsToWorkspaceId
+            ? `Workspace was reorganised by ${deleter.full_name}. Your projects were moved.`
+            : `Workspace and all its projects were deleted by ${deleter.full_name}.`,
+          link: '/projects',
+          is_read: false,
+        }))
+      if (notifications.length > 0) await admin.from('notifications').insert(notifications)
+    }
 
     revalidatePath('/workspaces')
     return { success: true }

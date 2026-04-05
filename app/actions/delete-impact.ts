@@ -1,0 +1,147 @@
+'use server'
+
+import { createAdminClient } from '@/lib/supabase/server'
+
+export interface DeleteImpact {
+  members: { id: string; full_name: string; avatar_url: string | null }[]
+  projectCount: number
+  taskCount: number
+  // For workspace: list of projects that tasks will be deleted from
+  projects: { id: string; name: string; task_count: number }[]
+  // For reassignment options
+  otherWorkspaces: { id: string; name: string }[]
+  otherProjects: { id: string; name: string; workspace_id: string }[]
+}
+
+export async function getWorkspaceDeleteImpact(
+  workspaceId: string
+): Promise<{ success: boolean; impact?: DeleteImpact; error?: string }> {
+  try {
+    const admin = createAdminClient()
+
+    const [{ data: members }, { data: projects }] = await Promise.all([
+      admin
+        .from('workspace_assignments')
+        .select('user:profiles(id, full_name, avatar_url)')
+        .eq('workspace_id', workspaceId),
+      admin
+        .from('projects')
+        .select('id, name')
+        .eq('workspace_id', workspaceId),
+    ])
+
+    const projectIds = (projects ?? []).map((p) => p.id)
+
+    let taskCount = 0
+    const projectsWithTasks: DeleteImpact['projects'] = []
+
+    if (projectIds.length > 0) {
+      const { data: tasks } = await admin
+        .from('tasks')
+        .select('id, project_id')
+        .in('project_id', projectIds)
+        .is('parent_task_id', null)
+
+      taskCount = tasks?.length ?? 0
+      for (const p of projects ?? []) {
+        const count = tasks?.filter((t) => t.project_id === p.id).length ?? 0
+        projectsWithTasks.push({ id: p.id, name: p.name, task_count: count })
+      }
+    }
+
+    // Other workspaces for move option
+    const { data: otherWorkspaces } = await admin
+      .from('workspaces')
+      .select('id, name')
+      .neq('id', workspaceId)
+      .order('name')
+
+    return {
+      success: true,
+      impact: {
+        members: (members ?? []).map((m: any) => m.user).filter(Boolean),
+        projectCount: projects?.length ?? 0,
+        taskCount,
+        projects: projectsWithTasks,
+        otherWorkspaces: otherWorkspaces ?? [],
+        otherProjects: [],
+      },
+    }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function getProjectDeleteImpact(
+  projectId: string
+): Promise<{ success: boolean; impact?: DeleteImpact; error?: string }> {
+  try {
+    const admin = createAdminClient()
+
+    const [{ data: tasks }, { data: project }] = await Promise.all([
+      admin
+        .from('tasks')
+        .select('id, task_assignees(user:profiles(id, full_name, avatar_url))')
+        .eq('project_id', projectId)
+        .is('parent_task_id', null),
+      admin.from('projects').select('workspace_id').eq('id', projectId).single(),
+    ])
+
+    // Unique members across all tasks
+    const memberMap = new Map<string, { id: string; full_name: string; avatar_url: string | null }>()
+    for (const task of tasks ?? []) {
+      for (const ta of (task as any).task_assignees ?? []) {
+        const u = ta.user
+        if (u && !memberMap.has(u.id)) memberMap.set(u.id, u)
+      }
+    }
+
+    // Other workspaces and projects for move option
+    const { data: otherProjects } = await admin
+      .from('projects')
+      .select('id, name, workspace_id')
+      .neq('id', projectId)
+      .order('name')
+
+    return {
+      success: true,
+      impact: {
+        members: Array.from(memberMap.values()),
+        projectCount: 0,
+        taskCount: tasks?.length ?? 0,
+        projects: [],
+        otherWorkspaces: [],
+        otherProjects: otherProjects ?? [],
+      },
+    }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function getTaskDeleteImpact(
+  taskId: string
+): Promise<{ success: boolean; impact?: DeleteImpact; error?: string }> {
+  try {
+    const admin = createAdminClient()
+
+    const { data: assignees } = await admin
+      .from('task_assignees')
+      .select('user:profiles(id, full_name, avatar_url)')
+      .eq('task_id', taskId)
+
+    return {
+      success: true,
+      impact: {
+        members: (assignees ?? []).map((a: any) => a.user).filter(Boolean),
+        projectCount: 0,
+        taskCount: 0,
+        projects: [],
+        otherWorkspaces: [],
+        otherProjects: [],
+      },
+    }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}

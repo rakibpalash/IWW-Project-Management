@@ -5,21 +5,13 @@ import { useRouter } from 'next/navigation'
 import { Plus, Building2, Search, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { WorkspaceCard } from './workspace-card'
 import { CreateWorkspaceDialog } from './create-workspace-dialog'
 import { RenameWorkspaceDialog } from './rename-workspace-dialog'
+import { SmartDeleteDialog } from '@/components/ui/smart-delete-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { deleteWorkspaceAction, cloneWorkspaceAction } from '@/app/actions/workspaces'
+import { getWorkspaceDeleteImpact } from '@/app/actions/delete-impact'
 import { Workspace } from '@/types'
 
 interface WorkspacesPageProps {
@@ -42,7 +34,6 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
 
   // Delete state
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
-  const [deleting, setDeleting] = useState(false)
 
   // Clone state
   const [cloningId, setCloningId] = useState<string | null>(null)
@@ -74,21 +65,16 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────
-  async function handleDelete() {
+  async function handleDelete(opts: { moveProjectsToWorkspaceId?: string }) {
     if (!deleteTarget) return
-    setDeleting(true)
-    try {
-      const result = await deleteWorkspaceAction(deleteTarget.id)
-      if (!result.success) {
-        toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
-        return
-      }
-      toast({ title: 'Workspace deleted', description: `"${deleteTarget.name}" was deleted.` })
-      setDeleteTarget(null)
-      refresh()
-    } finally {
-      setDeleting(false)
+    const result = await deleteWorkspaceAction(deleteTarget.id, opts)
+    if (!result.success) {
+      toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
+      return
     }
+    toast({ title: 'Workspace deleted', description: `"${deleteTarget.name}" was deleted.` })
+    setDeleteTarget(null)
+    refresh()
   }
 
   return (
@@ -177,32 +163,16 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
         onSuccess={refresh}
       />
 
-      {/* Delete confirmation */}
-      <AlertDialog
+      {/* Smart Delete Dialog */}
+      <SmartDeleteDialog
         open={!!deleteTarget}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete <strong>&quot;{deleteTarget?.name}&quot;</strong> and all
-              its projects, tasks, and data. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-            >
-              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        entityType="workspace"
+        entityName={deleteTarget?.name ?? ''}
+        entityId={deleteTarget?.id ?? ''}
+        onFetchImpact={() => getWorkspaceDeleteImpact(deleteTarget!.id)}
+        onConfirmDelete={(opts) => handleDelete({ moveProjectsToWorkspaceId: opts.moveProjectsToWorkspaceId })}
+      />
     </div>
   )
 }

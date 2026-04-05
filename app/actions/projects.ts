@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { Project } from '@/types'
 
@@ -122,32 +122,69 @@ export async function updateProjectAction(
 // ── Delete project ────────────────────────────────────────────────────────────
 
 export async function deleteProjectAction(
-  id: string
+  id: string,
+  opts?: { moveTasksToProjectId?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient()
+    const admin = createAdminClient()
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) return { success: false, error: 'Not authenticated' }
 
-    if (userError || !user) {
-      return { success: false, error: 'Not authenticated' }
+    // Fetch project name + assignees before deleting
+    const { data: project } = await admin
+      .from('projects')
+      .select('name, workspace_id')
+      .eq('id', id)
+      .single()
+
+    const { data: tasks } = await admin
+      .from('tasks')
+      .select('id, task_assignees(user_id)')
+      .eq('project_id', id)
+      .is('parent_task_id', null)
+
+    const memberIds = new Set<string>()
+    for (const t of tasks ?? []) {
+      for (const ta of (t as any).task_assignees ?? []) {
+        if (ta.user_id !== user.id) memberIds.add(ta.user_id)
+      }
+    }
+
+    const { data: deleter } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single()
+
+    if (opts?.moveTasksToProjectId && tasks && tasks.length > 0) {
+      const taskIds = tasks.map((t) => t.id)
+      await admin.from('tasks').update({ project_id: opts.moveTasksToProjectId }).in('id', taskIds)
     }
 
     const { error } = await supabase.from('projects').delete().eq('id', id)
+    if (error) return { success: false, error: error.message }
 
-    if (error) {
-      return { success: false, error: error.message }
+    // Notify assignees
+    if (memberIds.size > 0) {
+      const notifications = Array.from(memberIds).map((uid) => ({
+        user_id: uid,
+        type: 'task_deleted',
+        title: 'Project deleted',
+        message: opts?.moveTasksToProjectId
+          ? `Project "${project?.name}" was deleted by ${deleter?.full_name}. Your tasks were moved.`
+          : `Project "${project?.name}" and all its tasks were deleted by ${deleter?.full_name}.`,
+        link: '/projects',
+        is_read: false,
+      }))
+      await admin.from('notifications').insert(notifications)
     }
 
     revalidatePath('/projects')
     revalidatePath('/dashboard')
-
     return { success: true }
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    return { success: false, error: message }
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }
 }

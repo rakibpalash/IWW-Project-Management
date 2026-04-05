@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Project, Profile } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { EditProjectDialog } from './edit-project-dialog'
 import { TimeSummary } from './time-summary'
+import { SmartDeleteDialog } from '@/components/ui/smart-delete-dialog'
 import {
   cn,
   formatDate,
@@ -15,7 +17,10 @@ import {
   getStatusColor,
   formatStatus,
 } from '@/lib/utils'
-import { Calendar, Pencil, AlertTriangle, Building2, User } from 'lucide-react'
+import { Calendar, Pencil, AlertTriangle, Building2, User, Trash2 } from 'lucide-react'
+import { deleteProjectAction } from '@/app/actions/projects'
+import { getProjectDeleteImpact } from '@/app/actions/delete-impact'
+import { useToast } from '@/components/ui/use-toast'
 
 interface ProjectHeaderProps {
   project: Project
@@ -24,7 +29,10 @@ interface ProjectHeaderProps {
 }
 
 export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHeaderProps) {
+  const router = useRouter()
+  const { toast } = useToast()
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const isAdmin = profile.role === 'super_admin'
 
   const overdue =
@@ -96,17 +104,26 @@ export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHea
           </div>
         </div>
 
-        {/* Edit button */}
+        {/* Admin actions */}
         {isAdmin && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowEditDialog(true)}
-            className="flex-shrink-0"
-          >
-            <Pencil className="h-4 w-4 mr-2" />
-            Edit Project
-          </Button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowEditDialog(true)}
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit Project
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         )}
       </div>
 
@@ -155,6 +172,25 @@ export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHea
           }}
         />
       )}
+
+      {/* Smart Delete Dialog */}
+      <SmartDeleteDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        entityType="project"
+        entityName={project.name}
+        entityId={project.id}
+        onFetchImpact={() => getProjectDeleteImpact(project.id)}
+        onConfirmDelete={async (opts) => {
+          const result = await deleteProjectAction(project.id, { moveTasksToProjectId: opts.moveTasksToProjectId })
+          if (!result.success) {
+            toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
+            return
+          }
+          toast({ title: 'Project deleted', description: `"${project.name}" was deleted.` })
+          router.push('/projects')
+        }}
+      />
     </div>
   )
 }
