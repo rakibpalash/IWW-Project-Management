@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { DashboardPage } from '@/components/dashboard/dashboard-page'
 import { Profile, Project, Task, AttendanceRecord, LeaveBalance, ActivityLog } from '@/types'
+import { getUser, getProfile } from '@/lib/data/auth'
 
 export const metadata = {
   title: 'Dashboard — IWW PM',
@@ -41,23 +42,14 @@ async function fetchTimeEntriesWithMeta(admin: ReturnType<typeof createAdminClie
 }
 
 export default async function DashboardRoute() {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const user = await getUser()
   if (!user) redirect('/login')
 
-  const admin = createAdminClient()
-
-  const { data: profile } = await admin
-    .from('profiles')
-    .select(profileSelect)
-    .eq('id', user.id)
-    .single()
-
+  const profile = await getProfile(user.id)
   if (!profile) redirect('/login')
+
+  const admin = createAdminClient()
+  const supabase = await createClient()
 
   const role = (profile as Profile).role
 

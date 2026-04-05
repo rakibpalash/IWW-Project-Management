@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AttendancePage } from '@/components/attendance/attendance-page'
+import { getUser, getProfile } from '@/lib/data/auth'
 import {
   Profile,
   AttendanceRecord,
@@ -13,23 +14,14 @@ export const metadata = {
 }
 
 export default async function AttendanceRoute() {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const user = await getUser()
   if (!user) redirect('/login')
 
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
-
+  const profileData = await getProfile(user.id)
   if (!profileData) redirect('/login')
 
   const profile = profileData as Profile
+  const supabase = await createClient()
 
   if (profile.role === 'client') redirect('/dashboard')
 

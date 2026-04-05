@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { WorkspaceDetailPage } from '@/components/workspaces/workspace-detail-page'
 import { Workspace, Profile, Project, Task, ActivityLog } from '@/types'
+import { getUser, getProfile } from '@/lib/data/auth'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -19,18 +20,13 @@ export default async function WorkspaceDetailRoute({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
+  const profile = await getProfile(user.id)
   if (!profile || profile.role !== 'super_admin') redirect('/dashboard')
+
+  const supabase = await createClient()
 
   // Fetch workspace
   const { data: workspace, error: wsError } = await supabase

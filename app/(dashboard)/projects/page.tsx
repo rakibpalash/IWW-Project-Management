@@ -2,32 +2,20 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProjectsPage } from '@/components/projects/projects-page'
 import { Project, Profile, Workspace } from '@/types'
+import { getUser, getProfile } from '@/lib/data/auth'
 
 export const metadata = {
   title: 'Projects',
 }
 
 export default async function ProjectsServerPage() {
+  const user = await getUser()
+  if (!user) redirect('/login')
+
+  const profile = await getProfile(user.id)
+  if (!profile) redirect('/login')
+
   const supabase = await createClient()
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
-
-  if (userError || !user) {
-    redirect('/login')
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) {
-    redirect('/login')
-  }
 
   let projects: Project[] = []
 

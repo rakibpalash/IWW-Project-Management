@@ -1,8 +1,8 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { ProjectDetailPage } from '@/components/projects/project-detail-page'
 import { Project, Task, Profile, ActivityLog, ProjectMember, CustomRole } from '@/types'
-import { createAdminClient } from '@/lib/supabase/server'
+import { getUser, getProfile } from '@/lib/data/auth'
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>
@@ -22,26 +22,13 @@ export async function generateMetadata({ params }: ProjectPageProps) {
 
 export default async function ProjectPage({ params }: ProjectPageProps) {
   const { id } = await params
+  const user = await getUser()
+  if (!user) redirect('/login')
+
+  const profile = await getProfile(user.id)
+  if (!profile) redirect('/login')
+
   const supabase = await createClient()
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
-
-  if (userError || !user) {
-    redirect('/login')
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) {
-    redirect('/login')
-  }
 
   // Fetch project with joins
   const { data: project, error: projectError } = await supabase

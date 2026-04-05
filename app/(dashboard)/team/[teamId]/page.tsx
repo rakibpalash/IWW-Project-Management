@@ -1,7 +1,8 @@
 import { redirect, notFound } from 'next/navigation'
-import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { TeamDetailPage } from '@/components/team/team-detail-page'
 import { Profile } from '@/types'
+import { getUser, getProfile } from '@/lib/data/auth'
 
 const profileSelect =
   'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
@@ -12,20 +13,13 @@ export default async function TeamDetailServerPage({
   params: Promise<{ teamId: string }>
 }) {
   const { teamId } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-  if (error || !user) redirect('/login')
+  const user = await getUser()
+  if (!user) redirect('/login')
+
+  const profile = await getProfile(user.id)
+  if (!profile) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: profile } = await admin
-    .from('profiles')
-    .select(profileSelect)
-    .eq('id', user.id)
-    .single()
-  if (!profile) redirect('/login')
 
   // Fetch team base data
   const { data: teamBase } = await admin

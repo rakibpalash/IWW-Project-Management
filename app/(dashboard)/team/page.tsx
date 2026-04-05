@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
-import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { TeamsHub } from '@/components/team/teams-hub'
 import { Profile } from '@/types'
+import { getUser, getProfile } from '@/lib/data/auth'
 
 export const metadata = { title: 'Team' }
 
@@ -9,20 +10,13 @@ const profileSelect =
   'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
 export default async function TeamServerPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-  if (error || !user) redirect('/login')
+  const user = await getUser()
+  if (!user) redirect('/login')
+
+  const profile = await getProfile(user.id)
+  if (!profile) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: profile } = await admin
-    .from('profiles')
-    .select(profileSelect)
-    .eq('id', user.id)
-    .single()
-  if (!profile) redirect('/login')
 
   const { data: allProfiles } = await admin
     .from('profiles')

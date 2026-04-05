@@ -1,57 +1,46 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { unstable_cache } from 'next/cache'
+import { createAdminClient } from '@/lib/supabase/server'
 import { WorkspacesPage } from '@/components/workspaces/workspaces-page'
 import { Workspace } from '@/types'
+import { getUser, getProfile } from '@/lib/data/auth'
 
 export const metadata = {
   title: 'Workspaces — IWW PM',
 }
 
+const getWorkspaceData = unstable_cache(
+  async () => {
+    const admin = createAdminClient()
+    const [{ data: workspaces }, { data: assignments }, { data: projects }] = await Promise.all([
+      admin.from('workspaces').select('*').order('created_at', { ascending: false }),
+      admin.from('workspace_assignments').select('workspace_id'),
+      admin.from('projects').select('workspace_id'),
+    ])
+    return { workspaces, assignments, projects }
+  },
+  ['workspaces-data'],
+  { revalidate: 30, tags: ['workspaces'] }
+)
+
 export default async function WorkspacesRoute() {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const user = await getUser()
   if (!user) redirect('/login')
 
-  // Only super_admin can access workspaces management
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const profile = await getProfile(user.id)
+  if (!profile || profile.role !== 'super_admin') redirect('/dashboard')
 
-  if (!profile || profile.role !== 'super_admin') {
-    redirect('/dashboard')
-  }
+  const { workspaces, assignments, projects } = await getWorkspaceData()
 
-  // Fetch all workspaces
-  const { data: workspaces } = await supabase
-    .from('workspaces')
-    .select('*')
-    .order('created_at', { ascending: false })
-
-  // Fetch member counts per workspace
-  const { data: assignments } = await supabase
-    .from('workspace_assignments')
-    .select('workspace_id')
-
-  // Fetch project counts per workspace
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('workspace_id')
-
-  const workspacesWithCounts = (workspaces ?? []).map((ws: Workspace) => {
-    const member_count = (assignments ?? []).filter(
+  const workspacesWithCounts = (workspaces ?? []).map((ws: Workspace) => ({
+    ...ws,
+    member_count: (assignments ?? []).filter(
       (a: { workspace_id: string }) => a.workspace_id === ws.id
-    ).length
-    const project_count = (projects ?? []).filter(
+    ).length,
+    project_count: (projects ?? []).filter(
       (p: { workspace_id: string }) => p.workspace_id === ws.id
-    ).length
-    return { ...ws, member_count, project_count }
-  })
+    ).length,
+  }))
 
   return <WorkspacesPage workspaces={workspacesWithCounts} />
 }

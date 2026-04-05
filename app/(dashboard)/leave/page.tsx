@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { LeavePage } from '@/components/leave/leave-page'
 import { Profile, LeaveBalance, LeaveRequest } from '@/types'
+import { getUser, getProfile } from '@/lib/data/auth'
 
 export const metadata = {
   title: 'Leave Management',
@@ -11,29 +12,15 @@ const profileSelect =
   'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
 export default async function LeaveServerPage() {
-  const supabase = await createClient()
+  const user = await getUser()
+  if (!user) redirect('/login')
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
-
-  if (userError || !user) {
-    redirect('/login')
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select(profileSelect)
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) {
-    redirect('/login')
-  }
+  const profile = await getProfile(user.id)
+  if (!profile) redirect('/login')
 
   if (profile.role === 'client') redirect('/dashboard')
 
+  const supabase = await createClient()
   const currentYear = new Date().getFullYear()
   const isAdmin = profile.role === 'super_admin'
 

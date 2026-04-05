@@ -1,33 +1,18 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { SecuritySettingsPage } from '@/components/settings/security-settings'
 import { Profile } from '@/types'
+import { getUser, getProfile } from '@/lib/data/auth'
 
 export const metadata = {
   title: 'Security Settings',
 }
 
 export default async function SecurityPage() {
-  const supabase = await createClient()
+  const user = await getUser()
+  if (!user) redirect('/login')
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
-
-  if (userError || !user) {
-    redirect('/login')
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) {
-    redirect('/login')
-  }
+  const profile = await getProfile(user.id)
+  if (!profile) redirect('/login')
 
   return <SecuritySettingsPage profile={profile as Profile} />
 }

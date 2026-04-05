@@ -2,23 +2,17 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { NotificationsPage } from '@/components/notifications/notifications-page'
 import { Notification } from '@/types'
+import { getUser } from '@/lib/data/auth'
 
 export const metadata = {
   title: 'Notifications',
 }
 
 export default async function NotificationsServerPage() {
+  const user = await getUser()
+  if (!user) redirect('/login')
+
   const supabase = await createClient()
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
-
-  if (userError || !user) {
-    redirect('/login')
-  }
-
   const { data: notifications } = await supabase
     .from('notifications')
     .select('*')

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { SettingsPage } from '@/components/settings/settings-page'
+import { getUser, getProfile } from '@/lib/data/auth'
 import { Profile, AttendanceSettings, WorkspaceAssignment, Workspace, CustomTaskStatus, CustomTaskPriority, CustomRole } from '@/types'
 
 export const metadata = {
@@ -15,26 +16,13 @@ const staffProfileSelect =
   'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, custom_role_id'
 
 export default async function SettingsServerPage() {
+  const user = await getUser()
+  if (!user) redirect('/login')
+
+  const profile = await getProfile(user.id)
+  if (!profile) redirect('/login')
+
   const supabase = await createClient()
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
-
-  if (userError || !user) {
-    redirect('/login')
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select(profileSelect)
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) {
-    redirect('/login')
-  }
 
   const isAdmin = profile.role === 'super_admin'
 
