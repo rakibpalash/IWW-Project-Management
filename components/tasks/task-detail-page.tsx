@@ -261,7 +261,7 @@ export function TaskDetailPage({
         }
       )
 
-      // New / updated time entries (updates the shared time summary only)
+      // New / updated time entries
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'time_entries', filter: `task_id=eq.${task.id}` },
@@ -269,6 +269,11 @@ export function TaskDetailPage({
           const row = payload.new as TimeEntry
           if (row.user_id === profile.id) return // already added locally by startTimer
           setTimeEntries((prev) => [row, ...prev])
+          // Show live countdown when a teammate starts their timer
+          if (row.is_running) {
+            setRunningEntry(row)
+            setTimerRunning(true)
+          }
         }
       )
       .on(
@@ -279,6 +284,16 @@ export function TaskDetailPage({
           setTimeEntries((prev) =>
             prev.map((e) => (e.id === row.id ? { ...e, ...row } : e))
           )
+          // When a teammate's running timer stops, clear the live display
+          if (!row.is_running && row.user_id !== profile.id) {
+            setRunningEntry((current) => {
+              if (current?.id === row.id) {
+                setTimerRunning(false)
+                return null
+              }
+              return current
+            })
+          }
         }
       )
 
@@ -831,9 +846,12 @@ export function TaskDetailPage({
                   {timerRunning && runningEntry && runningEntry.user_id !== profile.id ? (
                     <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground w-full py-2">
                       <span className="truncate">
-                        {runningEntry.user_id === profile.id
-                          ? 'Your timer'
-                          : 'Timer running by teammate'}
+                        {(() => {
+                          const teammate = members.find((m) => m.id === runningEntry.user_id)
+                          return teammate
+                            ? `Timer running by ${teammate.full_name}`
+                            : 'Timer running by teammate'
+                        })()}
                       </span>
                     </div>
                   ) : (
