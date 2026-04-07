@@ -323,6 +323,10 @@ export function CreateProjectDialog({
                           mode="single"
                           selected={field.value}
                           onSelect={(date) => { field.onChange(date); setStartOpen(false) }}
+                          disabled={(date) => {
+                            const due = form.getValues('due_date')
+                            return due ? date > due : false
+                          }}
                           initialFocus
                         />
                       </PopoverContent>
@@ -355,6 +359,10 @@ export function CreateProjectDialog({
                           mode="single"
                           selected={field.value}
                           onSelect={(date) => { field.onChange(date); setDueOpen(false) }}
+                          disabled={(date) => {
+                            const start = form.getValues('start_date')
+                            return start ? date < start : false
+                          }}
                           initialFocus
                         />
                       </PopoverContent>
