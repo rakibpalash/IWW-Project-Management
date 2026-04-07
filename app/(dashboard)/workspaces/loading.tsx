@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export default function WorkspacesLoading() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="page-inner animate-pulse">
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <Skeleton className="h-7 w-40" />

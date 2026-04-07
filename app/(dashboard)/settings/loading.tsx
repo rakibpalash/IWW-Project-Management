@@ -4,7 +4,7 @@ import { Separator } from '@/components/ui/separator'
 
 export default function SettingsLoading() {
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="page-inner flex flex-col gap-6">
       {/* Page header */}
       <div className="flex flex-col gap-2">
         <Skeleton className="h-8 w-24" />

@@ -27,7 +27,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
         <div className="hidden lg:flex lg:w-60 lg:shrink-0 border-r bg-sidebar" />
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
           <div className="h-14 border-b bg-background" />
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</div>
+          <div className="flex-1 overflow-y-auto scrollbar-thin">{children}</div>
         </div>
       </div>
     )

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 export default function DashboardLoading() {
   return (
-    <div className="space-y-6" data-testid="dashboard-loading">
+    <div className="page-inner" data-testid="dashboard-loading">
       {/* Page heading */}
       <div className="space-y-2">
         <Skeleton className="h-8 w-48" />

@@ -21,7 +21,7 @@ function TaskRowSkeleton() {
 
 export default function TasksLoading() {
   return (
-    <div className="space-y-6" data-testid="tasks-loading">
+    <div className="page-inner" data-testid="tasks-loading">
       {/* Page heading + action button */}
       <div className="flex items-center justify-between">
         <div className="space-y-2">

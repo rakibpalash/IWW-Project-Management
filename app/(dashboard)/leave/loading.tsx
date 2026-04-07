@@ -4,7 +4,7 @@ import { StatCardSkeleton } from '@/components/ui/loading-skeleton'
 
 export default function LeaveLoading() {
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="page-inner flex flex-col gap-6">
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-2">
