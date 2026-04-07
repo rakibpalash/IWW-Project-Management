@@ -97,19 +97,20 @@ export function Sidebar({ profile, isOpen, isCollapsed, onClose, onToggleCollaps
           <Link
             href="/dashboard"
             className={cn(
-              'flex items-center gap-2.5 outline-none',
+              'flex items-center gap-3 outline-none',
               isCollapsed && 'lg:hidden',
             )}
             onClick={onClose}
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-[13px] font-bold select-none tracking-tight">
+            {/* High-contrast white logo mark */}
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#1a1a2e] text-[14px] font-black select-none tracking-tight shadow-sm">
               IW
             </div>
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold text-sidebar-accent-foreground leading-none truncate">
+              <p className="text-[14px] font-bold text-white leading-none truncate">
                 IWW PM
               </p>
-              <p className="text-[10px] text-sidebar-foreground/50 leading-none mt-0.5">
+              <p className="text-[11px] text-sidebar-foreground/60 leading-none mt-1">
                 Project Management
               </p>
             </div>
@@ -121,7 +122,7 @@ export function Sidebar({ profile, isOpen, isCollapsed, onClose, onToggleCollaps
               <TooltipTrigger asChild>
                 <Link
                   href="/dashboard"
-                  className="hidden lg:flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity"
+                  className="hidden lg:flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#1a1a2e] text-[14px] font-black hover:opacity-90 transition-opacity shadow-sm"
                 >
                   IW
                 </Link>
@@ -141,8 +142,8 @@ export function Sidebar({ profile, isOpen, isCollapsed, onClose, onToggleCollaps
         </div>
 
         {/* ── Nav ── */}
-        <nav className="flex-1 overflow-y-auto scrollbar-hide py-3">
-          <ul className={cn('space-y-0.5', isCollapsed ? 'px-2' : 'px-2')}>
+        <nav className="flex-1 overflow-y-auto scrollbar-hide py-4">
+          <ul className="space-y-1 px-3">
             {navItems.map((item) => {
               const Icon = ICON_MAP[item.icon] ?? LayoutDashboard
               const isActive =
@@ -154,25 +155,25 @@ export function Sidebar({ profile, isOpen, isCollapsed, onClose, onToggleCollaps
                   href={item.href}
                   onClick={onClose}
                   className={cn(
-                    'group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium',
+                    'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
                     'transition-colors duration-100 relative',
                     isActive
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
-                    isCollapsed && 'lg:justify-center lg:px-0 lg:py-2.5',
+                      ? 'bg-sidebar-accent text-white'
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-white',
+                    isCollapsed && 'lg:justify-center lg:px-0 lg:py-3',
                   )}
                 >
                   {/* Active left bar */}
                   {isActive && (
                     <span className={cn(
-                      'absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full bg-sidebar-primary',
+                      'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-sidebar-primary',
                       isCollapsed && 'lg:hidden',
                     )} />
                   )}
 
                   <Icon className={cn(
-                    'h-4 w-4 shrink-0 transition-colors',
-                    isActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground',
+                    'h-[18px] w-[18px] shrink-0 transition-colors',
+                    isActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/60 group-hover:text-white',
                   )} />
 
                   <span className={cn('truncate', isCollapsed && 'lg:hidden')}>
@@ -181,7 +182,7 @@ export function Sidebar({ profile, isOpen, isCollapsed, onClose, onToggleCollaps
 
                   {/* Active dot on expanded */}
                   {isActive && !isCollapsed && (
-                    <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-sidebar-primary" />
+                    <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-sidebar-primary" />
                   )}
                 </Link>
               )

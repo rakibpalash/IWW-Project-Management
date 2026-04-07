@@ -141,7 +141,7 @@ export function TeamPage({
   const clientCount = allProfiles.filter((u) => u.role === 'client').length
 
   return (
-    <div className="space-y-6">
+    <div className="page-inner">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold">Team</h1>

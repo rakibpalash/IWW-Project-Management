@@ -99,7 +99,7 @@ export function DashboardPage({
   const role = profile.role
 
   return (
-    <div className="space-y-6">
+    <div className="page-inner">
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">

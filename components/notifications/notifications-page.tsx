@@ -147,7 +147,7 @@ export function NotificationsPage({ initialNotifications }: NotificationsPagePro
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="page-inner">
           {groupedNotifications.map((group, groupIdx) => (
             <div key={group.label}>
               {/* Group label */}

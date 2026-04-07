@@ -78,7 +78,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
   }
 
   return (
-    <div className="space-y-6">
+    <div className="page-inner">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
