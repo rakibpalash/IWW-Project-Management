@@ -7,7 +7,7 @@ import { getUser, getProfile } from '@/lib/data/auth'
 export const metadata = { title: 'Team' }
 
 const profileSelect =
-  'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+  'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_temp_password, onboarding_completed, created_at, updated_at, custom_role:custom_roles(id, name, color)'
 
 export default async function TeamServerPage() {
   const user = await getUser()
@@ -52,8 +52,13 @@ export default async function TeamServerPage() {
     memberProfiles = data ?? []
   }
 
+  // Normalize Supabase join: custom_role is returned as array, flatten to object
+  function normalizeProfile(p: any): Profile {
+    return { ...p, custom_role: Array.isArray(p.custom_role) ? (p.custom_role[0] ?? null) : p.custom_role }
+  }
+
   // Step 4: merge members + profiles into teams
-  const profilesById = Object.fromEntries(memberProfiles.map((p) => [p.id, p]))
+  const profilesById = Object.fromEntries(memberProfiles.map((p) => [p.id, normalizeProfile(p)]))
   const teams = (teamsData ?? []).map((team) => ({
     ...team,
     members: membersData
@@ -61,10 +66,12 @@ export default async function TeamServerPage() {
       .map((m) => ({ ...m, profile: profilesById[m.user_id] ?? null })),
   }))
 
+  const normalizedProfiles = (allProfiles ?? []).map(normalizeProfile)
+
   return (
     <TeamsHub
       profile={profile as Profile}
-      allProfiles={(allProfiles as Profile[]) ?? []}
+      allProfiles={normalizedProfiles}
       teams={teams}
     />
   )

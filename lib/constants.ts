@@ -3,9 +3,19 @@ export const APP_SHORT_NAME = 'IWW PM'
 
 export const ROLES = {
   SUPER_ADMIN: 'super_admin',
+  ORG_ADMIN: 'account_manager',
+  TEAM_LEAD: 'project_manager',
   STAFF: 'staff',
   CLIENT: 'client',
 } as const
+
+export const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'Super Admin',
+  account_manager: 'Org Admin',
+  project_manager: 'Team Lead',
+  staff: 'Staff',
+  client: 'Client',
+}
 
 export const PROJECT_STATUSES = [
   { value: 'planning', label: 'Planning' },

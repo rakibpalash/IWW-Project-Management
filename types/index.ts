@@ -30,6 +30,7 @@ export interface Profile {
   updated_at: string
   custom_role_id?: string | null
   custom_role?: CustomRole
+  manager_id?: string | null
 }
 
 export interface Workspace {

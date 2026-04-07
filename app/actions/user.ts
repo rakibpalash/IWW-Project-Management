@@ -119,7 +119,7 @@ export async function deleteUserAction(
 
 export async function updatePersonAction(
   userId: string,
-  data: { full_name?: string; role?: string }
+  data: { full_name?: string; role?: string; manager_id?: string | null }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = createAdminClient()

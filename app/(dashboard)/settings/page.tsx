@@ -11,9 +11,9 @@ export const metadata = {
 const profileSelect =
   'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
-// Includes custom_role_id — only used after 006_custom_roles migration is run
+// Includes custom_role_id + manager_id — only used after relevant migrations are run
 const staffProfileSelect =
-  'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, custom_role_id'
+  'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_temp_password, onboarding_completed, created_at, updated_at'
 
 export default async function SettingsServerPage() {
   const user = await getUser()

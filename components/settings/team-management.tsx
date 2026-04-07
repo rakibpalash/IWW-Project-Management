@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Profile, Workspace, WorkspaceAssignment, Role, CustomRole } from '@/types'
+import { Profile, Workspace, WorkspaceAssignment, CustomRole } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -31,10 +31,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CreateUserDialog } from './create-user-dialog'
-import { Plus, Search, MoreVertical, UserCog, Loader2, Tag } from 'lucide-react'
-import { updateUserRoleAction } from '@/app/actions/user'
+import { Plus, Search, MoreVertical, UserCog, Loader2, Tag, Crown, Shield, Briefcase, User } from 'lucide-react'
+import { updateUserRoleAction, updatePersonAction } from '@/app/actions/user'
 import { assignCustomRoleToUserAction } from '@/app/actions/custom-roles'
 import { getInitials } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 interface TeamManagementProps {
   users: Profile[]
@@ -43,12 +44,31 @@ interface TeamManagementProps {
   customRoles?: CustomRole[]
 }
 
-const roleConfig: Record<string, { label: string; className: string }> = {
-  super_admin: { label: 'Admin', className: 'bg-red-100 text-red-700' },
-  staff: { label: 'Staff', className: 'bg-blue-100 text-blue-700' },
-  client: { label: 'Client', className: 'bg-gray-100 text-gray-700' },
+const ROLE_CONFIG: Record<string, { label: string; badgeClass: string; icon: React.ElementType }> = {
+  super_admin:     { label: 'Super Admin', badgeClass: 'bg-red-100 text-red-700 border-red-200',             icon: Crown },
+  account_manager: { label: 'Org Admin',   badgeClass: 'bg-purple-100 text-purple-700 border-purple-200',   icon: Shield },
+  project_manager: { label: 'Team Lead',   badgeClass: 'bg-blue-100 text-blue-700 border-blue-200',         icon: Briefcase },
+  staff:           { label: 'Staff',       badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: User },
+  client:          { label: 'Client',      badgeClass: 'bg-gray-100 text-gray-600 border-gray-200',         icon: Briefcase },
 }
 
+const ROLE_OPTIONS = [
+  { value: 'super_admin',     label: 'Super Admin' },
+  { value: 'account_manager', label: 'Org Admin' },
+  { value: 'project_manager', label: 'Team Lead' },
+  { value: 'staff',           label: 'Staff' },
+  { value: 'client',          label: 'Client' },
+]
+
+const AVATAR_COLORS = [
+  'bg-pink-500','bg-purple-500','bg-indigo-500','bg-blue-500',
+  'bg-cyan-500','bg-teal-500','bg-green-500','bg-yellow-500','bg-orange-500','bg-red-500',
+]
+function avatarColor(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
 
 export function TeamManagement({ users, workspaces, workspaceAssignments, customRoles = [] }: TeamManagementProps) {
   const router = useRouter()
@@ -57,6 +77,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
   const [roleFilter, setRoleFilter] = useState('all')
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null)
   const [assigningRoleUserId, setAssigningRoleUserId] = useState<string | null>(null)
+  const [assigningManagerUserId, setAssigningManagerUserId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const filteredUsers = users.filter((u) => {
@@ -81,6 +102,18 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
     setUpdatingUserId(null)
     if (!result.success) {
       setError(result.error ?? 'Failed to update role')
+    } else {
+      router.refresh()
+    }
+  }
+
+  const handleManagerChange = async (userId: string, managerId: string | null) => {
+    setAssigningManagerUserId(userId)
+    setError(null)
+    const result = await updatePersonAction(userId, { manager_id: managerId })
+    setAssigningManagerUserId(null)
+    if (!result.success) {
+      setError(result.error ?? 'Failed to update manager')
     } else {
       router.refresh()
     }
@@ -121,55 +154,58 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
           />
         </div>
         <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-[130px]">
+          <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="All Roles" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Roles</SelectItem>
-            <SelectItem value="super_admin">Admin</SelectItem>
-            <SelectItem value="staff">Staff</SelectItem>
-            <SelectItem value="client">Client</SelectItem>
+            {ROLE_OPTIONS.map((r) => (
+              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add User
+          <Plus className="mr-2 h-4 w-4" />Add User
         </Button>
       </div>
 
-      <div className="rounded-md border overflow-hidden">
+      <div className="rounded-xl border overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
-              <TableHead>User</TableHead>
-              <TableHead>System Role</TableHead>
-              <TableHead>Job Title</TableHead>
-              <TableHead>Workspaces</TableHead>
-              <TableHead className="w-[60px]"></TableHead>
+              <TableHead className="text-xs font-semibold text-gray-600">User</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-600">Role</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-600">Reports To</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-600">Job Title</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-600">Workspaces</TableHead>
+              <TableHead className="w-[50px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   No users found
                 </TableCell>
               </TableRow>
             ) : (
               filteredUsers.map((user) => {
-                const rc = roleConfig[user.role] ?? roleConfig.staff
+                const rc = ROLE_CONFIG[user.role] ?? ROLE_CONFIG.staff
                 const userWorkspaces = getUserWorkspaces(user.id)
                 const isUpdating = updatingUserId === user.id
                 const isAssigningRole = assigningRoleUserId === user.id
+                const isAssigningManager = assigningManagerUserId === user.id
                 const assignedCustomRole = customRoles.find((r) => r.id === user.custom_role_id)
+                const manager = user.manager_id ? users.find((u) => u.id === user.manager_id) : null
 
                 return (
-                  <TableRow key={user.id}>
+                  <TableRow key={user.id} className="hover:bg-gray-50/50">
+                    {/* User */}
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
                           <AvatarImage src={user.avatar_url ?? undefined} />
-                          <AvatarFallback className="text-xs">
+                          <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(user.full_name)}`}>
                             {getInitials(user.full_name)}
                           </AvatarFallback>
                         </Avatar>
@@ -177,23 +213,79 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                           <p className="text-sm font-medium leading-none">{user.full_name}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">{user.email}</p>
                           {user.is_temp_password && (
-                            <Badge
-                              variant="outline"
-                              className="mt-1 text-[10px] h-4 px-1 border-amber-300 text-amber-600"
-                            >
+                            <Badge variant="outline" className="mt-1 text-[10px] h-4 px-1 border-amber-300 text-amber-600">
                               Temp Password
                             </Badge>
                           )}
                         </div>
                       </div>
                     </TableCell>
+
+                    {/* Role */}
                     <TableCell>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${rc.className}`}
-                      >
+                      <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border', rc.badgeClass)}>
                         {rc.label}
                       </span>
                     </TableCell>
+
+                    {/* Reports To */}
+                    <TableCell>
+                      {isAssigningManager ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="flex items-center gap-1.5 hover:opacity-80 transition-opacity text-left">
+                              {manager ? (
+                                <div className="flex items-center gap-1.5">
+                                  <Avatar className="h-5 w-5 flex-shrink-0">
+                                    <AvatarImage src={manager.avatar_url ?? undefined} />
+                                    <AvatarFallback className={`text-[8px] font-bold text-white ${avatarColor(manager.full_name)}`}>
+                                      {getInitials(manager.full_name)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-xs text-gray-700">{manager.full_name}</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Assign manager</span>
+                              )}
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-52 max-h-64 overflow-y-auto">
+                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Reports to</div>
+                            <DropdownMenuSeparator />
+                            {manager && (
+                              <DropdownMenuItem
+                                onClick={() => handleManagerChange(user.id, null)}
+                                className="text-muted-foreground text-xs"
+                              >
+                                Remove manager
+                              </DropdownMenuItem>
+                            )}
+                            {users
+                              .filter((u) => u.id !== user.id)
+                              .map((u) => (
+                                <DropdownMenuItem
+                                  key={u.id}
+                                  onClick={() => handleManagerChange(user.id, u.id)}
+                                  className="gap-2 text-xs"
+                                >
+                                  <Avatar className="h-5 w-5 flex-shrink-0">
+                                    <AvatarImage src={u.avatar_url ?? undefined} />
+                                    <AvatarFallback className={`text-[8px] font-bold text-white ${avatarColor(u.full_name)}`}>
+                                      {getInitials(u.full_name)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="flex-1 truncate">{u.full_name}</span>
+                                  <span className="text-[10px] text-gray-400">{ROLE_CONFIG[u.role]?.label}</span>
+                                </DropdownMenuItem>
+                              ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </TableCell>
+
+                    {/* Job Title */}
                     <TableCell>
                       {isAssigningRole ? (
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -215,35 +307,29 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                                 </Badge>
                               ) : (
                                 <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <Tag className="h-3 w-3" />
-                                  Assign role
+                                  <Tag className="h-3 w-3" />Assign title
                                 </span>
                               )}
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="w-48">
-                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                              Assign Job Title
-                            </div>
+                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Job Title</div>
                             <DropdownMenuSeparator />
                             {assignedCustomRole && (
                               <DropdownMenuItem
                                 onClick={() => handleCustomRoleAssign(user.id, null)}
-                                className="text-muted-foreground"
+                                className="text-muted-foreground text-xs"
                               >
-                                Remove role
+                                Remove title
                               </DropdownMenuItem>
                             )}
                             {customRoles.map((cr) => (
                               <DropdownMenuItem
                                 key={cr.id}
                                 onClick={() => handleCustomRoleAssign(user.id, cr.id)}
-                                className="gap-2"
+                                className="gap-2 text-xs"
                               >
-                                <span
-                                  className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                                  style={{ backgroundColor: cr.color }}
-                                />
+                                <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cr.color }} />
                                 {cr.name}
                               </DropdownMenuItem>
                             ))}
@@ -253,19 +339,21 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </TableCell>
+
+                    {/* Workspaces */}
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {userWorkspaces.length === 0 ? (
                           <span className="text-xs text-muted-foreground">No workspaces</span>
                         ) : (
                           userWorkspaces.map((ws) => (
-                            <Badge key={ws.id} variant="outline" className="text-xs">
-                              {ws.name}
-                            </Badge>
+                            <Badge key={ws.id} variant="outline" className="text-xs">{ws.name}</Badge>
                           ))
                         )}
                       </div>
                     </TableCell>
+
+                    {/* Actions */}
                     <TableCell>
                       {isUpdating ? (
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mx-auto" />
@@ -277,32 +365,18 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                              Change System Role
-                            </div>
+                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Change Role</div>
                             <DropdownMenuSeparator />
-                            {user.role !== 'super_admin' && (
+                            {ROLE_OPTIONS.filter((r) => r.value !== user.role).map((r) => (
                               <DropdownMenuItem
-                                onClick={() => handleRoleChange(user.id, 'super_admin')}
+                                key={r.value}
+                                onClick={() => handleRoleChange(user.id, r.value)}
+                                className="gap-2 text-xs"
                               >
-                                <UserCog className="mr-2 h-4 w-4" />
-                                Make Admin
+                                <UserCog className="h-3.5 w-3.5" />
+                                Make {r.label}
                               </DropdownMenuItem>
-                            )}
-                            {user.role !== 'staff' && (
-                              <DropdownMenuItem
-                                onClick={() => handleRoleChange(user.id, 'staff')}
-                              >
-                                Make Staff
-                              </DropdownMenuItem>
-                            )}
-                            {user.role !== 'client' && (
-                              <DropdownMenuItem
-                                onClick={() => handleRoleChange(user.id, 'client')}
-                              >
-                                Make Client
-                              </DropdownMenuItem>
-                            )}
+                            ))}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
