@@ -31,8 +31,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CreateUserDialog } from './create-user-dialog'
-import { Plus, Search, MoreVertical, UserCog, Loader2, Tag, Crown, Shield, Briefcase, User } from 'lucide-react'
-import { updateUserRoleAction, updatePersonAction } from '@/app/actions/user'
+import { SmartDeleteDialog } from '@/components/ui/smart-delete-dialog'
+import { Plus, Search, MoreVertical, UserCog, Loader2, Tag, Crown, Shield, Briefcase, User, Trash2 } from 'lucide-react'
+import { updateUserRoleAction, updatePersonAction, deleteUserAction } from '@/app/actions/user'
+import { getStaffDeleteImpact } from '@/app/actions/delete-impact'
 import { assignCustomRoleToUserAction } from '@/app/actions/custom-roles'
 import { getInitials } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -79,8 +81,10 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
   const [assigningRoleUserId, setAssigningRoleUserId] = useState<string | null>(null)
   const [assigningManagerUserId, setAssigningManagerUserId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
+  const [persons, setPersons] = useState<Profile[]>(users)
 
-  const filteredUsers = users.filter((u) => {
+  const filteredUsers = persons.filter((u) => {
     const matchesSearch =
       search === '' ||
       u.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -377,6 +381,14 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                                 Make {r.label}
                               </DropdownMenuItem>
                             ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setDeleteTarget(user)}
+                              className="gap-2 text-xs text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Remove user
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
@@ -390,6 +402,26 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
       </div>
 
       <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} />
+
+      {deleteTarget && (
+        <SmartDeleteDialog
+          open={!!deleteTarget}
+          onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+          entityType="staff"
+          entityName={deleteTarget.full_name}
+          entityId={deleteTarget.id}
+          onFetchImpact={() => getStaffDeleteImpact(deleteTarget.id)}
+          onConfirmDelete={async (opts) => {
+            const result = await deleteUserAction(deleteTarget.id, { reassignToUserId: opts.reassignToUserId })
+            if (!result.success) {
+              setError(result.error ?? 'Failed to delete user')
+            } else {
+              setPersons((prev) => prev.filter((p) => p.id !== deleteTarget.id))
+            }
+            setDeleteTarget(null)
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -11,6 +11,10 @@ export interface DeleteImpact {
   // For reassignment options
   otherWorkspaces: { id: string; name: string }[]
   otherProjects: { id: string; name: string; workspace_id: string }[]
+  // Task list (for project/staff delete)
+  tasks: { id: string; title: string; status: string }[]
+  // Other users for reassignment (staff delete)
+  otherUsers: { id: string; full_name: string; avatar_url: string | null }[]
 }
 
 export async function getWorkspaceDeleteImpact(
@@ -65,6 +69,8 @@ export async function getWorkspaceDeleteImpact(
         projects: projectsWithTasks,
         otherWorkspaces: otherWorkspaces ?? [],
         otherProjects: [],
+        tasks: [],
+        otherUsers: [],
       },
     }
   } catch (err) {
@@ -78,18 +84,25 @@ export async function getProjectDeleteImpact(
   try {
     const admin = createAdminClient()
 
-    const [{ data: tasks }, { data: project }] = await Promise.all([
+    const [{ data: tasksRaw }, { data: project }, { data: taskDetails }] = await Promise.all([
       admin
         .from('tasks')
         .select('id, task_assignees(user:profiles(id, full_name, avatar_url))')
         .eq('project_id', projectId)
         .is('parent_task_id', null),
       admin.from('projects').select('workspace_id').eq('id', projectId).single(),
+      admin
+        .from('tasks')
+        .select('id, title, status')
+        .eq('project_id', projectId)
+        .is('parent_task_id', null)
+        .order('title')
+        .limit(20),
     ])
 
     // Unique members across all tasks
     const memberMap = new Map<string, { id: string; full_name: string; avatar_url: string | null }>()
-    for (const task of tasks ?? []) {
+    for (const task of tasksRaw ?? []) {
       for (const ta of (task as any).task_assignees ?? []) {
         const u = ta.user
         if (u && !memberMap.has(u.id)) memberMap.set(u.id, u)
@@ -97,21 +110,30 @@ export async function getProjectDeleteImpact(
     }
 
     // Other workspaces and projects for move option
-    const { data: otherProjects } = await admin
-      .from('projects')
-      .select('id, name, workspace_id')
-      .neq('id', projectId)
-      .order('name')
+    const [{ data: otherProjects }, { data: otherUsers }] = await Promise.all([
+      admin
+        .from('projects')
+        .select('id, name, workspace_id')
+        .neq('id', projectId)
+        .order('name'),
+      admin
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .in('role', ['staff', 'account_manager', 'project_manager'])
+        .order('full_name'),
+    ])
 
     return {
       success: true,
       impact: {
         members: Array.from(memberMap.values()),
         projectCount: 0,
-        taskCount: tasks?.length ?? 0,
+        taskCount: tasksRaw?.length ?? 0,
         projects: [],
         otherWorkspaces: [],
         otherProjects: otherProjects ?? [],
+        tasks: (taskDetails ?? []).map((t: any) => ({ id: t.id, title: t.title, status: t.status })),
+        otherUsers: otherUsers ?? [],
       },
     }
   } catch (err) {
@@ -139,6 +161,54 @@ export async function getTaskDeleteImpact(
         projects: [],
         otherWorkspaces: [],
         otherProjects: [],
+        tasks: [],
+        otherUsers: [],
+      },
+    }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function getStaffDeleteImpact(
+  userId: string
+): Promise<{ success: boolean; impact?: DeleteImpact; error?: string }> {
+  try {
+    const admin = createAdminClient()
+
+    const [{ data: assignedTasks }, { count: projectCount }, { data: otherUsers }] = await Promise.all([
+      admin
+        .from('task_assignees')
+        .select('task:tasks(id, title, status)')
+        .eq('user_id', userId),
+      admin
+        .from('project_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId),
+      admin
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .in('role', ['staff', 'account_manager', 'project_manager'])
+        .neq('id', userId)
+        .order('full_name'),
+    ])
+
+    const tasks = (assignedTasks ?? [])
+      .map((a: any) => a.task)
+      .filter(Boolean)
+      .map((t: any) => ({ id: t.id, title: t.title, status: t.status }))
+
+    return {
+      success: true,
+      impact: {
+        members: [],
+        projectCount: projectCount ?? 0,
+        taskCount: tasks.length,
+        projects: [],
+        tasks,
+        otherWorkspaces: [],
+        otherProjects: [],
+        otherUsers: otherUsers ?? [],
       },
     }
   } catch (err) {

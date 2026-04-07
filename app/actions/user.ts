@@ -95,7 +95,8 @@ export async function updateUserRoleAction(
 }
 
 export async function deleteUserAction(
-  userId: string
+  userId: string,
+  opts?: { reassignToUserId?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = createAdminClient()
@@ -103,8 +104,35 @@ export async function deleteUserAction(
     const userClient = await createRegularClient()
     const { data: { user: callerUser } } = await userClient.auth.getUser()
     if (!callerUser) return { success: false, error: 'Not authenticated' }
-    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerUser.id).single()
+    const { data: callerProfile } = await supabase.from('profiles').select('role, full_name').eq('id', callerUser.id).single()
     if (!callerProfile || callerProfile.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    // Get all task assignments for this user
+    const { data: assignedTasks } = await supabase
+      .from('task_assignees')
+      .select('task_id')
+      .eq('user_id', userId)
+
+    const taskIds = (assignedTasks ?? []).map((a) => a.task_id)
+
+    if (opts?.reassignToUserId && taskIds.length > 0) {
+      // Remove old assignee and add new one for each task
+      for (const taskId of taskIds) {
+        await supabase.from('task_assignees').delete().eq('task_id', taskId).eq('user_id', userId)
+        await supabase.from('task_assignees').upsert({ task_id: taskId, user_id: opts.reassignToUserId })
+      }
+      // Notify the new assignee
+      await supabase.from('notifications').insert({
+        user_id: opts.reassignToUserId,
+        type: 'task_assigned',
+        title: 'Tasks reassigned to you',
+        message: `${taskIds.length} task${taskIds.length === 1 ? ' has' : 's have'} been reassigned to you.`,
+        is_read: false,
+      })
+    } else if (taskIds.length > 0) {
+      // Just unassign all tasks
+      await supabase.from('task_assignees').delete().eq('user_id', userId)
+    }
 
     const { error } = await supabase.auth.admin.deleteUser(userId)
     if (error) return { success: false, error: error.message }
