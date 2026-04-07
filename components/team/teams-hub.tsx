@@ -532,6 +532,15 @@ function generatePassword() {
   return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
 }
 
+// Maps each role to which roles are valid managers for it
+const MANAGER_ROLE_FOR: Record<string, string[]> = {
+  account_manager: ['super_admin'],                      // Org Admin → CEO
+  project_manager: ['account_manager', 'super_admin'],   // Team Lead → Org Admin (or CEO)
+  staff:           ['project_manager', 'account_manager'],// Staff → Team Lead (or Org Admin)
+  client:          ['super_admin', 'account_manager'],
+  partner:         ['super_admin', 'account_manager'],
+}
+
 function AddPersonDialog({
   open, onClose, allProfiles, teams,
 }: {
@@ -547,6 +556,24 @@ function AddPersonDialog({
   const [password, setPassword] = useState(() => generatePassword())
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Filter managers based on the selected role
+  const eligibleManagers = allProfiles.filter((p) => {
+    const allowed = MANAGER_ROLE_FOR[role]
+    return allowed ? allowed.includes(p.role) : true
+  })
+
+  // When role changes: reset manager, then auto-select if exactly one match
+  function handleRoleChange(newRole: string) {
+    setRole(newRole as typeof role)
+    const allowed = MANAGER_ROLE_FOR[newRole]
+    if (allowed) {
+      const matches = allProfiles.filter((p) => allowed.includes(p.role))
+      setManagerId(matches.length === 1 ? matches[0].id : '__none')
+    } else {
+      setManagerId('__none')
+    }
+  }
 
   function reset() {
     setFullName(''); setEmail(''); setRole('staff'); setManagerId('__none'); setTeamId('__none')
@@ -605,7 +632,7 @@ function AddPersonDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
+              <Select value={role} onValueChange={handleRoleChange}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
@@ -615,12 +642,22 @@ function AddPersonDialog({
             <div className="space-y-1.5">
               <Label>Reports To</Label>
               <Select value={managerId} onValueChange={setManagerId}>
-                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="No manager" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">No manager</SelectItem>
-                  {allProfiles.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+                  {eligibleManagers.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="flex items-center gap-2">
+                        {p.full_name}
+                        <span className="text-xs text-muted-foreground">
+                          ({p.role === 'super_admin' ? 'CEO' : p.role === 'account_manager' ? 'Org Admin' : 'Team Lead'})
+                        </span>
+                      </span>
+                    </SelectItem>
                   ))}
+                  {eligibleManagers.length === 0 && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground">No eligible managers found</div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
