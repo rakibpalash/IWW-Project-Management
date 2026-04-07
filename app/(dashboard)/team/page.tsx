@@ -6,11 +6,6 @@ import { getUser, getProfile } from '@/lib/data/auth'
 
 export const metadata = { title: 'Team' }
 
-const profileSelect =
-  'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_temp_password, onboarding_completed, created_at, updated_at, custom_role:custom_roles(id, name, color)'
-const baseProfileSelect =
-  'id, full_name, email, avatar_url, role, manager_id, is_temp_password, onboarding_completed, created_at, updated_at'
-
 export default async function TeamServerPage() {
   const user = await getUser()
   if (!user) redirect('/login')
@@ -20,51 +15,53 @@ export default async function TeamServerPage() {
 
   const admin = createAdminClient()
 
+  // Fetch profiles — try with optional columns first, fall back to minimal
+  const fullSelect = 'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_temp_password, onboarding_completed, created_at, updated_at'
+  const minSelect  = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+
   const { data: allProfilesRaw, error: profilesError } = await admin
     .from('profiles')
-    .select(profileSelect)
+    .select(fullSelect)
     .order('full_name')
 
-  // Fallback: if custom_role join fails (migration not yet run), use base select
-  const allProfiles = profilesError
-    ? (await admin.from('profiles').select(baseProfileSelect).order('full_name')).data
-    : allProfilesRaw
+  const allProfilesData: any[] = profilesError
+    ? ((await admin.from('profiles').select(minSelect).order('full_name')).data ?? [])
+    : (allProfilesRaw ?? [])
 
-  // Step 1: fetch teams without member join
+  // Fetch custom roles separately and merge by custom_role_id
+  const { data: customRolesData } = await admin.from('custom_roles').select('id, name, color')
+  const customRolesById: Record<string, any> = {}
+  for (const cr of customRolesData ?? []) customRolesById[cr.id] = cr
+
+  function normalizeProfile(p: any): Profile {
+    const customRole = p.custom_role_id ? (customRolesById[p.custom_role_id] ?? null) : null
+    return { ...p, custom_role: customRole }
+  }
+
+  // Fetch teams
   const { data: teamsData } = await admin
     .from('teams')
     .select('*')
     .eq('is_archived', false)
     .order('created_at', { ascending: false })
 
-  // Step 2: fetch all team_members for these teams
+  // Fetch team_members
   const teamIds = (teamsData ?? []).map((t) => t.id)
   let membersData: any[] = []
   if (teamIds.length > 0) {
-    const { data } = await admin
-      .from('team_members')
-      .select('*')
-      .in('team_id', teamIds)
+    const { data } = await admin.from('team_members').select('*').in('team_id', teamIds)
     membersData = data ?? []
   }
 
-  // Step 3: fetch profiles for member user_ids
+  // Fetch profiles for team members
   const memberUserIds = [...new Set(membersData.map((m) => m.user_id))]
   let memberProfiles: any[] = []
   if (memberUserIds.length > 0) {
-    const { data } = await admin
-      .from('profiles')
-      .select(profileSelect)
-      .in('id', memberUserIds)
+    const { data } = await admin.from('profiles').select(fullSelect).in('id', memberUserIds)
     memberProfiles = data ?? []
   }
 
-  // Normalize Supabase join: custom_role is returned as array, flatten to object
-  function normalizeProfile(p: any): Profile {
-    return { ...p, custom_role: Array.isArray(p.custom_role) ? (p.custom_role[0] ?? null) : p.custom_role }
-  }
-
-  // Step 4: merge members + profiles into teams
+  // Build teams with member profiles
   const profilesById = Object.fromEntries(memberProfiles.map((p) => [p.id, normalizeProfile(p)]))
   const teams = (teamsData ?? []).map((team) => ({
     ...team,
@@ -73,7 +70,7 @@ export default async function TeamServerPage() {
       .map((m) => ({ ...m, profile: profilesById[m.user_id] ?? null })),
   }))
 
-  const normalizedProfiles = (allProfiles ?? []).map(normalizeProfile)
+  const normalizedProfiles = allProfilesData.map(normalizeProfile)
 
   return (
     <TeamsHub

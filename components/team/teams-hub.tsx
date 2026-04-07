@@ -882,38 +882,32 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
                 <button
                   onClick={() => setFilter('team', team.id)}
                   className={cn(
-                    'flex-1 flex items-center justify-between gap-2 px-3 py-1.5 text-sm min-w-0',
+                    'flex-1 flex items-center gap-2 px-3 py-1.5 text-sm min-w-0',
                     active ? 'text-blue-700 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: team.color || '#ec4899' }} />
-                    <span className="text-xs truncate">{team.name}</span>
-                  </div>
-                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full shrink-0">{count}</span>
+                  <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: team.color || '#ec4899' }} />
+                  <span className="text-xs truncate">{team.name}</span>
                 </button>
-                {isAdmin && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="hidden group-hover:flex h-6 w-6 mr-1 items-center justify-center rounded hover:bg-muted/60 text-muted-foreground shrink-0">
-                        <MoreHorizontal className="h-3.5 w-3.5" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-36">
-                      <DropdownMenuItem onClick={() => setEditGroup(team)}>
-                        <Pencil className="mr-2 h-3.5 w-3.5" />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => setDeleteGroupId(team.id)}
-                      >
-                        <Trash2 className="mr-2 h-3.5 w-3.5" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                {isAdmin ? (
+                  <div className="flex items-center gap-0.5 mr-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditGroup(team) }}
+                      className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                      title="Rename"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteGroupId(team.id) }}
+                      className="h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full shrink-0 mr-2">{count}</span>
                 )}
               </div>
             )
