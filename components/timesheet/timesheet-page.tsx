@@ -36,7 +36,9 @@ import {
   MoreHorizontal,
   Trash2,
   Loader2,
+  ExternalLink,
 } from 'lucide-react'
+import Link from 'next/link'
 import { cn, getInitials } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 
@@ -745,7 +747,14 @@ function EntryRow({
     <div className="grid grid-cols-[1fr_180px_180px_120px_40px] gap-4 px-4 py-3 items-center hover:bg-gray-50/60 transition-colors group">
       {/* Task title */}
       <div className="min-w-0">
-        <p className="text-sm font-medium text-gray-800 truncate">{entry.task_title}</p>
+        <Link
+          href={`/tasks/${entry.task_id}`}
+          className="inline-flex items-center gap-1 text-sm font-medium text-gray-800 hover:text-blue-600 hover:underline truncate max-w-full group/link"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="truncate">{entry.task_title}</span>
+          <ExternalLink className="h-3 w-3 shrink-0 opacity-0 group-hover/link:opacity-100 transition-opacity" />
+        </Link>
         {entry.description && (
           <p className="text-xs text-gray-400 truncate mt-0.5">{entry.description}</p>
         )}
