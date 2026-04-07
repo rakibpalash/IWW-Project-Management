@@ -15,6 +15,7 @@ export const ROLE_LABELS: Record<string, string> = {
   project_manager: 'Team Lead',
   staff: 'Staff',
   client: 'Client',
+  partner: 'Partner',
 }
 
 export const PROJECT_STATUSES = [
@@ -93,6 +94,10 @@ export const NAV_ITEMS: Record<string, { href: string; label: string; icon: stri
   project_manager: STAFF_NAV,
   staff: STAFF_NAV,
   client: [
+    { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
+    { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
+  ],
+  partner: [
     { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
     { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
   ],

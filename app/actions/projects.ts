@@ -188,3 +188,69 @@ export async function deleteProjectAction(
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }
 }
+
+// ── Clone project ─────────────────────────────────────────────────────────────
+
+export async function cloneProjectAction(
+  id: string
+): Promise<{ success: boolean; project?: Project; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const admin = createAdminClient()
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) return { success: false, error: 'Not authenticated' }
+
+    // Fetch original project
+    const { data: original, error: fetchError } = await admin
+      .from('projects')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !original) return { success: false, error: 'Project not found' }
+
+    // Create cloned project
+    const { data: cloned, error: insertError } = await admin
+      .from('projects')
+      .insert({
+        workspace_id: original.workspace_id,
+        name: `${original.name} (Copy)`,
+        description: original.description,
+        client_id: original.client_id,
+        start_date: original.start_date,
+        due_date: original.due_date,
+        status: 'planning',
+        priority: original.priority,
+        estimated_hours: original.estimated_hours,
+        progress: 0,
+        created_by: user.id,
+      })
+      .select('*')
+      .single()
+
+    if (insertError || !cloned) return { success: false, error: insertError?.message ?? 'Failed to clone' }
+
+    // Copy project members
+    const { data: members } = await admin
+      .from('project_members')
+      .select('user_id, project_role')
+      .eq('project_id', id)
+
+    if (members && members.length > 0) {
+      await admin.from('project_members').insert(
+        members.map((m) => ({
+          project_id: cloned.id,
+          user_id: m.user_id,
+          project_role: m.project_role,
+        }))
+      )
+    }
+
+    revalidatePath('/projects')
+    revalidatePath(`/workspaces/${original.workspace_id}`)
+    return { success: true, project: cloned as Project }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}

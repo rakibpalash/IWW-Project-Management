@@ -67,11 +67,11 @@ export function ProjectTeamSection({
   const leads = members.filter((m) => m.project_role === 'lead')
   const regularMembers = members.filter((m) => m.project_role === 'member')
 
-  // Profiles not already added
+  // Profiles not already added (include all assignable roles)
   const available = useMemo(() => {
     const addedIds = new Set(members.map((m) => m.user_id))
     return allProfiles.filter(
-      (p) => !addedIds.has(p.id) && p.role !== 'client'
+      (p) => !addedIds.has(p.id) && p.role !== 'super_admin'
     )
   }, [members, allProfiles])
 

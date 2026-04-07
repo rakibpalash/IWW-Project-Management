@@ -17,8 +17,8 @@ import {
   getStatusColor,
   formatStatus,
 } from '@/lib/utils'
-import { Calendar, Pencil, AlertTriangle, Building2, User, Trash2 } from 'lucide-react'
-import { deleteProjectAction } from '@/app/actions/projects'
+import { Calendar, Pencil, AlertTriangle, Building2, User, Trash2, Copy } from 'lucide-react'
+import { deleteProjectAction, cloneProjectAction } from '@/app/actions/projects'
 import { getProjectDeleteImpact } from '@/app/actions/delete-impact'
 import { useToast } from '@/components/ui/use-toast'
 
@@ -33,7 +33,20 @@ export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHea
   const { toast } = useToast()
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isCloning, setIsCloning] = useState(false)
   const isAdmin = profile.role === 'super_admin'
+
+  async function handleClone() {
+    setIsCloning(true)
+    const result = await cloneProjectAction(project.id)
+    setIsCloning(false)
+    if (result.success) {
+      toast({ title: 'Project cloned', description: `"${result.project?.name}" created` })
+      router.push(`/projects/${result.project?.id}`)
+    } else {
+      toast({ title: 'Failed to clone', description: result.error, variant: 'destructive' })
+    }
+  }
 
   const overdue =
     isOverdue(project.due_date) &&
@@ -113,7 +126,16 @@ export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHea
               onClick={() => setShowEditDialog(true)}
             >
               <Pencil className="h-4 w-4 mr-2" />
-              Edit Project
+              Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClone}
+              disabled={isCloning}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              {isCloning ? 'Cloning…' : 'Clone'}
             </Button>
             <Button
               variant="ghost"

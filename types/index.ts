@@ -1,4 +1,4 @@
-export type Role = 'super_admin' | 'account_manager' | 'project_manager' | 'staff' | 'client'
+export type Role = 'super_admin' | 'account_manager' | 'project_manager' | 'staff' | 'client' | 'partner'
 
 export type ProjectStatus = 'planning' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled'
 export type Priority = 'low' | 'medium' | 'high' | 'urgent'

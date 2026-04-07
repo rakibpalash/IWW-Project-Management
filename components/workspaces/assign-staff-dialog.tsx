@@ -13,11 +13,31 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/types'
 import { Search, Users } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+
+type RoleTab = 'staff' | 'client' | 'partner'
+
+const TABS: { id: RoleTab; label: string }[] = [
+  { id: 'staff',   label: 'Staff'   },
+  { id: 'client',  label: 'Client'  },
+  { id: 'partner', label: 'Partner' },
+]
+
+const AVATAR_COLORS = [
+  'bg-pink-500','bg-purple-500','bg-indigo-500','bg-blue-500',
+  'bg-cyan-500','bg-teal-500','bg-green-500','bg-yellow-500','bg-orange-500','bg-red-500',
+]
+function avatarColor(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
 
 interface AssignStaffDialogProps {
   open: boolean
@@ -35,53 +55,45 @@ export function AssignStaffDialog({
   onSuccess,
 }: AssignStaffDialogProps) {
   const { toast } = useToast()
-  const [staffList, setStaffList] = useState<Profile[]>([])
+  const [allMembers, setAllMembers] = useState<Profile[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set(currentMemberIds))
   const [search, setSearch] = useState('')
+  const [activeTab, setActiveTab] = useState<RoleTab>('staff')
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Load staff profiles whenever dialog opens
   useEffect(() => {
     if (!open) return
-
     setSelected(new Set(currentMemberIds))
     setSearch('')
+    setActiveTab('staff')
 
-    async function loadStaff() {
+    async function load() {
       setIsLoading(true)
       try {
         const supabase = createClient()
         const { data, error } = await supabase
           .from('profiles')
           .select('id, full_name, email, avatar_url, role')
-          .eq('role', 'staff')
-          .order('full_name', { ascending: true })
-
+          .in('role', ['staff', 'client', 'partner'])
+          .order('full_name')
         if (error) throw error
-        setStaffList((data as Profile[]) ?? [])
+        setAllMembers((data as Profile[]) ?? [])
       } catch {
-        toast({
-          title: 'Failed to load staff',
-          description: 'Could not fetch staff members.',
-          variant: 'destructive',
-        })
+        toast({ title: 'Failed to load members', variant: 'destructive' })
       } finally {
         setIsLoading(false)
       }
     }
 
-    loadStaff()
+    load()
   }, [open, currentMemberIds, toast])
 
   function toggle(userId: string) {
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(userId)) {
-        next.delete(userId)
-      } else {
-        next.add(userId)
-      }
+      if (next.has(userId)) next.delete(userId)
+      else next.add(userId)
       return next
     })
   }
@@ -90,42 +102,33 @@ export function AssignStaffDialog({
     setIsSaving(true)
     try {
       const supabase = createClient()
-
       const toAdd = [...selected].filter((id) => !currentMemberIds.includes(id))
       const toRemove = currentMemberIds.filter((id) => !selected.has(id))
 
-      // Remove deselected members
       if (toRemove.length > 0) {
         const { error } = await supabase
           .from('workspace_assignments')
           .delete()
           .eq('workspace_id', workspaceId)
           .in('user_id', toRemove)
-
         if (error) throw error
       }
 
-      // Add newly selected members
       if (toAdd.length > 0) {
         const { error } = await supabase.from('workspace_assignments').upsert(
           toAdd.map((user_id) => ({ workspace_id: workspaceId, user_id })),
           { onConflict: 'workspace_id,user_id' }
         )
-
         if (error) throw error
       }
 
-      toast({
-        title: 'Staff assignments updated',
-        description: 'Workspace members have been updated successfully.',
-      })
-
+      toast({ title: 'Workspace members updated' })
       onOpenChange(false)
       onSuccess()
-    } catch (err: unknown) {
+    } catch (err) {
       toast({
-        title: 'Failed to update assignments',
-        description: err instanceof Error ? err.message : 'An unexpected error occurred.',
+        title: 'Failed to update',
+        description: err instanceof Error ? err.message : 'An error occurred',
         variant: 'destructive',
       })
     } finally {
@@ -133,35 +136,63 @@ export function AssignStaffDialog({
     }
   }
 
-  const filtered = staffList.filter(
-    (s) =>
-      s.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      s.email.toLowerCase().includes(search.toLowerCase())
+  const tabMembers = allMembers.filter((m) => m.role === activeTab)
+  const filtered = tabMembers.filter(
+    (m) =>
+      m.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      m.email.toLowerCase().includes(search.toLowerCase())
   )
+
+  const tabCounts = {
+    staff:   allMembers.filter((m) => m.role === 'staff').length,
+    client:  allMembers.filter((m) => m.role === 'client').length,
+    partner: allMembers.filter((m) => m.role === 'partner').length,
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Assign Staff</DialogTitle>
+          <DialogTitle>Assign Members</DialogTitle>
           <DialogDescription>
-            Select staff members to assign to this workspace.
+            Select staff, clients, and partners to assign to this workspace.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
+          {/* Role tabs */}
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'flex-1 py-1.5 text-xs font-medium rounded-md transition-colors',
+                  activeTab === tab.id
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                {tab.label}
+                {tabCounts[tab.id] > 0 && (
+                  <span className="ml-1 text-[10px] text-gray-400">({tabCounts[tab.id]})</span>
+                )}
+              </button>
+            ))}
+          </div>
+
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
-              placeholder="Search staff…"
+              placeholder={`Search ${activeTab}s…`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
             />
           </div>
 
-          {/* Staff list */}
+          {/* List */}
           {isLoading ? (
             <div className="flex items-center justify-center py-10">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
@@ -170,29 +201,37 @@ export function AssignStaffDialog({
             <div className="flex flex-col items-center py-8 text-center">
               <Users className="h-8 w-8 text-gray-300" />
               <p className="mt-2 text-sm text-gray-500">
-                {search ? 'No staff match your search' : 'No staff members found'}
+                {search
+                  ? `No ${activeTab}s match your search`
+                  : `No ${activeTab}s found in the system`}
               </p>
             </div>
           ) : (
-            <ScrollArea className="h-72 pr-1">
+            <ScrollArea className="h-64 pr-1">
               <ul className="space-y-1">
-                {filtered.map((staff) => (
-                  <li key={staff.id}>
+                {filtered.map((person) => (
+                  <li key={person.id}>
                     <label className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-gray-50">
                       <Checkbox
-                        id={staff.id}
-                        checked={selected.has(staff.id)}
-                        onCheckedChange={() => toggle(staff.id)}
+                        id={person.id}
+                        checked={selected.has(person.id)}
+                        onCheckedChange={() => toggle(person.id)}
                       />
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
-                        {getInitials(staff.full_name)}
-                      </div>
+                      <Avatar className="h-8 w-8 flex-shrink-0">
+                        <AvatarImage src={person.avatar_url ?? undefined} />
+                        <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(person.full_name)}`}>
+                          {getInitials(person.full_name)}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-900">
-                          {staff.full_name}
-                        </p>
-                        <p className="truncate text-xs text-gray-500">{staff.email}</p>
+                        <p className="truncate text-sm font-medium text-gray-900">{person.full_name}</p>
+                        <p className="truncate text-xs text-gray-500">{person.email}</p>
                       </div>
+                      {selected.has(person.id) && (
+                        <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                          Added
+                        </span>
+                      )}
                     </label>
                   </li>
                 ))}
@@ -201,17 +240,12 @@ export function AssignStaffDialog({
           )}
 
           <p className="text-xs text-gray-400">
-            {selected.size} staff member{selected.size !== 1 ? 's' : ''} selected
+            {selected.size} member{selected.size !== 1 ? 's' : ''} selected in total
           </p>
         </div>
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isSaving}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isSaving || isLoading}>

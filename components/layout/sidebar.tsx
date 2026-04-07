@@ -64,6 +64,7 @@ function getRoleBadgeLabel(role: Profile['role']): string {
     project_manager: 'Project Manager',
     staff: 'Staff',
     client: 'Client',
+    partner: 'Partner',
   }
   return labels[role] ?? role
 }

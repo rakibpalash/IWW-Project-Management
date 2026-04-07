@@ -47,6 +47,10 @@ const ROLE_GREETING: Record<Role, { headline: string; sub: string }> = {
     headline: 'Welcome!',
     sub: 'Track your project progress, view task statuses, and stay in the loop — all here.',
   },
+  partner: {
+    headline: 'Welcome, Partner!',
+    sub: 'Track your project progress, view task statuses, and stay in the loop — all here.',
+  },
 }
 
 const STAFF_FEATURES = [
@@ -108,6 +112,23 @@ const ROLE_FEATURES: Record<
       description: 'Drill into individual tasks and milestones to see exactly where things stand.',
     },
   ],
+  partner: [
+    {
+      icon: <FolderKanban className="h-6 w-6 text-blue-500" />,
+      title: 'Your Projects',
+      description: "Get a bird's-eye view of every project we are running with you.",
+    },
+    {
+      icon: <BarChart3 className="h-6 w-6 text-purple-500" />,
+      title: 'Progress Tracking',
+      description: 'Live progress bars and status updates keep you informed at all times.',
+    },
+    {
+      icon: <Eye className="h-6 w-6 text-green-500" />,
+      title: 'Task Visibility',
+      description: 'Drill into individual tasks and milestones to see exactly where things stand.',
+    },
+  ],
 }
 
 const STAFF_TIPS = [
@@ -144,6 +165,20 @@ const ROLE_TIPS: Record<Role, { title: string; body: string }[]> = {
   project_manager: STAFF_TIPS,
   staff: STAFF_TIPS,
   client: [
+    {
+      title: 'Bookmark your dashboard',
+      body: 'Your dashboard gives you a real-time summary of all active projects at a glance.',
+    },
+    {
+      title: 'Explore task details',
+      body: 'Click any task to see its description, assignees, and the latest activity.',
+    },
+    {
+      title: 'Reach out if you need help',
+      body: 'Use the comments section on tasks to ask questions directly to the team.',
+    },
+  ],
+  partner: [
     {
       title: 'Bookmark your dashboard',
       body: 'Your dashboard gives you a real-time summary of all active projects at a glance.',

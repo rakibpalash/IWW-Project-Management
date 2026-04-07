@@ -141,6 +141,7 @@ const TOUR_STEPS: Record<Role, DriveStep[]> = {
   project_manager: STAFF_STEPS,
   staff: STAFF_STEPS,
   client: CLIENT_STEPS,
+  partner: CLIENT_STEPS,
 }
 
 const TOUR_COMPLETED_KEY = (role: Role) => `iww_tour_completed_${role}`

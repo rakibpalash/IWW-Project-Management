@@ -38,7 +38,19 @@ import {
   List,
   Trash2,
   AlertTriangle,
+  Copy,
+  UserPlus,
+  X,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,7 +61,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { updateTaskAction, updateTaskStatusAction, deleteTaskAction } from '@/app/actions/tasks'
+import { updateTaskAction, updateTaskStatusAction, deleteTaskAction, cloneTaskAction } from '@/app/actions/tasks'
 import { startTimerAction, stopTimerAction } from '@/app/actions/time-entries'
 import { useTaskConfig } from '@/hooks/use-task-config'
 import {
@@ -210,6 +222,11 @@ export function TaskDetailPage({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deletingTask, setDeletingTask] = useState(false)
   const [taskDeleted, setTaskDeleted] = useState(false)
+  const [isCloning, setIsCloning] = useState(false)
+  const [showAssignDialog, setShowAssignDialog] = useState(false)
+  const [assignSearch, setAssignSearch] = useState('')
+  const [pendingAssigneeIds, setPendingAssigneeIds] = useState<string[]>([])
+  const [savingAssignees, setSavingAssignees] = useState(false)
   const [timerRunning, setTimerRunning] = useState(false)
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null)
   const [timerClientBase, setTimerClientBase] = useState<number | undefined>(undefined)
@@ -468,6 +485,38 @@ export function TaskDetailPage({
     setTimeEntries((p) => [result.entry!, ...p])
   }
 
+  async function handleCloneTask() {
+    setIsCloning(true)
+    const result = await cloneTaskAction(task.id)
+    setIsCloning(false)
+    if (result.success && result.taskId) {
+      toast({ title: 'Task cloned successfully' })
+      router.push(`/tasks/${result.taskId}`)
+    } else {
+      toast({ title: 'Failed to clone task', description: result.error, variant: 'destructive' })
+    }
+  }
+
+  function openAssignDialog() {
+    setPendingAssigneeIds((task.assignees ?? []).map((a) => a.id))
+    setAssignSearch('')
+    setShowAssignDialog(true)
+  }
+
+  async function saveAssignees() {
+    setSavingAssignees(true)
+    const result = await updateTaskAction(task.id, { assignee_ids: pendingAssigneeIds })
+    setSavingAssignees(false)
+    if (result.success) {
+      const updatedAssignees = members.filter((m) => pendingAssigneeIds.includes(m.id))
+      setTask((p) => ({ ...p, assignees: updatedAssignees }))
+      setShowAssignDialog(false)
+      toast({ title: 'Assignees updated' })
+    } else {
+      toast({ title: 'Failed to update assignees', description: result.error, variant: 'destructive' })
+    }
+  }
+
   async function stopTimer() {
     if (!runningEntry || !canTrackTime) return
     setTimerLoading(true)
@@ -596,17 +645,31 @@ export function TaskDetailPage({
             {task.title}
           </span>
 
-          {/* Delete button — admin only */}
-          {isAdmin && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto h-8 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
-              onClick={() => setShowDeleteDialog(true)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
+          {/* Actions — admin/canEdit only */}
+          <div className="ml-auto flex items-center gap-1 shrink-0">
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1.5"
+                onClick={handleCloneTask}
+                disabled={isCloning}
+              >
+                <Copy className="h-4 w-4" />
+                <span className="text-xs hidden sm:inline">{isCloning ? 'Cloning…' : 'Clone'}</span>
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* ── Delete confirm dialog ── */}
@@ -1114,9 +1177,21 @@ export function TaskDetailPage({
 
               {/* Assignees ───────────────────────────────────── */}
               <div className="space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Assignees
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Assignees
+                  </p>
+                  {canEdit && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                      onClick={openAssignDialog}
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
                 {(task.assignees ?? []).length === 0 ? (
                   <p className="text-xs text-muted-foreground">Unassigned</p>
                 ) : (
@@ -1213,6 +1288,71 @@ export function TaskDetailPage({
             onCreated={handleTimeEntryAdded}
           />
         )}
+
+        {/* Assign Members Dialog */}
+        <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Assignees</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-1">
+              <div className="relative">
+                <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search members…"
+                  value={assignSearch}
+                  onChange={(e) => setAssignSearch(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <ScrollArea className="h-64 border rounded-md">
+                {members
+                  .filter((m) =>
+                    !assignSearch.trim() ||
+                    m.full_name.toLowerCase().includes(assignSearch.toLowerCase()) ||
+                    m.email.toLowerCase().includes(assignSearch.toLowerCase())
+                  )
+                  .map((m) => (
+                    <label
+                      key={m.id}
+                      className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                    >
+                      <Checkbox
+                        checked={pendingAssigneeIds.includes(m.id)}
+                        onCheckedChange={(checked) => {
+                          setPendingAssigneeIds((prev) =>
+                            checked
+                              ? [...prev, m.id]
+                              : prev.filter((id) => id !== m.id)
+                          )
+                        }}
+                      />
+                      <Avatar className="h-7 w-7 shrink-0">
+                        <AvatarImage src={m.avatar_url ?? undefined} />
+                        <AvatarFallback className="text-xs">{getInitials(m.full_name)}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{m.full_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{m.email}</p>
+                      </div>
+                    </label>
+                  ))}
+              </ScrollArea>
+              <p className="text-xs text-muted-foreground">
+                {pendingAssigneeIds.length} assignee{pendingAssigneeIds.length !== 1 ? 's' : ''} selected
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAssignDialog(false)} disabled={savingAssignees}>
+                Cancel
+              </Button>
+              <Button onClick={saveAssignees} disabled={savingAssignees}>
+                {savingAssignees ? 'Saving…' : 'Save'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   )

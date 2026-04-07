@@ -453,3 +453,91 @@ export async function logTimeAction(data: {
     return { success: false, error: message }
   }
 }
+
+// ── Clone task (recursive) ────────────────────────────────────────────────────
+
+async function cloneTaskRecursive(
+  admin: ReturnType<typeof createAdminClient>,
+  originalId: string,
+  newParentId: string | null,
+  projectId: string,
+  createdBy: string
+): Promise<string | null> {
+  const { data: original } = await admin
+    .from('tasks')
+    .select('*, task_assignees(user_id)')
+    .eq('id', originalId)
+    .single()
+
+  if (!original) return null
+
+  const { data: cloned } = await admin
+    .from('tasks')
+    .insert({
+      project_id: projectId,
+      parent_task_id: newParentId,
+      title: newParentId ? original.title : `${original.title} (Copy)`,
+      description: original.description,
+      start_date: original.start_date,
+      due_date: original.due_date,
+      estimated_hours: original.estimated_hours,
+      priority: original.priority,
+      status: 'todo',
+      created_by: createdBy,
+      depth: original.depth,
+    })
+    .select('id')
+    .single()
+
+  if (!cloned) return null
+
+  const assigneeIds = (original.task_assignees ?? []).map((a: { user_id: string }) => a.user_id)
+  if (assigneeIds.length > 0) {
+    await admin.from('task_assignees').insert(
+      assigneeIds.map((uid: string) => ({ task_id: cloned.id, user_id: uid }))
+    )
+  }
+
+  const { data: subtasks } = await admin
+    .from('tasks')
+    .select('id')
+    .eq('parent_task_id', originalId)
+
+  for (const sub of subtasks ?? []) {
+    await cloneTaskRecursive(admin, sub.id, cloned.id, projectId, createdBy)
+  }
+
+  return cloned.id
+}
+
+export async function cloneTaskAction(
+  taskId: string
+): Promise<{ success: boolean; taskId?: string; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const admin = createAdminClient()
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) return { success: false, error: 'Not authenticated' }
+
+    const { data: original } = await admin
+      .from('tasks')
+      .select('project_id, parent_task_id')
+      .eq('id', taskId)
+      .single()
+
+    if (!original) return { success: false, error: 'Task not found' }
+
+    const newId = await cloneTaskRecursive(
+      admin, taskId, original.parent_task_id, original.project_id, user.id
+    )
+
+    if (!newId) return { success: false, error: 'Failed to clone task' }
+
+    revalidatePath('/tasks')
+    revalidatePath(`/projects/${original.project_id}`)
+    return { success: true, taskId: newId }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
