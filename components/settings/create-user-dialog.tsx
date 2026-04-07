@@ -42,7 +42,7 @@ export function CreateUserDialog({ open, onOpenChange }: CreateUserDialogProps) 
   const router = useRouter()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<'staff' | 'client'>('staff')
+  const [role, setRole] = useState<'account_manager' | 'project_manager' | 'staff' | 'client' | 'partner'>('staff')
   const [password, setPassword] = useState(() => generatePassword())
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -109,7 +109,7 @@ export function CreateUserDialog({ open, onOpenChange }: CreateUserDialogProps) 
       setTimeout(() => {
         setFullName('')
         setEmail('')
-        setRole('staff')
+        setRole('staff' as any)
         setPassword(generatePassword())
         setError(null)
         setCreatedUser(null)
@@ -188,13 +188,16 @@ export function CreateUserDialog({ open, onOpenChange }: CreateUserDialogProps) 
 
             <div className="space-y-2">
               <Label>Role *</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as 'staff' | 'client')} disabled={loading}>
+              <Select value={role} onValueChange={(v) => setRole(v as typeof role)} disabled={loading}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="account_manager">Org Admin</SelectItem>
+                  <SelectItem value="project_manager">Team Lead</SelectItem>
                   <SelectItem value="staff">Staff</SelectItem>
                   <SelectItem value="client">Client</SelectItem>
+                  <SelectItem value="partner">Partner</SelectItem>
                 </SelectContent>
               </Select>
             </div>
