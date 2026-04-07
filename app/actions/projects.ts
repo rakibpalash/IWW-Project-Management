@@ -132,24 +132,33 @@ export async function deleteProjectAction(
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) return { success: false, error: 'Not authenticated' }
 
-    // Fetch project name + assignees before deleting
+    // Fetch project name + all affected people before deleting
     const { data: project } = await admin
       .from('projects')
       .select('name, workspace_id')
       .eq('id', id)
       .single()
 
+    // Collect all task assignees (all depths)
     const { data: tasks } = await admin
       .from('tasks')
       .select('id, task_assignees(user_id)')
       .eq('project_id', id)
-      .is('parent_task_id', null)
+
+    // Collect project team members
+    const { data: projectMembers } = await admin
+      .from('project_members')
+      .select('user_id')
+      .eq('project_id', id)
 
     const memberIds = new Set<string>()
     for (const t of tasks ?? []) {
       for (const ta of (t as any).task_assignees ?? []) {
         if (ta.user_id !== user.id) memberIds.add(ta.user_id)
       }
+    }
+    for (const pm of projectMembers ?? []) {
+      if (pm.user_id !== user.id) memberIds.add(pm.user_id)
     }
 
     const { data: deleter } = await admin
