@@ -17,7 +17,7 @@ import {
   getStatusColor,
   formatStatus,
 } from '@/lib/utils'
-import { Calendar, Pencil, AlertTriangle, Building2, User, Trash2, Copy } from 'lucide-react'
+import { Calendar, Pencil, AlertTriangle, Building2, User, Trash2, Copy, Handshake, Banknote, Lock } from 'lucide-react'
 import { deleteProjectAction, cloneProjectAction } from '@/app/actions/projects'
 import { getProjectDeleteImpact } from '@/app/actions/delete-impact'
 import { useToast } from '@/components/ui/use-toast'
@@ -28,6 +28,20 @@ interface ProjectHeaderProps {
   onProjectUpdated?: (updated: Project) => void
 }
 
+const BILLING_LABELS: Record<string, string> = {
+  hourly: 'Hourly',
+  fixed: 'Fixed Price',
+  retainer: 'Retainer',
+  non_billable: 'Non-Billable',
+}
+
+const BILLING_COLORS: Record<string, string> = {
+  hourly: 'text-blue-600 bg-blue-500/10 border-blue-200 dark:border-blue-800',
+  fixed: 'text-emerald-600 bg-emerald-500/10 border-emerald-200 dark:border-emerald-800',
+  retainer: 'text-violet-600 bg-violet-500/10 border-violet-200 dark:border-violet-800',
+  non_billable: 'text-muted-foreground bg-muted border-border',
+}
+
 export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHeaderProps) {
   const router = useRouter()
   const { toast } = useToast()
@@ -35,6 +49,8 @@ export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHea
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isCloning, setIsCloning] = useState(false)
   const isAdmin = profile.role === 'super_admin'
+  const canSeePartner = profile.role === 'super_admin' || profile.role === 'account_manager'
+  const canSeeBilling = canSeePartner || profile.role === 'project_manager'
 
   async function handleClone() {
     setIsCloning(true)
@@ -94,6 +110,25 @@ export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHea
               {formatStatus(project.priority)} priority
             </Badge>
 
+            {/* Internal badge */}
+            {project.is_internal && (
+              <Badge variant="outline" className="text-xs text-amber-600 bg-amber-500/10 border-amber-200 dark:border-amber-800 gap-1">
+                <Lock className="h-3 w-3" />
+                Internal
+              </Badge>
+            )}
+
+            {/* Billing type (managers+) */}
+            {canSeeBilling && project.billing_type && (
+              <Badge
+                variant="outline"
+                className={cn('text-xs gap-1', BILLING_COLORS[project.billing_type] ?? BILLING_COLORS.non_billable)}
+              >
+                <Banknote className="h-3 w-3" />
+                {BILLING_LABELS[project.billing_type] ?? project.billing_type}
+              </Badge>
+            )}
+
             {/* Due date */}
             {project.due_date && (
               <div
@@ -112,6 +147,14 @@ export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHea
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <User className="h-3.5 w-3.5" />
                 {project.client.full_name}
+              </div>
+            )}
+
+            {/* Partner chain (admin only) */}
+            {canSeePartner && project.partner && (
+              <div className="flex items-center gap-1 text-xs text-violet-600">
+                <Handshake className="h-3.5 w-3.5" />
+                via {project.partner.full_name}
               </div>
             )}
           </div>

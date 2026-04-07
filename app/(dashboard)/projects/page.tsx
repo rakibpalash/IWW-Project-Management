@@ -19,15 +19,18 @@ export default async function ProjectsServerPage() {
 
   let projects: Project[] = []
 
+  const PROJECT_SELECT = `
+    *,
+    workspace:workspaces(*),
+    client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at),
+    partner:profiles!projects_partner_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
+  `
+
   if (profile.role === 'super_admin') {
-    // Super admin: fetch ALL projects with workspace + client joins
+    // Super admin: fetch ALL projects with workspace + client + partner joins
     const { data } = await supabase
       .from('projects')
-      .select(`
-        *,
-        workspace:workspaces(*),
-        client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
-      `)
+      .select(PROJECT_SELECT)
       .order('created_at', { ascending: false })
 
     projects = (data ?? []) as Project[]
@@ -43,11 +46,7 @@ export default async function ProjectsServerPage() {
     if (workspaceIds.length > 0) {
       const { data } = await supabase
         .from('projects')
-        .select(`
-          *,
-          workspace:workspaces(*),
-          client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
-        `)
+        .select(PROJECT_SELECT)
         .in('workspace_id', workspaceIds)
         .order('created_at', { ascending: false })
 
@@ -57,11 +56,7 @@ export default async function ProjectsServerPage() {
     // Client: fetch projects where client_id = user.id
     const { data } = await supabase
       .from('projects')
-      .select(`
-        *,
-        workspace:workspaces(*),
-        client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
-      `)
+      .select(PROJECT_SELECT)
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
 

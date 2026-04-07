@@ -36,14 +36,26 @@ import {
   Pencil,
   Trash2,
   Copy,
+  Handshake,
+  Banknote,
+  Lock,
 } from 'lucide-react'
+import { Role } from '@/types'
 import { deleteProjectAction, cloneProjectAction } from '@/app/actions/projects'
 import { getProjectDeleteImpact } from '@/app/actions/delete-impact'
+
+const BILLING_LABELS: Record<string, string> = {
+  hourly: 'Hourly',
+  fixed: 'Fixed',
+  retainer: 'Retainer',
+  non_billable: 'Non-Billable',
+}
 
 interface ProjectCardProps {
   project: Project
   listMode?: boolean
   isAdmin?: boolean
+  userRole?: Role
   onDeleted?: (id: string) => void
   onUpdated?: (project: Project) => void
   onCloned?: (project: Project) => void
@@ -53,10 +65,13 @@ export function ProjectCard({
   project,
   listMode = false,
   isAdmin = false,
+  userRole,
   onDeleted,
   onUpdated,
   onCloned,
 }: ProjectCardProps) {
+  const canSeePartner = userRole === 'super_admin' || userRole === 'account_manager'
+  const canSeeBilling = canSeePartner || userRole === 'project_manager'
   const router = useRouter()
   const { toast } = useToast()
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -226,6 +241,18 @@ export function ProjectCard({
             <Badge className={cn('text-xs', getPriorityColor(project.priority))} variant="outline">
               {formatStatus(project.priority)}
             </Badge>
+            {project.is_internal && (
+              <Badge variant="outline" className="text-xs text-amber-600 bg-amber-500/10 border-amber-200 dark:border-amber-800 gap-1">
+                <Lock className="h-2.5 w-2.5" />
+                Internal
+              </Badge>
+            )}
+            {canSeeBilling && project.billing_type && project.billing_type !== 'non_billable' && (
+              <Badge variant="outline" className="text-xs text-blue-600 bg-blue-500/10 border-blue-200 dark:border-blue-800 gap-1">
+                <Banknote className="h-2.5 w-2.5" />
+                {BILLING_LABELS[project.billing_type]}
+              </Badge>
+            )}
           </div>
         </CardHeader>
 
@@ -262,6 +289,14 @@ export function ProjectCard({
             <div className="flex items-center gap-1.5">
               <User className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground truncate">{project.client.full_name}</span>
+            </div>
+          )}
+
+          {/* Partner (admin only) */}
+          {canSeePartner && project.partner && (
+            <div className="flex items-center gap-1.5">
+              <Handshake className="h-3.5 w-3.5 text-violet-500" />
+              <span className="text-xs text-violet-600 truncate">via {project.partner.full_name}</span>
             </div>
           )}
 

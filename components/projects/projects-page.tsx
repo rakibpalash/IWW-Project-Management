@@ -269,6 +269,7 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
               key={project.id}
               project={project}
               isAdmin={isAdmin}
+              userRole={profile.role}
               onUpdated={handleProjectUpdated}
               onDeleted={handleProjectDeleted}
               onCloned={handleProjectCloned}
@@ -283,6 +284,7 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
               project={project}
               listMode
               isAdmin={isAdmin}
+              userRole={profile.role}
               onUpdated={handleProjectUpdated}
               onDeleted={handleProjectDeleted}
               onCloned={handleProjectCloned}

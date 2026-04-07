@@ -36,7 +36,8 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     .select(`
       *,
       workspace:workspaces(*),
-      client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
+      client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at),
+      partner:profiles!projects_partner_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
     `)
     .eq('id', id)
     .single()
