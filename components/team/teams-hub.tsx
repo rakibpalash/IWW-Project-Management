@@ -1,43 +1,75 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Profile } from '@/types'
+import { Profile, CustomRole } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from '@/components/ui/dialog'
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select'
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table'
+import { useToast } from '@/components/ui/use-toast'
+import { SmartDeleteDialog } from '@/components/ui/smart-delete-dialog'
+import { getStaffDeleteImpact } from '@/app/actions/delete-impact'
+import { deleteUserAction } from '@/app/actions/user'
 import {
-  GitBranch, Users, User, Search, Plus, ChevronRight,
-  Globe, Lock, Mail, Shield, Briefcase,
-  MoreHorizontal, Pencil, Trash2, UserPlus, Crown,
+  createUserAction,
+  updatePersonAction,
+} from '@/app/actions/user'
+import { addTeamMembersAction } from '@/app/actions/teams'
+import {
+  Users,
+  Plus,
+  Search,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  LayoutList,
+  GitBranch,
+  ChevronRight,
+  Crown,
+  Shield,
+  Briefcase,
+  User,
+  Mail,
+  Eye,
+  EyeOff,
+  Building2,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
-import { CreateTeamDialog } from './create-team-dialog'
-import { CreateUserDialog } from '@/components/settings/create-user-dialog'
 import { format, parseISO } from 'date-fns'
-import { deleteUserAction, updatePersonAction } from '@/app/actions/user'
-import { deleteTeamAction, updateTeamAction } from '@/app/actions/teams'
-import { useToast } from '@/components/ui/use-toast'
+import { ROLE_LABELS } from '@/lib/constants'
 
-// ── Config ─────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface TeamsHubProps {
   profile: Profile
@@ -45,83 +77,77 @@ interface TeamsHubProps {
   teams: any[]
 }
 
-type Section = 'org-chart' | 'people' | 'teams'
-
-const ROLE_CONFIG: Record<string, {
-  label: string
-  badgeClass: string
-  icon: React.ElementType
-}> = {
-  super_admin:     { label: 'Super Admin', badgeClass: 'bg-red-100 text-red-700 border-red-200',             icon: Crown },
-  account_manager: { label: 'Org Admin',   badgeClass: 'bg-purple-100 text-purple-700 border-purple-200',   icon: Shield },
-  project_manager: { label: 'Team Lead',   badgeClass: 'bg-blue-100 text-blue-700 border-blue-200',         icon: Briefcase },
-  staff:           { label: 'Staff',       badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: User },
-  client:          { label: 'Client',      badgeClass: 'bg-gray-100 text-gray-600 border-gray-200',         icon: Briefcase },
-}
-
-const ROLE_OPTIONS = [
-  { value: 'super_admin',     label: 'Super Admin' },
-  { value: 'account_manager', label: 'Org Admin' },
-  { value: 'project_manager', label: 'Team Lead' },
-  { value: 'staff',           label: 'Staff' },
-  { value: 'client',          label: 'Client' },
-]
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS = [
   'bg-pink-500', 'bg-purple-500', 'bg-indigo-500', 'bg-blue-500',
-  'bg-cyan-500', 'bg-teal-500', 'bg-green-500', 'bg-yellow-500',
-  'bg-orange-500', 'bg-red-500',
+  'bg-cyan-500', 'bg-teal-500', 'bg-green-500', 'bg-orange-500', 'bg-red-500',
 ]
-
 function avatarColor(name: string) {
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
 
+const ROLE_HIERARCHY: { role: string; label: string; icon: React.ReactNode; depth: number }[] = [
+  { role: 'super_admin',     label: 'Super Admin',  icon: <Crown className="h-3.5 w-3.5" />,    depth: 0 },
+  { role: 'account_manager', label: 'Org Admin',    icon: <Shield className="h-3.5 w-3.5" />,   depth: 1 },
+  { role: 'project_manager', label: 'Team Lead',    icon: <Briefcase className="h-3.5 w-3.5" />, depth: 2 },
+  { role: 'staff',           label: 'Staff',        icon: <User className="h-3.5 w-3.5" />,      depth: 3 },
+  { role: 'client',          label: 'Client',       icon: <Building2 className="h-3.5 w-3.5" />, depth: 0 },
+  { role: 'partner',         label: 'Partner',      icon: <Users className="h-3.5 w-3.5" />,     depth: 0 },
+]
+
+const ROLE_BADGE: Record<string, string> = {
+  super_admin:     'bg-red-50 text-red-700 border-red-200',
+  account_manager: 'bg-purple-50 text-purple-700 border-purple-200',
+  project_manager: 'bg-blue-50 text-blue-700 border-blue-200',
+  staff:           'bg-green-50 text-green-700 border-green-200',
+  client:          'bg-amber-50 text-amber-700 border-amber-200',
+  partner:         'bg-indigo-50 text-indigo-700 border-indigo-200',
+}
+
+const ROLE_OPTIONS = [
+  { value: 'account_manager', label: 'Org Admin' },
+  { value: 'project_manager', label: 'Team Lead' },
+  { value: 'staff',           label: 'Staff' },
+  { value: 'client',          label: 'Client' },
+  { value: 'partner',         label: 'Partner' },
+]
+
 // ── Org Chart ─────────────────────────────────────────────────────────────────
 
 function OrgNodeCard({ person }: { person: Profile }) {
-  const rc = ROLE_CONFIG[person.role] ?? ROLE_CONFIG.staff
+  const rc = ROLE_HIERARCHY.find((r) => r.role === person.role)
+  const badgeClass = ROLE_BADGE[person.role] ?? ROLE_BADGE.staff
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 flex flex-col items-center gap-2 w-40 hover:shadow-md hover:border-blue-200 transition-all">
-      <Avatar className="h-11 w-11">
+    <div className="flex flex-col items-center w-44 bg-white border border-gray-200 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow">
+      <Avatar className="h-10 w-10 mb-2">
         <AvatarImage src={person.avatar_url ?? undefined} />
         <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(person.full_name)}`}>
           {getInitials(person.full_name)}
         </AvatarFallback>
       </Avatar>
-      <div className="text-center w-full min-w-0">
-        <p className="text-xs font-semibold text-gray-900 leading-tight truncate">{person.full_name}</p>
-        {person.custom_role && (
-          <p className="text-[10px] text-gray-400 mt-0.5 truncate">{person.custom_role.name}</p>
-        )}
-      </div>
-      <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full border', rc.badgeClass)}>
-        {rc.label}
+      <p className="text-xs font-semibold text-gray-900 text-center leading-tight truncate w-full text-center">{person.full_name}</p>
+      {person.custom_role && (
+        <p className="text-[10px] text-gray-400 text-center mt-0.5 truncate w-full">{person.custom_role.name}</p>
+      )}
+      <span className={cn('mt-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border', badgeClass)}>
+        {ROLE_LABELS[person.role] ?? person.role}
       </span>
     </div>
   )
 }
 
-function OrgNode({
-  person,
-  childrenMap,
-  depth = 0,
-}: {
-  person: Profile
-  childrenMap: Record<string, Profile[]>
-  depth?: number
-}) {
+function OrgNode({ person, childrenMap, depth = 0 }: { person: Profile; childrenMap: Record<string, Profile[]>; depth?: number }) {
   const children = childrenMap[person.id] || []
   const isOnly = children.length === 1
-
   return (
     <div className="flex flex-col items-center">
       <OrgNodeCard person={person} />
       {children.length > 0 && (
         <div className="flex flex-col items-center">
-          <div className="w-px h-6 bg-gray-200 flex-shrink-0" />
+          <div className="w-px h-6 bg-gray-200" />
           <div className="flex items-start">
             {children.map((child, i) => {
               const isFirst = i === 0
@@ -150,42 +176,34 @@ function OrgNode({
   )
 }
 
-function OrgChartSection({ profiles }: { profiles: Profile[] }) {
+function OrgChartView({ profiles }: { profiles: Profile[] }) {
   const profileMap = Object.fromEntries(profiles.map((p) => [p.id, p]))
   const childrenMap: Record<string, Profile[]> = {}
-
   for (const p of profiles) {
     if (p.manager_id && profileMap[p.manager_id]) {
       if (!childrenMap[p.manager_id]) childrenMap[p.manager_id] = []
       childrenMap[p.manager_id].push(p)
     }
   }
-
   const roots = profiles.filter((p) => !p.manager_id || !profileMap[p.manager_id])
   const hasHierarchy = profiles.some((p) => p.manager_id && profileMap[p.manager_id])
 
   if (!hasHierarchy) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center flex-1">
-        <div className="w-20 h-20 rounded-2xl bg-blue-50 flex items-center justify-center mb-5">
-          <GitBranch className="h-10 w-10 text-blue-300" />
+      <div className="flex flex-col items-center justify-center flex-1 py-20 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
+          <GitBranch className="h-8 w-8 text-blue-300" />
         </div>
-        <h3 className="text-base font-semibold text-gray-700 mb-2">No hierarchy set up yet</h3>
-        <p className="text-sm text-gray-400 max-w-xs leading-relaxed">
-          Go to{' '}
-          <span className="text-blue-600 font-medium">Settings → Team Management</span>{' '}
-          and assign a manager to each person to build your org chart.
-        </p>
+        <h3 className="text-sm font-semibold text-gray-700 mb-1">No hierarchy set up yet</h3>
+        <p className="text-xs text-gray-400 max-w-xs">Assign a "Reports To" for each person to build the org chart.</p>
       </div>
     )
   }
 
   return (
-    <div className="overflow-auto p-8 flex-1">
+    <div className="overflow-auto flex-1 p-8">
       <div className="flex gap-16 justify-center min-w-max pb-8">
-        {roots.map((root) => (
-          <OrgNode key={root.id} person={root} childrenMap={childrenMap} />
-        ))}
+        {roots.map((root) => <OrgNode key={root.id} person={root} childrenMap={childrenMap} />)}
       </div>
     </div>
   )
@@ -193,303 +211,241 @@ function OrgChartSection({ profiles }: { profiles: Profile[] }) {
 
 // ── People Table ───────────────────────────────────────────────────────────────
 
-function PeopleSection({
+function PeopleTable({
   profiles,
+  allProfiles,
+  teams,
   isAdmin,
   onEdit,
   onDelete,
 }: {
   profiles: Profile[]
+  allProfiles: Profile[]
+  teams: any[]
   isAdmin: boolean
   onEdit: (p: Profile) => void
   onDelete: (p: Profile) => void
 }) {
-  const [search, setSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState('all')
-  const profileMap = Object.fromEntries(profiles.map((p) => [p.id, p]))
+  const [isPending, startTransition] = useTransition()
+  const { toast } = useToast()
+  const profileMap = Object.fromEntries(allProfiles.map((p) => [p.id, p]))
 
-  const filtered = profiles.filter((p) => {
-    const matchSearch =
-      !search ||
-      p.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      p.email.toLowerCase().includes(search.toLowerCase())
-    const matchRole = roleFilter === 'all' || p.role === roleFilter
-    return matchSearch && matchRole
-  })
+  // Get team for a profile
+  function getTeamForProfile(profileId: string) {
+    for (const team of teams) {
+      if ((team.members ?? []).some((m: any) => m.user_id === profileId)) return team
+    }
+    return null
+  }
+
+  function handleInlineRoleChange(person: Profile, newRole: string) {
+    startTransition(async () => {
+      const result = await updatePersonAction(person.id, { role: newRole })
+      if (!result.success) toast({ title: 'Failed to update role', description: result.error, variant: 'destructive' })
+    })
+  }
+
+  function handleInlineManagerChange(person: Profile, managerId: string) {
+    startTransition(async () => {
+      const result = await updatePersonAction(person.id, { manager_id: managerId === '__none' ? null : managerId })
+      if (!result.success) toast({ title: 'Failed to update manager', description: result.error, variant: 'destructive' })
+    })
+  }
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="flex items-center gap-3 flex-wrap px-6 py-4 border-b border-gray-100 flex-shrink-0">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search people..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="All roles" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All roles</SelectItem>
-            {ROLE_OPTIONS.map((r) => (
-              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span className="text-sm text-gray-400">{filtered.length} member{filtered.length !== 1 ? 's' : ''}</span>
-      </div>
-      <div className="overflow-auto flex-1 px-6 py-4">
-        <div className="rounded-xl border border-gray-200 overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-gray-50 hover:bg-gray-50">
-                <TableHead className="font-semibold text-gray-600 text-xs">Person</TableHead>
-                <TableHead className="font-semibold text-gray-600 text-xs">Role</TableHead>
-                <TableHead className="font-semibold text-gray-600 text-xs">Reports To</TableHead>
-                <TableHead className="font-semibold text-gray-600 text-xs">Job Title</TableHead>
-                <TableHead className="font-semibold text-gray-600 text-xs">Joined</TableHead>
-                {isAdmin && <TableHead className="w-10" />}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-gray-400 text-sm">
-                    No people found
+    <div className="rounded-xl border border-gray-200 overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-gray-50 hover:bg-gray-50">
+            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Person</TableHead>
+            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Role</TableHead>
+            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Reports To</TableHead>
+            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Team</TableHead>
+            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Job Title</TableHead>
+            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Joined</TableHead>
+            {isAdmin && <TableHead className="w-10" />}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {profiles.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center py-12 text-gray-400 text-sm">No people found</TableCell>
+            </TableRow>
+          ) : (
+            profiles.map((person) => {
+              const badgeClass = ROLE_BADGE[person.role] ?? ROLE_BADGE.staff
+              const roleLabel = ROLE_LABELS[person.role] ?? person.role
+              const manager = person.manager_id ? profileMap[person.manager_id] : null
+              const team = getTeamForProfile(person.id)
+              return (
+                <TableRow key={person.id} className="hover:bg-gray-50/60">
+                  {/* Person */}
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8 flex-shrink-0">
+                        <AvatarImage src={person.avatar_url ?? undefined} />
+                        <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(person.full_name)}`}>
+                          {getInitials(person.full_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 leading-none">{person.full_name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                          <Mail className="h-3 w-3 shrink-0" />
+                          <span className="truncate max-w-[160px]">{person.email}</span>
+                        </p>
+                        {person.is_temp_password && (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium mt-0.5 inline-block">
+                            Temp Password
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((person) => {
-                  const rc = ROLE_CONFIG[person.role] ?? ROLE_CONFIG.staff
-                  const manager = person.manager_id ? profileMap[person.manager_id] : null
-                  return (
-                    <TableRow key={person.id} className="hover:bg-gray-50/50">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8 flex-shrink-0">
-                            <AvatarImage src={person.avatar_url ?? undefined} />
-                            <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(person.full_name)}`}>
-                              {getInitials(person.full_name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-gray-900 leading-none">{person.full_name}</p>
-                            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-                              <Mail className="h-3 w-3 flex-shrink-0" />
-                              <span className="truncate max-w-[180px]">{person.email}</span>
-                            </p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full border', rc.badgeClass)}>
-                          {rc.label}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {manager ? (
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-5 w-5 flex-shrink-0">
-                              <AvatarImage src={manager.avatar_url ?? undefined} />
-                              <AvatarFallback className={`text-[8px] font-bold text-white ${avatarColor(manager.full_name)}`}>
-                                {getInitials(manager.full_name)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm text-gray-700">{manager.full_name}</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {person.custom_role ? (
-                          <Badge
-                            variant="outline"
-                            className="text-xs font-medium"
-                            style={{
-                              backgroundColor: person.custom_role.color + '18',
-                              color: person.custom_role.color,
-                              borderColor: person.custom_role.color + '40',
-                            }}
+
+                  {/* Role — inline edit for admin */}
+                  <TableCell>
+                    {isAdmin && person.role !== 'super_admin' ? (
+                      <Select
+                        value={person.role}
+                        onValueChange={(v) => handleInlineRoleChange(person, v)}
+                        disabled={isPending}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-[110px] border-0 bg-transparent p-0 focus:ring-0 hover:bg-gray-100 rounded px-2">
+                          <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full border', badgeClass)}>
+                            {roleLabel}
+                          </span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ROLE_OPTIONS.map((r) => (
+                            <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full border', badgeClass)}>
+                        {roleLabel}
+                      </span>
+                    )}
+                  </TableCell>
+
+                  {/* Reports To — inline edit for admin */}
+                  <TableCell>
+                    {isAdmin ? (
+                      <Select
+                        value={person.manager_id ?? '__none'}
+                        onValueChange={(v) => handleInlineManagerChange(person, v)}
+                        disabled={isPending}
+                      >
+                        <SelectTrigger className="h-7 text-xs border-0 bg-transparent p-0 focus:ring-0 hover:bg-gray-100 rounded px-2 min-w-[120px]">
+                          {manager ? (
+                            <div className="flex items-center gap-1.5">
+                              <Avatar className="h-5 w-5">
+                                <AvatarImage src={manager.avatar_url ?? undefined} />
+                                <AvatarFallback className={`text-[8px] font-bold text-white ${avatarColor(manager.full_name)}`}>
+                                  {getInitials(manager.full_name)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-xs text-gray-700 truncate max-w-[80px]">{manager.full_name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">Assign manager</span>
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none" className="text-xs">No manager</SelectItem>
+                          {allProfiles
+                            .filter((p) => p.id !== person.id)
+                            .map((p) => (
+                              <SelectItem key={p.id} value={p.id} className="text-xs">
+                                {p.full_name} — {ROLE_LABELS[p.role] ?? p.role}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    ) : manager ? (
+                      <div className="flex items-center gap-1.5">
+                        <Avatar className="h-5 w-5">
+                          <AvatarImage src={manager.avatar_url ?? undefined} />
+                          <AvatarFallback className={`text-[8px] font-bold text-white ${avatarColor(manager.full_name)}`}>
+                            {getInitials(manager.full_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-xs text-gray-700">{manager.full_name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </TableCell>
+
+                  {/* Team */}
+                  <TableCell>
+                    {team ? (
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: team.color || '#ec4899' }} />
+                        <span className="text-xs text-gray-700">{team.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </TableCell>
+
+                  {/* Job Title */}
+                  <TableCell>
+                    {person.custom_role ? (
+                      <Badge
+                        variant="outline"
+                        className="text-xs font-medium"
+                        style={{
+                          backgroundColor: person.custom_role.color + '18',
+                          color: person.custom_role.color,
+                          borderColor: person.custom_role.color + '40',
+                        }}
+                      >
+                        {person.custom_role.name}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </TableCell>
+
+                  {/* Joined */}
+                  <TableCell>
+                    <span className="text-xs text-gray-400">
+                      {person.created_at ? format(parseISO(person.created_at), 'MMM yyyy') : '—'}
+                    </span>
+                  </TableCell>
+
+                  {/* Actions */}
+                  {isAdmin && (
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-400 transition-colors">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onEdit(person)} className="gap-2">
+                            <Pencil className="h-3.5 w-3.5" />Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => onDelete(person)}
+                            className="gap-2 text-red-600 focus:text-red-600"
                           >
-                            {person.custom_role.name}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-xs text-gray-400">
-                          {format(parseISO(person.created_at), 'MMM yyyy')}
-                        </span>
-                      </TableCell>
-                      {isAdmin && (
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-400 transition-colors">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => onEdit(person)} className="gap-2">
-                                <Pencil className="h-3.5 w-3.5" />Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => onDelete(person)}
-                                className="gap-2 text-red-600 focus:text-red-600"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Teams Grid ─────────────────────────────────────────────────────────────────
-
-function TeamCard({
-  team, isAdmin, onClick, onEdit, onDelete,
-}: {
-  team: any; isAdmin: boolean
-  onClick: () => void; onEdit: () => void; onDelete: () => void
-}) {
-  const memberCount = team.members?.length ?? 0
-  const previewMembers = (team.members ?? []).slice(0, 4)
-  return (
-    <div
-      className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md hover:border-gray-300 transition-all cursor-pointer"
-      onClick={onClick}
-    >
-      <div className="h-1.5 w-12 rounded-full mb-4" style={{ backgroundColor: team.color || '#ec4899' }} />
-      <div className="flex items-start gap-3 mb-3">
-        <div
-          className="h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: team.color || '#ec4899' }}
-        >
-          <Users className="h-5 w-5 text-white" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-sm text-gray-900 group-hover:text-blue-600 transition-colors truncate">
-            {team.name}
-          </h3>
-          {team.description && <p className="text-xs text-gray-400 truncate mt-0.5">{team.description}</p>}
-        </div>
-        {isAdmin && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                onClick={(e) => e.stopPropagation()}
-                className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-400"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-              <DropdownMenuItem onClick={onEdit} className="gap-2">
-                <Pencil className="h-3.5 w-3.5" />Edit team
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onDelete} className="gap-2 text-red-600 focus:text-red-600">
-                <Trash2 className="h-3.5 w-3.5" />Delete team
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
-      <div className="flex items-center justify-between mt-2">
-        <div className="flex -space-x-1.5">
-          {previewMembers.map((m: any) => (
-            <Avatar key={m.id} className="h-6 w-6 border-2 border-white">
-              <AvatarImage src={m.profile?.avatar_url ?? undefined} />
-              <AvatarFallback className={`text-[9px] font-bold text-white ${avatarColor(m.profile?.full_name ?? 'U')}`}>
-                {getInitials(m.profile?.full_name ?? 'U')}
-              </AvatarFallback>
-            </Avatar>
-          ))}
-          {memberCount > 4 && (
-            <div className="h-6 w-6 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-[9px] font-semibold text-gray-600">
-              +{memberCount - 4}
-            </div>
+                            <Trash2 className="h-3.5 w-3.5" />Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  )}
+                </TableRow>
+              )
+            })
           )}
-        </div>
-        <span className="text-xs text-gray-400">{memberCount} member{memberCount !== 1 ? 's' : ''}</span>
-      </div>
-    </div>
-  )
-}
-
-function TeamsSection({
-  teams, isAdmin, onTeamClick, onEditTeam, onDeleteTeam, onCreateTeam,
-}: {
-  teams: any[]
-  isAdmin: boolean
-  onTeamClick: (id: string) => void
-  onEditTeam: (team: any) => void
-  onDeleteTeam: (team: any) => void
-  onCreateTeam: () => void
-}) {
-  const [search, setSearch] = useState('')
-  const filtered = teams.filter((t) => !search || t.name.toLowerCase().includes(search.toLowerCase()))
-
-  return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 flex-shrink-0">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search teams..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-      </div>
-      <div className="flex-1 overflow-auto p-6">
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 border border-dashed border-gray-200 rounded-2xl bg-gray-50">
-            <Users className="h-12 w-12 text-gray-200 mb-4" />
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">
-              {search ? 'No teams found' : 'No teams yet'}
-            </h3>
-            <p className="text-xs text-gray-400">{search ? 'Try a different search' : 'Create your first team to get started'}</p>
-            {!search && (
-              <Button size="sm" className="mt-4" onClick={onCreateTeam}>
-                <Plus className="h-4 w-4 mr-1" />Create team
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filtered.map((team) => (
-              <TeamCard
-                key={team.id}
-                team={team}
-                isAdmin={isAdmin}
-                onClick={() => onTeamClick(team.id)}
-                onEdit={() => onEditTeam(team)}
-                onDelete={() => onDeleteTeam(team)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+        </TableBody>
+      </Table>
     </div>
   )
 }
@@ -497,44 +453,31 @@ function TeamsSection({
 // ── Edit Person Dialog ─────────────────────────────────────────────────────────
 
 function EditPersonDialog({
-  person,
-  allProfiles,
-  open,
-  onClose,
+  person, allProfiles, open, onClose,
 }: {
-  person: Profile | null
-  allProfiles: Profile[]
-  open: boolean
-  onClose: () => void
+  person: Profile | null; allProfiles: Profile[]; open: boolean; onClose: () => void
 }) {
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
-  const [name, setName] = useState('')
-  const [role, setRole] = useState('staff')
-  const [managerId, setManagerId] = useState<string>('__none')
+  const [name, setName] = useState(person?.full_name ?? '')
+  const [role, setRole] = useState(person?.role ?? 'staff')
+  const [managerId, setManagerId] = useState(person?.manager_id ?? '__none')
 
-  useEffect(() => {
-    if (person) {
-      setName(person.full_name)
-      setRole(person.role)
-      setManagerId(person.manager_id ?? '__none')
-    }
-  }, [person?.id])
+  // Sync when person changes
+  const personKey = person?.id
+  useState(() => {
+    if (person) { setName(person.full_name); setRole(person.role); setManagerId(person.manager_id ?? '__none') }
+  })
 
   function handleSave() {
     if (!person) return
     startTransition(async () => {
       const result = await updatePersonAction(person.id, {
-        full_name: name.trim(),
-        role,
+        full_name: name.trim(), role,
         manager_id: managerId === '__none' ? null : managerId,
       })
-      if (result.success) {
-        toast({ title: 'Person updated' })
-        onClose()
-      } else {
-        toast({ title: 'Failed to update', description: result.error, variant: 'destructive' })
-      }
+      if (result.success) { toast({ title: 'Person updated' }); onClose() }
+      else toast({ title: 'Failed to update', description: result.error, variant: 'destructive' })
     })
   }
 
@@ -549,12 +492,10 @@ function EditPersonDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Role</Label>
-            <Select value={role} onValueChange={setRole}>
+            <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {ROLE_OPTIONS.map((r) => (
-                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                ))}
+                {ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -564,13 +505,11 @@ function EditPersonDialog({
               <SelectTrigger><SelectValue placeholder="No manager" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none">No manager</SelectItem>
-                {allProfiles
-                  .filter((p) => p.id !== person?.id)
-                  .map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.full_name} — {ROLE_CONFIG[p.role]?.label ?? p.role}
-                    </SelectItem>
-                  ))}
+                {allProfiles.filter((p) => p.id !== person?.id).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.full_name} — {ROLE_LABELS[p.role] ?? p.role}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -586,72 +525,151 @@ function EditPersonDialog({
   )
 }
 
-// ── Edit Team Dialog ───────────────────────────────────────────────────────────
+// ── Add Person Dialog ──────────────────────────────────────────────────────────
 
-const PRESET_COLORS = ['#ec4899', '#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ef4444']
+function generatePassword() {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#!'
+  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
 
-function EditTeamDialog({
-  team, open, onClose,
-}: { team: any | null; open: boolean; onClose: () => void }) {
+function AddPersonDialog({
+  open, onClose, allProfiles, teams,
+}: {
+  open: boolean; onClose: () => void; allProfiles: Profile[]; teams: any[]
+}) {
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [color, setColor] = useState('#ec4899')
+  const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
+  const [role, setRole] = useState('staff')
+  const [managerId, setManagerId] = useState('__none')
+  const [teamId, setTeamId] = useState('__none')
+  const [password, setPassword] = useState(() => generatePassword())
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (team) {
-      setName(team.name ?? '')
-      setDescription(team.description ?? '')
-      setColor(team.color ?? '#ec4899')
-    }
-  }, [team?.id])
+  function reset() {
+    setFullName(''); setEmail(''); setRole('staff'); setManagerId('__none'); setTeamId('__none')
+    setPassword(generatePassword()); setError(null)
+  }
 
-  function handleSave() {
-    if (!team) return
+  function handleClose() { reset(); onClose() }
+
+  function handleCreate() {
+    if (!fullName.trim() || !email.trim()) { setError('Name and email are required'); return }
+    setError(null)
     startTransition(async () => {
-      const result = await updateTeamAction(team.id, {
-        name: name.trim(), description: description.trim() || undefined, color,
+      const result = await createUserAction({ email: email.trim(), full_name: fullName.trim(), role, password })
+      if (!result.success) { setError(result.error ?? 'Failed to create user'); return }
+      const userId = result.userId!
+      // Set manager if selected
+      if (managerId !== '__none') {
+        await updatePersonAction(userId, { manager_id: managerId })
+      }
+      // Add to team if selected
+      if (teamId !== '__none') {
+        await addTeamMembersAction(teamId, [userId])
+      }
+      toast({
+        title: 'Person added',
+        description: `${fullName} was created. Temp password: ${password}`,
+        duration: 8000,
       })
-      if (result.success) { toast({ title: 'Team updated' }); onClose() }
-      else toast({ title: 'Failed to update', description: result.error, variant: 'destructive' })
+      handleClose()
     })
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader><DialogTitle>Edit team</DialogTitle></DialogHeader>
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center">
+              <Users className="h-4 w-4 text-blue-600" />
+            </div>
+            Add Person
+          </DialogTitle>
+        </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label>Team name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Description</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this team do?" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Color</Label>
-            <div className="flex gap-2">
-              {PRESET_COLORS.map((c) => (
-                <button key={c} type="button" onClick={() => setColor(c)}
-                  className="h-7 w-7 rounded-full transition-transform hover:scale-110 relative"
-                  style={{ backgroundColor: c }}>
-                  {color === c && (
-                    <span className="absolute inset-0 flex items-center justify-center">
-                      <span className="h-2 w-2 rounded-full bg-white" />
-                    </span>
-                  )}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">{error}</div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5 col-span-2">
+              <Label>Full Name *</Label>
+              <Input placeholder="e.g. Jane Smith" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label>Email *</Label>
+              <Input type="email" placeholder="jane@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Role</Label>
+              <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Reports To</Label>
+              <Select value={managerId} onValueChange={setManagerId}>
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">No manager</SelectItem>
+                  {allProfiles.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Team</Label>
+              <Select value={teamId} onValueChange={setTeamId}>
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">No team</SelectItem>
+                  {teams.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="flex items-center justify-between">
+                Password
+                <button
+                  type="button"
+                  className="text-xs text-blue-600 hover:underline"
+                  onClick={() => setPassword(generatePassword())}
+                >
+                  Regenerate
                 </button>
-              ))}
+              </Label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pr-9 font-mono text-xs"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setShowPassword((v) => !v)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
           </div>
+          <p className="text-xs text-gray-400">
+            The person will be prompted to change this password on first login.
+          </p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
-          <Button onClick={handleSave} disabled={isPending || !name.trim()}>
-            {isPending ? 'Saving…' : 'Save'}
+          <Button variant="outline" onClick={handleClose} disabled={isPending}>Cancel</Button>
+          <Button onClick={handleCreate} disabled={isPending || !fullName.trim() || !email.trim()}>
+            {isPending ? 'Creating…' : 'Create'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -659,183 +677,291 @@ function EditTeamDialog({
   )
 }
 
-// ── Main Hub ───────────────────────────────────────────────────────────────────
+// ── Main Component ─────────────────────────────────────────────────────────────
 
 export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
   const router = useRouter()
   const { toast } = useToast()
-  const [, startTransition] = useTransition()
-  const [activeSection, setActiveSection] = useState<Section>('org-chart')
-  const [showCreateTeam, setShowCreateTeam] = useState(false)
-  const [showAddPeople, setShowAddPeople] = useState(false)
-  const [editingPerson, setEditingPerson] = useState<Profile | null>(null)
-  const [deletingPerson, setDeletingPerson] = useState<Profile | null>(null)
-  const [editingTeam, setEditingTeam] = useState<any | null>(null)
-  const [deletingTeam, setDeletingTeam] = useState<any | null>(null)
-
   const isAdmin = profile.role === 'super_admin'
 
-  const navItems: { id: Section; label: string; icon: React.ElementType; count?: number }[] = [
-    { id: 'org-chart', label: 'Org Chart', icon: GitBranch },
-    { id: 'people',    label: 'People',    icon: User,  count: allProfiles.length },
-    { id: 'teams',     label: 'Teams',     icon: Users, count: teams.length },
-  ]
+  const [profiles, setProfiles] = useState<Profile[]>(allProfiles)
+  const [viewMode, setViewMode] = useState<'table' | 'orgchart'>('table')
+  const [search, setSearch] = useState('')
+  const [filterType, setFilterType] = useState<'all' | 'role' | 'team'>('all')
+  const [filterValue, setFilterValue] = useState<string>('')
+  const [editTarget, setEditTarget] = useState<Profile | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
+  const [showAddPerson, setShowAddPerson] = useState(false)
 
-  function handleDeletePerson() {
-    if (!deletingPerson) return
-    startTransition(async () => {
-      const result = await deleteUserAction(deletingPerson.id)
-      if (result.success) { toast({ title: 'Person deleted' }); setDeletingPerson(null) }
-      else toast({ title: 'Failed to delete', description: result.error, variant: 'destructive' })
-    })
+  // Role counts
+  const roleCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const p of profiles) counts[p.role] = (counts[p.role] ?? 0) + 1
+    return counts
+  }, [profiles])
+
+  // Team counts
+  const teamMemberCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const team of teams) counts[team.id] = team.members?.length ?? 0
+    return counts
+  }, [teams])
+
+  // Filtered profiles for right panel
+  const filteredProfiles = useMemo(() => {
+    let result = profiles
+    // Role/team filter from left panel
+    if (filterType === 'role' && filterValue) {
+      result = result.filter((p) => p.role === filterValue)
+    } else if (filterType === 'team' && filterValue) {
+      const teamMembers = new Set(
+        (teams.find((t) => t.id === filterValue)?.members ?? []).map((m: any) => m.user_id)
+      )
+      result = result.filter((p) => teamMembers.has(p.id))
+    }
+    // Search filter
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(
+        (p) => p.full_name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [profiles, filterType, filterValue, search, teams])
+
+  function setFilter(type: 'all' | 'role' | 'team', value = '') {
+    setFilterType(type)
+    setFilterValue(value)
+    setViewMode('table')
   }
 
-  function handleDeleteTeam() {
-    if (!deletingTeam) return
-    startTransition(async () => {
-      const result = await deleteTeamAction(deletingTeam.id)
-      if (result.success) { toast({ title: 'Team deleted' }); setDeletingTeam(null) }
-      else toast({ title: 'Failed to delete', description: result.error, variant: 'destructive' })
-    })
+  function handleEditClose() {
+    setEditTarget(null)
+    router.refresh()
+  }
+
+  function handleDeleteClose() {
+    setDeleteTarget(null)
   }
 
   return (
-    <div className="flex h-full -mx-6 -my-6">
-      {/* Left sidebar */}
-      <aside className="w-52 border-r border-gray-200 bg-gray-50/60 flex-shrink-0 flex flex-col pt-6 pb-4">
-        <div className="px-4 mb-3">
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Team</h2>
+    <div className="flex h-full overflow-hidden bg-gray-50">
+
+      {/* ── Left Panel ── */}
+      <div className="w-56 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
+        <div className="px-4 py-4 border-b border-gray-100">
+          <h1 className="text-base font-bold text-gray-900">Team & Access</h1>
+          <p className="text-xs text-gray-400 mt-0.5">{profiles.length} members</p>
         </div>
-        <nav className="flex-1 space-y-0.5 px-2">
-          {navItems.map((item) => {
-            const Icon = item.icon
-            const isActive = activeSection === item.id
+
+        <nav className="flex-1 px-2 py-3 space-y-0.5">
+          {/* All */}
+          <button
+            onClick={() => setFilter('all')}
+            className={cn(
+              'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
+              filterType === 'all'
+                ? 'bg-blue-50 text-blue-700 font-medium'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              All Members
+            </div>
+            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{profiles.length}</span>
+          </button>
+
+          {/* Role hierarchy */}
+          <div className="pt-3 pb-1 px-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">By Role</p>
+          </div>
+          {ROLE_HIERARCHY.map((r) => {
+            const count = roleCounts[r.role] ?? 0
+            if (count === 0) return null
+            const active = filterType === 'role' && filterValue === r.role
             return (
-              <button key={item.id} onClick={() => setActiveSection(item.id)}
+              <button
+                key={r.role}
+                onClick={() => setFilter('role', r.role)}
+                style={{ paddingLeft: `${(r.depth * 12) + 12}px` }}
                 className={cn(
-                  'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left',
-                  isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
-                )}>
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                <span className="flex-1">{item.label}</span>
-                {item.count !== undefined && (
-                  <span className="text-xs text-gray-400 font-normal">{item.count}</span>
+                  'w-full flex items-center justify-between gap-2 pr-3 py-1.5 rounded-lg text-sm transition-colors',
+                  active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
                 )}
+              >
+                <div className="flex items-center gap-2">
+                  {r.depth > 0 && <ChevronRight className="h-3 w-3 text-gray-300 shrink-0" />}
+                  <span className="text-gray-400">{r.icon}</span>
+                  <span className="text-xs">{r.label}</span>
+                </div>
+                <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full shrink-0">{count}</span>
               </button>
             )
           })}
+
+          {/* Teams section */}
+          {teams.length > 0 && (
+            <>
+              <div className="pt-3 pb-1 px-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Teams</p>
+              </div>
+              {teams.map((team) => {
+                const active = filterType === 'team' && filterValue === team.id
+                const count = teamMemberCounts[team.id] ?? 0
+                return (
+                  <button
+                    key={team.id}
+                    onClick={() => setFilter('team', team.id)}
+                    className={cn(
+                      'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
+                      active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: team.color || '#ec4899' }} />
+                      <span className="text-xs truncate">{team.name}</span>
+                    </div>
+                    <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full shrink-0">{count}</span>
+                  </button>
+                )
+              })}
+            </>
+          )}
         </nav>
-        <div className="px-2 mt-4 border-t border-gray-200 pt-4 space-y-1">
-          <button onClick={() => setShowCreateTeam(true)}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors">
-            <Plus className="h-4 w-4" />Create team
-          </button>
-          {isAdmin && (
-            <button onClick={() => setShowAddPeople(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
-              <UserPlus className="h-4 w-4" />Add person
-            </button>
+
+        {/* Bottom actions */}
+        {isAdmin && (
+          <div className="px-3 py-3 border-t border-gray-100 space-y-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2 text-xs text-gray-500 hover:text-gray-700 h-8"
+              onClick={() => setShowAddPerson(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />Add person
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Right Panel ── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top bar */}
+        <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3 flex-shrink-0">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search people…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9"
+            />
+          </div>
+
+          <div className="flex items-center gap-1 ml-auto">
+            {/* View toggle */}
+            <div className="flex items-center rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+              <button
+                onClick={() => setViewMode('table')}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors',
+                  viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                <LayoutList className="h-3.5 w-3.5" />Table
+              </button>
+              <button
+                onClick={() => setViewMode('orgchart')}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors',
+                  viewMode === 'orgchart' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                <GitBranch className="h-3.5 w-3.5" />Org Chart
+              </button>
+            </div>
+
+            {isAdmin && (
+              <Button size="sm" className="h-9 gap-1.5 ml-1" onClick={() => setShowAddPerson(true)}>
+                <Plus className="h-4 w-4" />Add Person
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-auto p-6">
+          {/* Active filter label */}
+          {(filterType !== 'all' || search) && (
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-sm text-gray-500">
+                Showing <strong>{filteredProfiles.length}</strong> {filteredProfiles.length === 1 ? 'person' : 'people'}
+                {filterType === 'role' && ` · ${ROLE_HIERARCHY.find((r) => r.role === filterValue)?.label ?? filterValue}`}
+                {filterType === 'team' && ` · ${teams.find((t) => t.id === filterValue)?.name ?? 'Team'}`}
+                {search && ` matching "${search}"`}
+              </span>
+              <button
+                onClick={() => { setFilter('all'); setSearch('') }}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+
+          {viewMode === 'table' ? (
+            <PeopleTable
+              profiles={filteredProfiles}
+              allProfiles={profiles}
+              teams={teams}
+              isAdmin={isAdmin}
+              onEdit={setEditTarget}
+              onDelete={setDeleteTarget}
+            />
+          ) : (
+            <OrgChartView profiles={filteredProfiles} />
           )}
         </div>
-      </aside>
+      </div>
 
-      {/* Main content */}
-      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white flex-shrink-0">
-          <div>
-            {activeSection === 'org-chart' && (
-              <>
-                <h1 className="text-lg font-bold text-gray-900">Org Chart</h1>
-                <p className="text-xs text-gray-400 mt-0.5">Visual hierarchy of your organization</p>
-              </>
-            )}
-            {activeSection === 'people' && (
-              <>
-                <h1 className="text-lg font-bold text-gray-900">People</h1>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {allProfiles.length} member{allProfiles.length !== 1 ? 's' : ''} in your organization
-                </p>
-              </>
-            )}
-            {activeSection === 'teams' && (
-              <>
-                <h1 className="text-lg font-bold text-gray-900">Teams</h1>
-                <p className="text-xs text-gray-400 mt-0.5">{teams.length} team{teams.length !== 1 ? 's' : ''}</p>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {activeSection === 'org-chart' && isAdmin && (
-              <Button variant="outline" size="sm" onClick={() => router.push('/settings')}>
-                Manage hierarchy <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            )}
-            {activeSection === 'people' && isAdmin && (
-              <Button size="sm" onClick={() => setShowAddPeople(true)}>
-                <UserPlus className="h-4 w-4 mr-2" />Add person
-              </Button>
-            )}
-            {activeSection === 'teams' && (
-              <Button size="sm" onClick={() => setShowCreateTeam(true)}>
-                <Plus className="h-4 w-4 mr-2" />Create team
-              </Button>
-            )}
-          </div>
-        </div>
+      {/* ── Dialogs ── */}
+      {editTarget && (
+        <EditPersonDialog
+          person={editTarget}
+          allProfiles={profiles}
+          open={!!editTarget}
+          onClose={handleEditClose}
+        />
+      )}
 
-        {activeSection === 'org-chart' && <OrgChartSection profiles={allProfiles} />}
-        {activeSection === 'people' && (
-          <PeopleSection
-            profiles={allProfiles}
-            isAdmin={isAdmin}
-            onEdit={setEditingPerson}
-            onDelete={setDeletingPerson}
-          />
-        )}
-        {activeSection === 'teams' && (
-          <TeamsSection
-            teams={teams}
-            isAdmin={isAdmin}
-            onTeamClick={(id) => router.push(`/team/${id}`)}
-            onEditTeam={setEditingTeam}
-            onDeleteTeam={setDeletingTeam}
-            onCreateTeam={() => setShowCreateTeam(true)}
-          />
-        )}
-      </main>
+      <AddPersonDialog
+        open={showAddPerson}
+        onClose={() => { setShowAddPerson(false); router.refresh() }}
+        allProfiles={profiles}
+        teams={teams}
+      />
 
-      {/* Dialogs */}
-      <CreateTeamDialog open={showCreateTeam} onClose={() => setShowCreateTeam(false)} allProfiles={allProfiles} currentUserId={profile.id} />
-      <CreateUserDialog open={showAddPeople} onOpenChange={(v) => setShowAddPeople(v)} />
-      <EditPersonDialog person={editingPerson} allProfiles={allProfiles} open={!!editingPerson} onClose={() => setEditingPerson(null)} />
-      <EditTeamDialog team={editingTeam} open={!!editingTeam} onClose={() => setEditingTeam(null)} />
-
-      <AlertDialog open={!!deletingPerson} onOpenChange={(v) => !v && setDeletingPerson(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deletingPerson?.full_name}?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove this person. This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeletePerson} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={!!deletingTeam} onOpenChange={(v) => !v && setDeletingTeam(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{deletingTeam?.name}"?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete the team and remove all members.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteTeam} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {deleteTarget && (
+        <SmartDeleteDialog
+          open={!!deleteTarget}
+          onOpenChange={(v) => !v && handleDeleteClose()}
+          entityType="staff"
+          entityName={deleteTarget.full_name}
+          entityId={deleteTarget.id}
+          onFetchImpact={() => getStaffDeleteImpact(deleteTarget.id)}
+          onConfirmDelete={async (opts) => {
+            const result = await deleteUserAction(deleteTarget.id, { reassignToUserId: opts.reassignToUserId })
+            if (!result.success) {
+              toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
+              return
+            }
+            toast({ title: 'Person deleted', description: `${deleteTarget.full_name} has been removed.` })
+            setProfiles((prev) => prev.filter((p) => p.id !== deleteTarget.id))
+            handleDeleteClose()
+          }}
+        />
+      )}
     </div>
   )
 }
