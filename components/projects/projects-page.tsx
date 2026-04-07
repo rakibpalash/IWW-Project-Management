@@ -73,6 +73,18 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
     setShowCreateDialog(false)
   }
 
+  function handleProjectUpdated(updated: Project) {
+    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+  }
+
+  function handleProjectDeleted(id: string) {
+    setProjects((prev) => prev.filter((p) => p.id !== id))
+  }
+
+  function handleProjectCloned(cloned: Project) {
+    setProjects((prev) => [cloned, ...prev])
+  }
+
   // Count projects by status for overview badges
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -253,13 +265,28 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
       ) : viewMode === 'grid' ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredProjects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <ProjectCard
+              key={project.id}
+              project={project}
+              isAdmin={isAdmin}
+              onUpdated={handleProjectUpdated}
+              onDeleted={handleProjectDeleted}
+              onCloned={handleProjectCloned}
+            />
           ))}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
           {filteredProjects.map((project) => (
-            <ProjectCard key={project.id} project={project} listMode />
+            <ProjectCard
+              key={project.id}
+              project={project}
+              listMode
+              isAdmin={isAdmin}
+              onUpdated={handleProjectUpdated}
+              onDeleted={handleProjectDeleted}
+              onCloned={handleProjectCloned}
+            />
           ))}
         </div>
       )}
