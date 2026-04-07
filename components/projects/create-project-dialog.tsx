@@ -39,7 +39,9 @@ import { Calendar } from '@/components/ui/calendar'
 import { CalendarIcon, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
-import { PROJECT_STATUSES, PRIORITIES } from '@/lib/constants'
+import { PRIORITIES } from '@/lib/constants'
+
+type TaskStatus = { slug: string; name: string; color: string }
 
 const formSchema = z.object({
   name: z.string().min(1, 'Project name is required').max(255),
@@ -47,7 +49,7 @@ const formSchema = z.object({
   client_id: z.string().optional(),
   start_date: z.date().optional(),
   due_date: z.date().optional(),
-  status: z.enum(['planning', 'in_progress', 'on_hold', 'completed', 'cancelled']),
+  status: z.string().min(1),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
   estimated_hours: z.coerce.number().min(0).optional().or(z.literal('')),
   description: z.string().max(2000).optional(),
@@ -72,6 +74,9 @@ export function CreateProjectDialog({
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [clients, setClients] = useState<Profile[]>([])
+  const [statuses, setStatuses] = useState<TaskStatus[]>([])
+  const [startOpen, setStartOpen] = useState(false)
+  const [dueOpen, setDueOpen] = useState(false)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -79,33 +84,42 @@ export function CreateProjectDialog({
       name: '',
       workspace_id: '',
       client_id: undefined,
-      status: 'planning',
+      status: '',
       priority: 'medium',
       description: '',
       estimated_hours: '',
     },
   })
 
-  // Load client-role users
   useEffect(() => {
     if (!open) return
+
     supabase
       .from('profiles')
       .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at')
       .eq('role', 'client')
       .order('full_name')
+      .then(({ data }) => setClients((data as Profile[]) ?? []))
+
+    supabase
+      .from('task_statuses')
+      .select('slug, name, color')
+      .eq('is_active', true)
+      .order('sort_order')
       .then(({ data }) => {
-        setClients((data as Profile[]) ?? [])
+        const list = (data as TaskStatus[]) ?? []
+        setStatuses(list)
+        // Set default status to first active status
+        if (list.length > 0 && !form.getValues('status')) {
+          form.setValue('status', list[0].slug)
+        }
       })
   }, [open])
 
   async function onSubmit(values: FormValues) {
     setLoading(true)
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
+      const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         toast({ title: 'Not authenticated', variant: 'destructive' })
         return
@@ -115,9 +129,7 @@ export function CreateProjectDialog({
         name: values.name,
         workspace_id: values.workspace_id,
         client_id: values.client_id || null,
-        start_date: values.start_date
-          ? format(values.start_date, 'yyyy-MM-dd')
-          : null,
+        start_date: values.start_date ? format(values.start_date, 'yyyy-MM-dd') : null,
         due_date: values.due_date ? format(values.due_date, 'yyyy-MM-dd') : null,
         status: values.status,
         priority: values.priority,
@@ -141,23 +153,12 @@ export function CreateProjectDialog({
         .single()
 
       if (error) {
-        toast({
-          title: 'Failed to create project',
-          description: error.message,
-          variant: 'destructive',
-        })
+        toast({ title: 'Failed to create project', description: error.message, variant: 'destructive' })
         return
       }
 
-      toast({
-        title: 'Project created',
-        description: `"${data.name}" has been created successfully.`,
-      })
-
-      if (onCreated) {
-        onCreated(data as Project)
-      }
-
+      toast({ title: 'Project created', description: `"${data.name}" has been created successfully.` })
+      onCreated?.(data as Project)
       form.reset()
       onOpenChange(false)
       router.push(`/projects/${data.id}`)
@@ -171,9 +172,7 @@ export function CreateProjectDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
-          <DialogDescription>
-            Fill in the details below to create a new project.
-          </DialogDescription>
+          <DialogDescription>Fill in the details below to create a new project.</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -208,9 +207,7 @@ export function CreateProjectDialog({
                     </FormControl>
                     <SelectContent>
                       {workspaces.map((w) => (
-                        <SelectItem key={w.id} value={w.id}>
-                          {w.name}
-                        </SelectItem>
+                        <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -238,9 +235,7 @@ export function CreateProjectDialog({
                     <SelectContent>
                       <SelectItem value="__none__">No client</SelectItem>
                       {clients.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.full_name} ({c.email})
-                        </SelectItem>
+                        <SelectItem key={c.id} value={c.id}>{c.full_name} ({c.email})</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -257,16 +252,19 @@ export function CreateProjectDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {PROJECT_STATUSES.map((s) => (
-                          <SelectItem key={s.value} value={s.value}>
-                            {s.label}
+                        {statuses.map((s) => (
+                          <SelectItem key={s.slug} value={s.slug}>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                              {s.name}
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -290,9 +288,7 @@ export function CreateProjectDialog({
                       </FormControl>
                       <SelectContent>
                         {PRIORITIES.map((p) => (
-                          <SelectItem key={p.value} value={p.value}>
-                            {p.label}
-                          </SelectItem>
+                          <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -310,15 +306,12 @@ export function CreateProjectDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Start Date</FormLabel>
-                    <Popover>
+                    <Popover open={startOpen} onOpenChange={setStartOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
                             variant="outline"
-                            className={cn(
-                              'w-full justify-start text-left font-normal',
-                              !field.value && 'text-muted-foreground'
-                            )}
+                            className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {field.value ? format(field.value, 'PPP') : 'Pick a date'}
@@ -329,7 +322,7 @@ export function CreateProjectDialog({
                         <Calendar
                           mode="single"
                           selected={field.value}
-                          onSelect={field.onChange}
+                          onSelect={(date) => { field.onChange(date); setStartOpen(false) }}
                           initialFocus
                         />
                       </PopoverContent>
@@ -345,15 +338,12 @@ export function CreateProjectDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Due Date</FormLabel>
-                    <Popover>
+                    <Popover open={dueOpen} onOpenChange={setDueOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
                             variant="outline"
-                            className={cn(
-                              'w-full justify-start text-left font-normal',
-                              !field.value && 'text-muted-foreground'
-                            )}
+                            className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {field.value ? format(field.value, 'PPP') : 'Pick a date'}
@@ -364,7 +354,7 @@ export function CreateProjectDialog({
                         <Calendar
                           mode="single"
                           selected={field.value}
-                          onSelect={field.onChange}
+                          onSelect={(date) => { field.onChange(date); setDueOpen(false) }}
                           initialFocus
                         />
                       </PopoverContent>
@@ -418,12 +408,7 @@ export function CreateProjectDialog({
             />
 
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={loading}
-              >
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
