@@ -65,7 +65,6 @@ const STAFF_NAV = [
   { href: '/timesheet', label: 'Timesheet', icon: 'Timer' },
   { href: '/attendance', label: 'Attendance', icon: 'Clock' },
   { href: '/leave', label: 'Leave', icon: 'CalendarDays' },
-  { href: '/skills', label: 'Skills', icon: 'Zap' },
 ]
 
 export const NAV_ITEMS: Record<string, { href: string; label: string; icon: string }[]> = {
@@ -77,7 +76,6 @@ export const NAV_ITEMS: Record<string, { href: string; label: string; icon: stri
     { href: '/timesheet', label: 'Timesheet', icon: 'Timer' },
     { href: '/attendance', label: 'Attendance', icon: 'Clock' },
     { href: '/leave', label: 'Leave', icon: 'CalendarDays' },
-    { href: '/skills', label: 'Skills', icon: 'Zap' },
     { href: '/team', label: 'Team', icon: 'Users' },
     { href: '/settings', label: 'Settings', icon: 'Settings' },
   ],

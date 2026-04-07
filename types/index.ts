@@ -158,27 +158,6 @@ export interface ActivityLog {
   user?: Profile
 }
 
-export interface Skill {
-  id: string
-  name: string
-  category: string
-  color: string
-  created_by: string | null
-  created_at: string
-}
-
-export type ProficiencyLevel = 1 | 2 | 3 | 4
-
-export interface ProfileSkill {
-  id: string
-  user_id: string
-  skill_id: string
-  proficiency: ProficiencyLevel
-  created_at: string
-  // joined
-  skill?: Skill
-  user?: Profile
-}
 
 export interface AttendanceRecord {
   id: string
