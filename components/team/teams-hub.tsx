@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useEffect, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Profile, CustomRole } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -1129,7 +1129,7 @@ function GroupDialog({
   const [isPending, startTransition] = useTransition()
 
   // Sync when reopened
-  useState(() => { setName(initialName); setColor(initialColor) })
+  useEffect(() => { if (open) { setName(initialName); setColor(initialColor) } }, [open, initialName, initialColor])
 
   function handleSave() {
     if (!name.trim()) return
