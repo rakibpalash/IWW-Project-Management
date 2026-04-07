@@ -37,10 +37,14 @@ import {
   Trash2,
   Loader2,
   ExternalLink,
+  ThumbsUp,
+  ThumbsDown,
+  DollarSign,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn, getInitials } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
+import { approveTimesheetEntryAction } from '@/app/actions/timesheet'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -384,7 +388,8 @@ export function TimesheetPage({
   allProfiles,
 }: TimesheetPageProps) {
   const { toast } = useToast()
-  const isAdmin = profile.role === 'super_admin'
+  const isAdmin = profile.role === 'super_admin' || profile.role === 'account_manager'
+  const canApprove = isAdmin || profile.role === 'project_manager'
   const [isPending, startTransition] = useTransition()
 
   // Entries state (refreshed when date range changes)
@@ -410,6 +415,19 @@ export function TimesheetPage({
   // Delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Approval
+  const handleApprove = async (entryId: string, action: 'approved' | 'rejected') => {
+    const result = await approveTimesheetEntryAction(entryId, action)
+    if (result.success) {
+      setEntries((prev) =>
+        prev.map((e) => e.id === entryId ? { ...e, approval_status: action, approved_by: profile.id } : e)
+      )
+      toast({ title: action === 'approved' ? 'Entry approved' : 'Entry rejected' })
+    } else {
+      toast({ title: 'Failed', description: result.error, variant: 'destructive' })
+    }
+  }
 
   // ── Fetch entries when date range changes ──
   const fetchEntries = useCallback(
@@ -577,6 +595,14 @@ export function TimesheetPage({
             <StatCard icon={Calendar} label="This Week" value={formatTotalMinutes(weekMinutes)} color="bg-violet-500" />
             <StatCard icon={Calendar} label="This Month" value={formatTotalMinutes(monthMinutes)} color="bg-orange-500" />
             <StatCard icon={Timer} label="Entries" value={String(filteredEntries.length)} color="bg-emerald-500" />
+            {canApprove && (
+              <StatCard
+                icon={ThumbsUp}
+                label="Pending Approval"
+                value={String(filteredEntries.filter((e) => e.approval_status === 'pending' && !e.is_running).length)}
+                color="bg-amber-500"
+              />
+            )}
           </div>
 
           {/* ─── Filters ─── */}
@@ -669,11 +695,12 @@ export function TimesheetPage({
                     </div>
 
                     {/* Column headers */}
-                    <div className="grid grid-cols-[1fr_180px_180px_120px_40px] gap-4 px-4 py-2 border-b border-gray-100">
+                    <div className="grid grid-cols-[1fr_160px_140px_100px_100px_40px] gap-3 px-4 py-2 border-b border-gray-100">
                       <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Task Title</span>
                       <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Added By</span>
                       <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Board</span>
-                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Time Recorded</span>
+                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide text-center">Status</span>
+                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Time</span>
                       <span />
                     </div>
 
@@ -685,8 +712,10 @@ export function TimesheetPage({
                           entry={entry}
                           tick={tick}
                           isAdmin={isAdmin}
+                          canApprove={canApprove}
                           currentUserId={profile.id}
                           onDelete={() => setDeleteId(entry.id)}
+                          onApprove={handleApprove}
                         />
                       ))}
                     </div>
@@ -725,18 +754,28 @@ export function TimesheetPage({
 
 // ─── Entry Row ────────────────────────────────────────────────────────────────
 
+const APPROVAL_BADGE: Record<string, string> = {
+  pending:  'bg-amber-100 text-amber-700 border-amber-200',
+  approved: 'bg-green-100 text-green-700 border-green-200',
+  rejected: 'bg-red-100 text-red-700 border-red-200',
+}
+
 function EntryRow({
   entry,
   tick,
   isAdmin,
+  canApprove,
   currentUserId,
   onDelete,
+  onApprove,
 }: {
   entry: TimesheetRow
   tick: number
   isAdmin: boolean
+  canApprove: boolean
   currentUserId: string
   onDelete: () => void
+  onApprove: (id: string, action: 'approved' | 'rejected') => void
 }) {
   const canDelete = isAdmin || entry.user_id === currentUserId
   const timeDisplay = entry.is_running
@@ -744,17 +783,24 @@ function EntryRow({
     : formatDuration(entry.duration_minutes)
 
   return (
-    <div className="grid grid-cols-[1fr_180px_180px_120px_40px] gap-4 px-4 py-3 items-center hover:bg-gray-50/60 transition-colors group">
+    <div className="grid grid-cols-[1fr_160px_140px_100px_100px_40px] gap-3 px-4 py-3 items-center hover:bg-gray-50/60 transition-colors group">
       {/* Task title */}
       <div className="min-w-0">
-        <Link
-          href={`/tasks/${entry.task_id}`}
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-800 hover:text-blue-600 hover:underline truncate max-w-full group/link"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span className="truncate">{entry.task_title}</span>
-          <ExternalLink className="h-3 w-3 shrink-0 opacity-0 group-hover/link:opacity-100 transition-opacity" />
-        </Link>
+        <div className="flex items-center gap-1.5">
+          <Link
+            href={`/tasks/${entry.task_id}`}
+            className="inline-flex items-center gap-1 text-sm font-medium text-gray-800 hover:text-blue-600 hover:underline truncate group/link"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="truncate">{entry.task_title}</span>
+            <ExternalLink className="h-3 w-3 shrink-0 opacity-0 group-hover/link:opacity-100 transition-opacity" />
+          </Link>
+          {entry.is_billable && (
+            <span title="Billable">
+              <DollarSign className="h-3 w-3 text-emerald-500 shrink-0" />
+            </span>
+          )}
+        </div>
         {entry.description && (
           <p className="text-xs text-gray-400 truncate mt-0.5">{entry.description}</p>
         )}
@@ -775,6 +821,18 @@ function EntryRow({
         <span className="text-sm text-gray-600 truncate block">{entry.project_name}</span>
       </div>
 
+      {/* Approval status */}
+      <div className="flex justify-center">
+        {!entry.is_running && (
+          <span className={cn(
+            'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium capitalize',
+            APPROVAL_BADGE[entry.approval_status] ?? APPROVAL_BADGE.pending
+          )}>
+            {entry.approval_status}
+          </span>
+        )}
+      </div>
+
       {/* Time */}
       <div className="flex justify-end">
         {entry.is_running ? (
@@ -791,7 +849,7 @@ function EntryRow({
 
       {/* Actions */}
       <div className="flex justify-end">
-        {canDelete && (
+        {(canDelete || canApprove) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -803,13 +861,33 @@ function EntryRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                className="text-red-600 focus:text-red-600"
-                onClick={onDelete}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete entry
-              </DropdownMenuItem>
+              {canApprove && !entry.is_running && entry.approval_status !== 'approved' && (
+                <DropdownMenuItem
+                  className="text-green-600 focus:text-green-600"
+                  onClick={() => onApprove(entry.id, 'approved')}
+                >
+                  <ThumbsUp className="h-4 w-4 mr-2" />
+                  Approve
+                </DropdownMenuItem>
+              )}
+              {canApprove && !entry.is_running && entry.approval_status !== 'rejected' && (
+                <DropdownMenuItem
+                  className="text-amber-600 focus:text-amber-600"
+                  onClick={() => onApprove(entry.id, 'rejected')}
+                >
+                  <ThumbsDown className="h-4 w-4 mr-2" />
+                  Reject
+                </DropdownMenuItem>
+              )}
+              {canDelete && (
+                <DropdownMenuItem
+                  className="text-red-600 focus:text-red-600"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete entry
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}

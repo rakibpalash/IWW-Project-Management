@@ -3,6 +3,8 @@ export type Role = 'super_admin' | 'account_manager' | 'project_manager' | 'staf
 export type ProjectStatus = 'planning' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled'
 export type Priority = 'low' | 'medium' | 'high' | 'urgent'
 export type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled'
+export type BillingType = 'hourly' | 'fixed' | 'retainer' | 'non_billable'
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type AttendanceStatus = 'on_time' | 'late_150' | 'late_250' | 'absent' | 'advance_absence'
 export type AppliedRule = 'general' | 'friday' | 'football' | 'holiday'
 export type DayType = 'sunday' | 'friday' | 'general'
@@ -55,6 +57,9 @@ export interface Project {
   name: string
   description: string | null
   client_id: string | null
+  partner_id: string | null
+  is_internal: boolean
+  billing_type: BillingType | null
   start_date: string | null
   due_date: string | null
   status: ProjectStatus
@@ -67,6 +72,7 @@ export interface Project {
   // joined
   workspace?: Workspace
   client?: Profile
+  partner?: Profile
   actual_hours?: number
 }
 
@@ -81,6 +87,7 @@ export interface Task {
   estimated_hours: number | null
   priority: Priority
   status: TaskStatus
+  billable: boolean
   created_by: string
   created_at: string
   updated_at: string
@@ -130,6 +137,10 @@ export interface TimeEntry {
   ended_at: string | null
   duration_minutes: number | null
   is_running: boolean
+  is_billable: boolean
+  approval_status: ApprovalStatus
+  approved_by: string | null
+  approved_at: string | null
   created_at: string
   updated_at: string
   // joined
