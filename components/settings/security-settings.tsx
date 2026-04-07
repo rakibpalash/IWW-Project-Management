@@ -161,7 +161,7 @@ export function SecuritySettingsPage({ profile }: SecuritySettingsPageProps) {
                     <div
                       key={i}
                       className={`flex-1 rounded-full transition-colors ${
-                        i <= strength.score ? strength.color : 'bg-gray-200'
+                        i <= strength.score ? strength.color : 'bg-muted'
                       }`}
                     />
                   ))}
@@ -216,7 +216,7 @@ export function SecuritySettingsPage({ profile }: SecuritySettingsPageProps) {
             )}
           </div>
 
-          <div className="rounded-lg bg-gray-50 p-3 space-y-1">
+          <div className="rounded-lg bg-muted/30 p-3 space-y-1">
             <p className="text-xs font-medium text-muted-foreground">Password requirements:</p>
             <ul className="text-xs text-muted-foreground space-y-0.5">
               <li className={newPassword.length >= 8 ? 'text-green-600' : ''}>

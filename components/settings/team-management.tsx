@@ -51,7 +51,7 @@ const ROLE_CONFIG: Record<string, { label: string; badgeClass: string; icon: Rea
   account_manager: { label: 'Org Admin',   badgeClass: 'bg-purple-100 text-purple-700 border-purple-200',   icon: Shield },
   project_manager: { label: 'Team Lead',   badgeClass: 'bg-blue-100 text-blue-700 border-blue-200',         icon: Briefcase },
   staff:           { label: 'Staff',       badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: User },
-  client:          { label: 'Client',      badgeClass: 'bg-gray-100 text-gray-600 border-gray-200',         icon: Briefcase },
+  client:          { label: 'Client',      badgeClass: 'bg-muted text-muted-foreground border-border',         icon: Briefcase },
 }
 
 const ROLE_OPTIONS = [
@@ -176,12 +176,12 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
       <div className="rounded-xl border overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-gray-50">
-              <TableHead className="text-xs font-semibold text-gray-600">User</TableHead>
-              <TableHead className="text-xs font-semibold text-gray-600">Role</TableHead>
-              <TableHead className="text-xs font-semibold text-gray-600">Reports To</TableHead>
-              <TableHead className="text-xs font-semibold text-gray-600">Job Title</TableHead>
-              <TableHead className="text-xs font-semibold text-gray-600">Workspaces</TableHead>
+            <TableRow className="bg-muted/30">
+              <TableHead className="text-xs font-semibold text-muted-foreground">User</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground">Role</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground">Reports To</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground">Job Title</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground">Workspaces</TableHead>
               <TableHead className="w-[50px]" />
             </TableRow>
           </TableHeader>
@@ -203,7 +203,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                 const manager = user.manager_id ? users.find((u) => u.id === user.manager_id) : null
 
                 return (
-                  <TableRow key={user.id} className="hover:bg-gray-50/50">
+                  <TableRow key={user.id} className="hover:bg-muted/30/50">
                     {/* User */}
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -248,7 +248,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                                       {getInitials(manager.full_name)}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <span className="text-xs text-gray-700">{manager.full_name}</span>
+                                  <span className="text-xs text-foreground/80">{manager.full_name}</span>
                                 </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">Assign manager</span>
@@ -281,7 +281,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                                     </AvatarFallback>
                                   </Avatar>
                                   <span className="flex-1 truncate">{u.full_name}</span>
-                                  <span className="text-[10px] text-gray-400">{ROLE_CONFIG[u.role]?.label}</span>
+                                  <span className="text-[10px] text-muted-foreground/70">{ROLE_CONFIG[u.role]?.label}</span>
                                 </DropdownMenuItem>
                               ))}
                           </DropdownMenuContent>

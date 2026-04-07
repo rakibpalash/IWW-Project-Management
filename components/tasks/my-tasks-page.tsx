@@ -140,9 +140,9 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
   const doneCount = tasks.filter((t) => t.status === 'done').length
 
   return (
-    <div className="space-y-6">
+    <div className="page-inner">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="page-header">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">My Tasks</h1>
           <p className="text-muted-foreground text-sm mt-1">

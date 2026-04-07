@@ -200,7 +200,7 @@ export function ApplyLeaveDialog({ open, onOpenChange, balance }: ApplyLeaveDial
               </Select>
 
               {/* Balance summary row */}
-              <div className="grid grid-cols-3 gap-2 rounded-md border bg-gray-50 px-3 py-2 text-center text-xs">
+              <div className="grid grid-cols-3 gap-2 rounded-md border bg-muted/30 px-3 py-2 text-center text-xs">
                 <div>
                   <p className="font-semibold text-foreground">{total}</p>
                   <p className="text-muted-foreground">Total</p>
@@ -247,7 +247,7 @@ export function ApplyLeaveDialog({ open, onOpenChange, balance }: ApplyLeaveDial
             </div>
 
             {totalDays > 0 && (
-              <div className={`flex items-center gap-2 rounded-md px-3 py-2 ${isOverBalance ? 'bg-red-50' : 'bg-gray-50'}`}>
+              <div className={`flex items-center gap-2 rounded-md px-3 py-2 ${isOverBalance ? 'bg-red-50' : 'bg-muted/30'}`}>
                 <span className="text-sm text-muted-foreground">Working days:</span>
                 <Badge variant={isOverBalance ? 'destructive' : 'secondary'}>
                   {totalDays} day{totalDays !== 1 ? 's' : ''}

@@ -31,7 +31,7 @@ export function WorkspaceCard({
   onDelete,
 }: WorkspaceCardProps) {
   return (
-    <div className="group relative w-full rounded-xl border border-gray-200 bg-white shadow-sm text-left transition-all hover:border-blue-200 hover:shadow-md">
+    <div className="group relative w-full rounded-xl border border-border bg-card shadow-sm text-left transition-all hover:border-blue-200 hover:shadow-md">
       {/* Clickable main area */}
       <button
         onClick={onClick}
@@ -43,27 +43,27 @@ export function WorkspaceCard({
               <Building2 className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h3 className="truncate font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">
+              <h3 className="truncate font-semibold text-foreground group-hover:text-blue-700 transition-colors">
                 {workspace.name}
               </h3>
               {workspace.description && (
-                <p className="mt-0.5 truncate text-sm text-gray-500">{workspace.description}</p>
+                <p className="mt-0.5 truncate text-sm text-muted-foreground">{workspace.description}</p>
               )}
             </div>
           </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-gray-400 transition-transform group-hover:translate-x-0.5 group-hover:text-blue-500 mt-1 mr-7" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/70 transition-transform group-hover:translate-x-0.5 group-hover:text-blue-500 mt-1 mr-7" />
         </div>
 
-        <div className="mt-4 flex items-center gap-4 border-t border-gray-50 pt-4">
-          <div className="flex items-center gap-1.5 text-sm text-gray-500">
-            <Users className="h-4 w-4 text-gray-400" />
+        <div className="mt-4 flex items-center gap-4 border-t border-border/50 pt-4">
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Users className="h-4 w-4 text-muted-foreground/70" />
             <span>{workspace.member_count} member{workspace.member_count !== 1 ? 's' : ''}</span>
           </div>
-          <div className="flex items-center gap-1.5 text-sm text-gray-500">
-            <FolderKanban className="h-4 w-4 text-gray-400" />
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <FolderKanban className="h-4 w-4 text-muted-foreground/70" />
             <span>{workspace.project_count} project{workspace.project_count !== 1 ? 's' : ''}</span>
           </div>
-          <div className="ml-auto text-xs text-gray-400">
+          <div className="ml-auto text-xs text-muted-foreground/70">
             Created {formatDate(workspace.created_at)}
           </div>
         </div>
@@ -76,7 +76,7 @@ export function WorkspaceCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-gray-400 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+              className="h-7 w-7 text-muted-foreground/70 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
               onClick={(e) => e.stopPropagation()}
             >
               <MoreHorizontal className="h-4 w-4" />

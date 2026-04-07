@@ -27,12 +27,12 @@ function getDayColor(
   const isFuture = day > today
   const weekend = isWeekend(day)
 
-  if (weekend) return 'bg-gray-100 text-gray-400 cursor-default'
-  if (isFuture && !isToday) return 'bg-gray-50 text-gray-300 cursor-default'
+  if (weekend) return 'bg-muted text-muted-foreground/70 cursor-default'
+  if (isFuture && !isToday) return 'bg-muted/30 text-gray-300 cursor-default'
 
   if (!record) {
     if (isToday) return 'bg-blue-100 text-blue-700 ring-2 ring-blue-400 ring-offset-1'
-    return 'bg-gray-50 text-gray-400 cursor-default'
+    return 'bg-muted/30 text-muted-foreground/70 cursor-default'
   }
 
   const colorMap: Record<string, string> = {
@@ -43,7 +43,7 @@ function getDayColor(
     advance_absence: 'bg-purple-500 text-white',
   }
 
-  const base = colorMap[record.status] ?? 'bg-gray-200 text-gray-700'
+  const base = colorMap[record.status] ?? 'bg-muted text-foreground/80'
   return isToday ? `${base} ring-2 ring-blue-400 ring-offset-1` : base
 }
 

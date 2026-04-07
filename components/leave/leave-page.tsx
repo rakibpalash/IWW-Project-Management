@@ -200,8 +200,8 @@ function AdminView({
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-gray-50 p-2">
-                <FileText className="h-5 w-5 text-gray-600" />
+              <div className="rounded-lg bg-muted/30 p-2">
+                <FileText className="h-5 w-5 text-muted-foreground" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{allRequests.length}</p>
@@ -229,7 +229,7 @@ function AdminView({
         {/* Pending Tab */}
         <TabsContent value="pending" className="space-y-4">
           {pendingRequests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border rounded-lg bg-gray-50">
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border rounded-lg bg-muted/30">
               <Clock className="h-8 w-8 mb-2 opacity-40" />
               <p className="text-sm">No pending requests</p>
             </div>
@@ -295,7 +295,7 @@ function AdminView({
           <div className="rounded-md border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50">
+                <TableRow className="bg-muted/30">
                   <TableHead>Employee</TableHead>
                   <TableHead className="text-center">Annual (Used/Total)</TableHead>
                   <TableHead className="text-center">WFH (Used/Total)</TableHead>

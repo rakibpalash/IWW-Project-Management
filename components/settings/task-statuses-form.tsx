@@ -226,7 +226,7 @@ export function TaskStatusesForm({ initialStatuses }: Props) {
                 <Badge className="text-xs bg-green-100 text-green-700 border-green-200">Done</Badge>
               )}
               {!s.counts_toward_progress && (
-                <Badge className="text-xs bg-gray-100 text-gray-600 border-gray-200">No Progress</Badge>
+                <Badge className="text-xs bg-muted text-muted-foreground border-border">No Progress</Badge>
               )}
               {!s.is_active && (
                 <Badge className="text-xs bg-red-100 text-red-600 border-red-200">Inactive</Badge>

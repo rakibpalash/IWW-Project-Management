@@ -58,7 +58,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-yellow-100 text-yellow-700' },
   approved: { label: 'Approved', className: 'bg-green-100 text-green-700' },
   rejected: { label: 'Rejected', className: 'bg-red-100 text-red-700' },
-  cancelled: { label: 'Cancelled', className: 'bg-gray-100 text-gray-700' },
+  cancelled: { label: 'Cancelled', className: 'bg-muted text-foreground/80' },
 }
 
 function getInitials(name: string): string {
@@ -104,7 +104,7 @@ export function LeaveRequestsTable({
       <div className="rounded-md border overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-gray-50">
+            <TableRow className="bg-muted/30">
               {isAdmin && <TableHead>Employee</TableHead>}
               <TableHead>Type</TableHead>
               <TableHead>Dates</TableHead>
@@ -142,7 +142,7 @@ export function LeaveRequestsTable({
                   )}
                   <TableCell>
                     <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${leaveTypeBadgeVariant[req.leave_type] ?? 'bg-gray-100 text-gray-700'}`}
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${leaveTypeBadgeVariant[req.leave_type] ?? 'bg-muted text-foreground/80'}`}
                     >
                       {leaveTypeLabels[req.leave_type] ?? req.leave_type}
                     </span>

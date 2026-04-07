@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useTheme } from 'next-themes'
 import {
   Menu,
   Search,
@@ -10,7 +11,9 @@ import {
   LogOut,
   User,
   Settings,
-  ChevronDown,
+  Sun,
+  Moon,
+  ChevronRight,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/types'
@@ -29,44 +32,63 @@ import { useNotifications } from '@/hooks/use-notifications'
 import { useUIStore } from '@/store/ui-store'
 import { cn } from '@/lib/utils'
 
+const BREADCRUMB_MAP: Record<string, string> = {
+  dashboard:     'Dashboard',
+  workspaces:    'Workspaces',
+  projects:      'Projects',
+  tasks:         'My Tasks',
+  attendance:    'Attendance',
+  leave:         'Leave',
+  team:          'Team & Access',
+  settings:      'Settings',
+  notifications: 'Notifications',
+  timesheet:     'Timesheet',
+}
+
+function getInitials(name: string) {
+  return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
+}
+
+function Breadcrumb({ pathname }: { pathname: string }) {
+  const segments = pathname.split('/').filter(Boolean)
+  const crumbs = segments.map((seg, i) => {
+    const label = BREADCRUMB_MAP[seg] ?? (seg.length === 36 ? '…' : seg.charAt(0).toUpperCase() + seg.slice(1))
+    const href = '/' + segments.slice(0, i + 1).join('/')
+    return { label, href }
+  })
+
+  if (crumbs.length === 0) return null
+
+  return (
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-sm min-w-0">
+      {crumbs.map((crumb, i) => (
+        <span key={crumb.href} className="flex items-center gap-1 min-w-0">
+          {i > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />}
+          {i === crumbs.length - 1 ? (
+            <span className="font-semibold text-foreground truncate">{crumb.label}</span>
+          ) : (
+            <Link
+              href={crumb.href}
+              className="text-muted-foreground hover:text-foreground transition-colors truncate"
+            >
+              {crumb.label}
+            </Link>
+          )}
+        </span>
+      ))}
+    </nav>
+  )
+}
+
 interface TopbarProps {
   profile: Profile
   onMobileMenuToggle: () => void
 }
 
-/**
- * Derives a readable page title from the current pathname.
- * e.g. /projects/abc → "Projects"
- */
-function getPageTitle(pathname: string): string {
-  const segment = pathname.split('/').filter(Boolean)[0] ?? 'dashboard'
-  const titles: Record<string, string> = {
-    dashboard: 'Dashboard',
-    workspaces: 'Workspaces',
-    projects: 'Projects',
-    tasks: 'My Tasks',
-    attendance: 'Attendance',
-    leave: 'Leave',
-    team: 'Team',
-    settings: 'Settings',
-    notifications: 'Notifications',
-  }
-  return titles[segment] ?? segment.charAt(0).toUpperCase() + segment.slice(1)
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
-}
-
 export function Topbar({ profile, onMobileMenuToggle }: TopbarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const pageTitle = getPageTitle(pathname)
+  const { theme, setTheme } = useTheme()
   const { unreadCount } = useNotifications()
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen)
 
@@ -77,56 +99,67 @@ export function Topbar({ profile, onMobileMenuToggle }: TopbarProps) {
     router.refresh()
   }, [router])
 
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
+
   return (
-    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-background px-4 md:px-6">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-3 md:px-5">
       {/* Mobile hamburger */}
       <Button
         variant="ghost"
         size="icon"
-        className="lg:hidden text-muted-foreground hover:text-foreground"
+        className="h-8 w-8 lg:hidden text-muted-foreground hover:text-foreground"
         onClick={onMobileMenuToggle}
         aria-label="Open navigation menu"
       >
-        <Menu className="h-5 w-5" />
+        <Menu className="h-4 w-4" />
       </Button>
 
-      {/* Page title */}
-      <h1 className="flex-1 truncate text-lg font-semibold text-foreground">
-        {pageTitle}
-      </h1>
+      {/* Breadcrumb */}
+      <div className="flex-1 min-w-0">
+        <Breadcrumb pathname={pathname} />
+      </div>
 
-      {/* Right-side actions */}
-      <div className="flex items-center gap-1">
-        {/* Search button */}
+      {/* Right actions */}
+      <div className="flex items-center gap-0.5">
+        {/* Search */}
         <Button
           variant="ghost"
           size="icon"
-          className="text-muted-foreground hover:text-foreground"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
           aria-label="Search (⌘K)"
           onClick={() => setCommandPaletteOpen(true)}
         >
-          <Search className="h-5 w-5" />
+          <Search className="h-4 w-4" />
         </Button>
 
-        {/* Notifications bell */}
+        {/* Dark / Light toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          aria-label="Toggle theme"
+          onClick={toggleTheme}
+        >
+          <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+        </Button>
+
+        {/* Notifications */}
         <Link href="/notifications" aria-label="Notifications">
           <Button
             variant="ghost"
             size="icon"
-            className="relative text-muted-foreground hover:text-foreground"
+            className="relative h-8 w-8 text-muted-foreground hover:text-foreground"
             asChild={false}
           >
-            <Bell className="h-5 w-5" />
+            <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
-              <span
-                className={cn(
-                  'absolute right-1.5 top-1.5 flex items-center justify-center',
-                  'rounded-full bg-destructive text-destructive-foreground',
-                  'text-[10px] font-bold leading-none',
-                  unreadCount > 9 ? 'h-4 w-4 text-[9px]' : 'h-4 w-4',
-                )}
-              >
-                {unreadCount > 99 ? '99+' : unreadCount}
+              <span className={cn(
+                'absolute right-1 top-1 flex h-3.5 w-3.5 items-center justify-center',
+                'rounded-full bg-destructive text-destructive-foreground',
+                'text-[9px] font-bold leading-none',
+              )}>
+                {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
           </Button>
@@ -135,42 +168,45 @@ export function Topbar({ profile, onMobileMenuToggle }: TopbarProps) {
         {/* User dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <Avatar className="h-7 w-7 shrink-0">
+            <button className="ml-1 flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Avatar className="h-6 w-6 shrink-0">
                 <AvatarImage src={profile.avatar_url ?? undefined} alt={profile.full_name} />
-                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
                   {getInitials(profile.full_name)}
                 </AvatarFallback>
               </Avatar>
-              <span className="hidden md:block max-w-[140px] truncate font-medium text-foreground">
-                {profile.full_name}
+              <span className="hidden md:block max-w-[120px] truncate text-[13px] font-medium text-foreground">
+                {profile.full_name.split(' ')[0]}
               </span>
-              <ChevronDown className="hidden md:block h-4 w-4 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{profile.full_name}</p>
-                <p className="text-xs leading-none text-muted-foreground truncate">
-                  {profile.email}
-                </p>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuLabel className="font-normal py-2">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm font-semibold leading-none">{profile.full_name}</p>
+                <p className="text-xs text-muted-foreground truncate mt-0.5">{profile.email}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
                 <Link href="/settings/profile" className="cursor-pointer">
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
+                  <User className="mr-2 h-3.5 w-3.5" />
+                  Profile
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/settings" className="cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
+                  <Settings className="mr-2 h-3.5 w-3.5" />
+                  Settings
                 </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={toggleTheme} className="cursor-pointer">
+                {theme === 'dark'
+                  ? <><Sun className="mr-2 h-3.5 w-3.5" />Light mode</>
+                  : <><Moon className="mr-2 h-3.5 w-3.5" />Dark mode</>
+                }
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
@@ -178,8 +214,8 @@ export function Topbar({ profile, onMobileMenuToggle }: TopbarProps) {
               className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
               onClick={handleSignOut}
             >
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Sign out</span>
+              <LogOut className="mr-2 h-3.5 w-3.5" />
+              Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -63,7 +63,7 @@ function getNotificationIconColor(type: Notification['type']): string {
     case 'status_changed':
       return 'bg-yellow-100 text-yellow-600'
     default:
-      return 'bg-gray-100 text-gray-600'
+      return 'bg-muted text-muted-foreground'
   }
 }
 

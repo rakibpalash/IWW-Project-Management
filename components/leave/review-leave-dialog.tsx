@@ -147,7 +147,7 @@ export function ReviewLeaveDialog({ request, open, onOpenChange }: ReviewLeaveDi
                 className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors ${
                   action === 'approve'
                     ? 'border-green-500 bg-green-50 text-green-700'
-                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                    : 'border-border text-muted-foreground hover:bg-muted/30'
                 }`}
               >
                 <CheckCircle2 className="h-4 w-4" />
@@ -159,7 +159,7 @@ export function ReviewLeaveDialog({ request, open, onOpenChange }: ReviewLeaveDi
                 className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors ${
                   action === 'reject'
                     ? 'border-red-500 bg-red-50 text-red-700'
-                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                    : 'border-border text-muted-foreground hover:bg-muted/30'
                 }`}
               >
                 <XCircle className="h-4 w-4" />

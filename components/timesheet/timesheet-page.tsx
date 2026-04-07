@@ -159,13 +159,13 @@ function StatCard({ icon: Icon, label, value, color }: {
   color: string
 }) {
   return (
-    <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 flex-1 min-w-0">
+    <div className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3 flex-1 min-w-0">
       <div className={cn('h-9 w-9 rounded-lg flex items-center justify-center shrink-0', color)}>
         <Icon className="h-4 w-4 text-white" />
       </div>
       <div className="min-w-0">
-        <p className="text-xs text-gray-500 truncate">{label}</p>
-        <p className="text-base font-semibold text-gray-900 truncate">{value}</p>
+        <p className="text-xs text-muted-foreground truncate">{label}</p>
+        <p className="text-base font-semibold text-foreground truncate">{value}</p>
       </div>
     </div>
   )
@@ -203,19 +203,19 @@ function BoardFilter({
       <PopoverTrigger asChild>
         <Button variant="outline" className="gap-2 h-9 text-sm font-medium min-w-[130px] justify-between">
           <span className="truncate">{label}</span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <div className="flex items-center justify-between px-3 pt-3 pb-2">
-          <span className="text-sm font-semibold text-gray-800">Boards</span>
+          <span className="text-sm font-semibold text-foreground">Boards</span>
           <Button size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
             Done
           </Button>
         </div>
         <div className="px-2 pb-2">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
             <Input
               placeholder="Search for Boards"
               value={search}
@@ -229,15 +229,15 @@ function BoardFilter({
           <button
             type="button"
             onClick={() => onChange([])}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/30 transition-colors"
           >
             <div className={cn(
               'h-4 w-4 rounded border-2 flex items-center justify-center',
-              allSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300',
+              allSelected ? 'bg-blue-600 border-blue-600' : 'border-border',
             )}>
               {allSelected && <Check className="h-2.5 w-2.5 text-white" />}
             </div>
-            <span className="text-gray-700">All Boards</span>
+            <span className="text-foreground/80">All Boards</span>
           </button>
           {filtered.map((p) => {
             const checked = selected.includes(p.id)
@@ -246,20 +246,20 @@ function BoardFilter({
                 key={p.id}
                 type="button"
                 onClick={() => toggle(p.id)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/30 transition-colors"
               >
                 <div className={cn(
                   'h-4 w-4 rounded border-2 flex items-center justify-center shrink-0',
-                  checked ? 'bg-blue-600 border-blue-600' : 'border-gray-300',
+                  checked ? 'bg-blue-600 border-blue-600' : 'border-border',
                 )}>
                   {checked && <Check className="h-2.5 w-2.5 text-white" />}
                 </div>
-                <span className="text-gray-700 truncate">{p.name}</span>
+                <span className="text-foreground/80 truncate">{p.name}</span>
               </button>
             )
           })}
           {filtered.length === 0 && (
-            <p className="text-xs text-gray-400 text-center py-3">No boards found</p>
+            <p className="text-xs text-muted-foreground/70 text-center py-3">No boards found</p>
           )}
         </div>
       </PopoverContent>
@@ -298,21 +298,21 @@ function PeopleFilter({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" className="gap-2 h-9 text-sm font-medium min-w-[130px] justify-between">
-          <Users className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
           <span className="truncate flex-1 text-left">{label}</span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <div className="flex items-center justify-between px-3 pt-3 pb-2">
-          <span className="text-sm font-semibold text-gray-800">Members</span>
+          <span className="text-sm font-semibold text-foreground">Members</span>
           <Button size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
             Done
           </Button>
         </div>
         <div className="px-2 pb-2">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
             <Input
               placeholder="Search members"
               value={search}
@@ -325,15 +325,15 @@ function PeopleFilter({
           <button
             type="button"
             onClick={() => onChange([])}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/30 transition-colors"
           >
             <div className={cn(
               'h-4 w-4 rounded border-2 flex items-center justify-center',
-              allSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300',
+              allSelected ? 'bg-blue-600 border-blue-600' : 'border-border',
             )}>
               {allSelected && <Check className="h-2.5 w-2.5 text-white" />}
             </div>
-            <span className="text-gray-700">All Members</span>
+            <span className="text-foreground/80">All Members</span>
           </button>
           {filtered.map((p) => {
             const checked = selected.includes(p.id)
@@ -342,11 +342,11 @@ function PeopleFilter({
                 key={p.id}
                 type="button"
                 onClick={() => toggle(p.id)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/30 transition-colors"
               >
                 <div className={cn(
                   'h-4 w-4 rounded border-2 flex items-center justify-center shrink-0',
-                  checked ? 'bg-blue-600 border-blue-600' : 'border-gray-300',
+                  checked ? 'bg-blue-600 border-blue-600' : 'border-border',
                 )}>
                   {checked && <Check className="h-2.5 w-2.5 text-white" />}
                 </div>
@@ -355,12 +355,12 @@ function PeopleFilter({
                     {getInitials(p.full_name)}
                   </AvatarFallback>
                 </Avatar>
-                <span className="text-gray-700 truncate">{p.full_name}</span>
+                <span className="text-foreground/80 truncate">{p.full_name}</span>
               </button>
             )
           })}
           {filtered.length === 0 && (
-            <p className="text-xs text-gray-400 text-center py-3">No members found</p>
+            <p className="text-xs text-muted-foreground/70 text-center py-3">No members found</p>
           )}
         </div>
       </PopoverContent>
@@ -564,15 +564,15 @@ export function TimesheetPage({
       : `${selectedProjectIds.length} Boards`
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col h-full bg-background">
       {/* ─── Header ─── */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-card border-b border-border px-6 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-gray-800">
-            <Timer className="h-5 w-5 text-gray-500" />
+          <div className="flex items-center gap-2 text-foreground">
+            <Timer className="h-5 w-5 text-muted-foreground" />
             <h1 className="text-lg font-semibold">Timesheet</h1>
-            <span className="text-gray-400">/</span>
-            <span className="text-gray-600 text-sm font-medium">{boardLabel}</span>
+            <span className="text-muted-foreground/70">/</span>
+            <span className="text-muted-foreground text-sm font-medium">{boardLabel}</span>
           </div>
           <Button
             variant="outline"
@@ -619,7 +619,7 @@ export function TimesheetPage({
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="gap-2 h-9 text-sm font-medium min-w-[130px] justify-between">
                   <span className="truncate">{PRESET_LABELS[datePreset]}</span>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
@@ -642,7 +642,7 @@ export function TimesheetPage({
                   onChange={(e) => setCustomFrom(e.target.value)}
                   className="h-9 text-sm w-36"
                 />
-                <span className="text-gray-400 text-sm">→</span>
+                <span className="text-muted-foreground/70 text-sm">→</span>
                 <Input
                   type="date"
                   value={customTo}
@@ -665,42 +665,42 @@ export function TimesheetPage({
             )}
 
             {isPending && (
-              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/70" />
             )}
           </div>
 
           {/* ─── Entries ─── */}
           {groupedByDate.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 flex flex-col items-center justify-center py-16 gap-3">
-              <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center">
-                <Timer className="h-6 w-6 text-gray-400" />
+            <div className="bg-card rounded-xl border border-border flex flex-col items-center justify-center py-16 gap-3">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                <Timer className="h-6 w-6 text-muted-foreground/70" />
               </div>
-              <p className="text-sm font-medium text-gray-600">No time entries found</p>
-              <p className="text-xs text-gray-400">Try a different date range or filter</p>
+              <p className="text-sm font-medium text-muted-foreground">No time entries found</p>
+              <p className="text-xs text-muted-foreground/70">Try a different date range or filter</p>
             </div>
           ) : (
             <div className="space-y-4">
               {groupedByDate.map(([date, dateEntries]) => {
                 const dayTotal = dateEntries.reduce((s, e) => s + entryDurationMinutes(e), 0)
                 return (
-                  <div key={date} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div key={date} className="bg-card rounded-xl border border-border overflow-hidden">
                     {/* Date header */}
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-                      <span className="text-sm font-semibold text-gray-700">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border/60">
+                      <span className="text-sm font-semibold text-foreground/80">
                         {formatDateHeader(date)}
                       </span>
-                      <span className="text-xs font-medium text-gray-500">
+                      <span className="text-xs font-medium text-muted-foreground">
                         Total: {formatTotalMinutes(dayTotal)}
                       </span>
                     </div>
 
                     {/* Column headers */}
-                    <div className="grid grid-cols-[1fr_160px_140px_100px_100px_40px] gap-3 px-4 py-2 border-b border-gray-100">
-                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Task Title</span>
-                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Added By</span>
-                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Board</span>
-                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide text-center">Status</span>
-                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Time</span>
+                    <div className="grid grid-cols-[1fr_160px_140px_100px_100px_40px] gap-3 px-4 py-2 border-b border-border/60">
+                      <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide">Task Title</span>
+                      <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide">Added By</span>
+                      <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide">Board</span>
+                      <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide text-center">Status</span>
+                      <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide text-right">Time</span>
                       <span />
                     </div>
 
@@ -783,13 +783,13 @@ function EntryRow({
     : formatDuration(entry.duration_minutes)
 
   return (
-    <div className="grid grid-cols-[1fr_160px_140px_100px_100px_40px] gap-3 px-4 py-3 items-center hover:bg-gray-50/60 transition-colors group">
+    <div className="grid grid-cols-[1fr_160px_140px_100px_100px_40px] gap-3 px-4 py-3 items-center hover:bg-muted/30/60 transition-colors group">
       {/* Task title */}
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
           <Link
             href={`/tasks/${entry.task_id}`}
-            className="inline-flex items-center gap-1 text-sm font-medium text-gray-800 hover:text-blue-600 hover:underline truncate group/link"
+            className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:text-blue-600 hover:underline truncate group/link"
             onClick={(e) => e.stopPropagation()}
           >
             <span className="truncate">{entry.task_title}</span>
@@ -802,7 +802,7 @@ function EntryRow({
           )}
         </div>
         {entry.description && (
-          <p className="text-xs text-gray-400 truncate mt-0.5">{entry.description}</p>
+          <p className="text-xs text-muted-foreground/70 truncate mt-0.5">{entry.description}</p>
         )}
       </div>
 
@@ -813,12 +813,12 @@ function EntryRow({
             {getInitials(entry.user_full_name)}
           </AvatarFallback>
         </Avatar>
-        <span className="text-sm text-gray-700 truncate">{entry.user_full_name}</span>
+        <span className="text-sm text-foreground/80 truncate">{entry.user_full_name}</span>
       </div>
 
       {/* Board / Project */}
       <div className="min-w-0">
-        <span className="text-sm text-gray-600 truncate block">{entry.project_name}</span>
+        <span className="text-sm text-muted-foreground truncate block">{entry.project_name}</span>
       </div>
 
       {/* Approval status */}
@@ -837,7 +837,7 @@ function EntryRow({
       <div className="flex justify-end">
         {entry.is_running ? (
           <Badge className="bg-green-500 hover:bg-green-500 text-white font-mono text-xs gap-1.5 px-2.5 py-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-card animate-pulse" />
             {timeDisplay}
           </Badge>
         ) : (

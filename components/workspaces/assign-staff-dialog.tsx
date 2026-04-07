@@ -161,7 +161,7 @@ export function AssignStaffDialog({
 
         <div className="space-y-3">
           {/* Role tabs */}
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+          <div className="flex gap-1 p-1 bg-muted rounded-lg">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -169,13 +169,13 @@ export function AssignStaffDialog({
                 className={cn(
                   'flex-1 py-1.5 text-xs font-medium rounded-md transition-colors',
                   activeTab === tab.id
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground/80'
                 )}
               >
                 {tab.label}
                 {tabCounts[tab.id] > 0 && (
-                  <span className="ml-1 text-[10px] text-gray-400">({tabCounts[tab.id]})</span>
+                  <span className="ml-1 text-[10px] text-muted-foreground/70">({tabCounts[tab.id]})</span>
                 )}
               </button>
             ))}
@@ -183,7 +183,7 @@ export function AssignStaffDialog({
 
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
             <Input
               placeholder={`Search ${activeTab}s…`}
               value={search}
@@ -200,7 +200,7 @@ export function AssignStaffDialog({
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center py-8 text-center">
               <Users className="h-8 w-8 text-gray-300" />
-              <p className="mt-2 text-sm text-gray-500">
+              <p className="mt-2 text-sm text-muted-foreground">
                 {search
                   ? `No ${activeTab}s match your search`
                   : `No ${activeTab}s found in the system`}
@@ -211,7 +211,7 @@ export function AssignStaffDialog({
               <ul className="space-y-1">
                 {filtered.map((person) => (
                   <li key={person.id}>
-                    <label className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-gray-50">
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/30">
                       <Checkbox
                         id={person.id}
                         checked={selected.has(person.id)}
@@ -224,8 +224,8 @@ export function AssignStaffDialog({
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-900">{person.full_name}</p>
-                        <p className="truncate text-xs text-gray-500">{person.email}</p>
+                        <p className="truncate text-sm font-medium text-foreground">{person.full_name}</p>
+                        <p className="truncate text-xs text-muted-foreground">{person.email}</p>
                       </div>
                       {selected.has(person.id) && (
                         <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
@@ -239,7 +239,7 @@ export function AssignStaffDialog({
             </ScrollArea>
           )}
 
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted-foreground/70">
             {selected.size} member{selected.size !== 1 ? 's' : ''} selected in total
           </p>
         </div>

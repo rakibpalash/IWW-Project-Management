@@ -232,7 +232,7 @@ export function OnboardingModal({
         <div className="relative bg-gradient-to-br from-blue-600 to-indigo-700 px-8 pt-8 pb-6 text-white">
           <button
             onClick={onSkip}
-            className="absolute top-4 right-4 rounded-full p-1 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            className="absolute top-4 right-4 rounded-full p-1 text-white/70 hover:text-white hover:bg-card/10 transition-colors"
             aria-label="Skip onboarding"
           >
             <X className="h-4 w-4" />
@@ -279,7 +279,7 @@ export function OnboardingModal({
           <div className="mt-5">
             <Progress
               value={progressPct}
-              className="h-1 bg-white/20 [&>div]:bg-white"
+              className="h-1 bg-card/20 [&>div]:bg-card"
             />
           </div>
         </div>

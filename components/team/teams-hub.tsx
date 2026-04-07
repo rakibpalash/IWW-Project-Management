@@ -121,16 +121,16 @@ function OrgNodeCard({ person }: { person: Profile }) {
   const rc = ROLE_HIERARCHY.find((r) => r.role === person.role)
   const badgeClass = ROLE_BADGE[person.role] ?? ROLE_BADGE.staff
   return (
-    <div className="flex flex-col items-center w-44 bg-white border border-gray-200 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow">
+    <div className="flex flex-col items-center w-44 bg-card border border-border rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow">
       <Avatar className="h-10 w-10 mb-2">
         <AvatarImage src={person.avatar_url ?? undefined} />
         <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(person.full_name)}`}>
           {getInitials(person.full_name)}
         </AvatarFallback>
       </Avatar>
-      <p className="text-xs font-semibold text-gray-900 text-center leading-tight truncate w-full text-center">{person.full_name}</p>
+      <p className="text-xs font-semibold text-foreground text-center leading-tight truncate w-full text-center">{person.full_name}</p>
       {person.custom_role && (
-        <p className="text-[10px] text-gray-400 text-center mt-0.5 truncate w-full">{person.custom_role.name}</p>
+        <p className="text-[10px] text-muted-foreground/70 text-center mt-0.5 truncate w-full">{person.custom_role.name}</p>
       )}
       <span className={cn('mt-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border', badgeClass)}>
         {ROLE_LABELS[person.role] ?? person.role}
@@ -147,7 +147,7 @@ function OrgNode({ person, childrenMap, depth = 0 }: { person: Profile; children
       <OrgNodeCard person={person} />
       {children.length > 0 && (
         <div className="flex flex-col items-center">
-          <div className="w-px h-6 bg-gray-200" />
+          <div className="w-px h-6 bg-muted" />
           <div className="flex items-start">
             {children.map((child, i) => {
               const isFirst = i === 0
@@ -156,12 +156,12 @@ function OrgNode({ person, childrenMap, depth = 0 }: { person: Profile; children
                 <div key={child.id} className="flex flex-col items-center">
                   {!isOnly ? (
                     <div className="flex items-start w-full">
-                      <div className={cn('flex-1 h-px bg-gray-200', isFirst && 'invisible')} />
-                      <div className="w-px h-6 bg-gray-200 flex-shrink-0" />
-                      <div className={cn('flex-1 h-px bg-gray-200', isLast && 'invisible')} />
+                      <div className={cn('flex-1 h-px bg-muted', isFirst && 'invisible')} />
+                      <div className="w-px h-6 bg-muted flex-shrink-0" />
+                      <div className={cn('flex-1 h-px bg-muted', isLast && 'invisible')} />
                     </div>
                   ) : (
-                    <div className="w-px h-6 bg-gray-200" />
+                    <div className="w-px h-6 bg-muted" />
                   )}
                   <div className={cn(depth < 2 ? 'px-4' : 'px-2')}>
                     <OrgNode person={child} childrenMap={childrenMap} depth={depth + 1} />
@@ -194,8 +194,8 @@ function OrgChartView({ profiles }: { profiles: Profile[] }) {
         <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
           <GitBranch className="h-8 w-8 text-blue-300" />
         </div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-1">No hierarchy set up yet</h3>
-        <p className="text-xs text-gray-400 max-w-xs">Assign a "Reports To" for each person to build the org chart.</p>
+        <h3 className="text-sm font-semibold text-foreground/80 mb-1">No hierarchy set up yet</h3>
+        <p className="text-xs text-muted-foreground/70 max-w-xs">Assign a "Reports To" for each person to build the org chart.</p>
       </div>
     )
   }
@@ -253,23 +253,23 @@ function PeopleTable({
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 overflow-hidden">
+    <div className="rounded-xl border border-border overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow className="bg-gray-50 hover:bg-gray-50">
-            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Person</TableHead>
-            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Role</TableHead>
-            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Reports To</TableHead>
-            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Team</TableHead>
-            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Job Title</TableHead>
-            <TableHead className="font-semibold text-gray-500 text-xs uppercase tracking-wide">Joined</TableHead>
+          <TableRow className="bg-muted/30 hover:bg-muted/30">
+            <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Person</TableHead>
+            <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Role</TableHead>
+            <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Reports To</TableHead>
+            <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Team</TableHead>
+            <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Job Title</TableHead>
+            <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Joined</TableHead>
             {isAdmin && <TableHead className="w-10" />}
           </TableRow>
         </TableHeader>
         <TableBody>
           {profiles.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center py-12 text-gray-400 text-sm">No people found</TableCell>
+              <TableCell colSpan={7} className="text-center py-12 text-muted-foreground/70 text-sm">No people found</TableCell>
             </TableRow>
           ) : (
             profiles.map((person) => {
@@ -278,7 +278,7 @@ function PeopleTable({
               const manager = person.manager_id ? profileMap[person.manager_id] : null
               const team = getTeamForProfile(person.id)
               return (
-                <TableRow key={person.id} className="hover:bg-gray-50/60">
+                <TableRow key={person.id} className="hover:bg-muted/30/60">
                   {/* Person */}
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -289,8 +289,8 @@ function PeopleTable({
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 leading-none">{person.full_name}</p>
-                        <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                        <p className="text-sm font-medium text-foreground leading-none">{person.full_name}</p>
+                        <p className="text-xs text-muted-foreground/70 mt-0.5 flex items-center gap-1">
                           <Mail className="h-3 w-3 shrink-0" />
                           <span className="truncate max-w-[160px]">{person.email}</span>
                         </p>
@@ -311,7 +311,7 @@ function PeopleTable({
                         onValueChange={(v) => handleInlineRoleChange(person, v)}
                         disabled={isPending}
                       >
-                        <SelectTrigger className="h-7 text-xs w-[110px] border-0 bg-transparent p-0 focus:ring-0 hover:bg-gray-100 rounded px-2">
+                        <SelectTrigger className="h-7 text-xs w-[110px] border-0 bg-transparent p-0 focus:ring-0 hover:bg-muted rounded px-2">
                           <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full border', badgeClass)}>
                             {roleLabel}
                           </span>
@@ -337,7 +337,7 @@ function PeopleTable({
                         onValueChange={(v) => handleInlineManagerChange(person, v)}
                         disabled={isPending}
                       >
-                        <SelectTrigger className="h-7 text-xs border-0 bg-transparent p-0 focus:ring-0 hover:bg-gray-100 rounded px-2 min-w-[120px]">
+                        <SelectTrigger className="h-7 text-xs border-0 bg-transparent p-0 focus:ring-0 hover:bg-muted rounded px-2 min-w-[120px]">
                           {manager ? (
                             <div className="flex items-center gap-1.5">
                               <Avatar className="h-5 w-5">
@@ -346,10 +346,10 @@ function PeopleTable({
                                   {getInitials(manager.full_name)}
                                 </AvatarFallback>
                               </Avatar>
-                              <span className="text-xs text-gray-700 truncate max-w-[80px]">{manager.full_name}</span>
+                              <span className="text-xs text-foreground/80 truncate max-w-[80px]">{manager.full_name}</span>
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-400">Assign manager</span>
+                            <span className="text-xs text-muted-foreground/70">Assign manager</span>
                           )}
                         </SelectTrigger>
                         <SelectContent>
@@ -371,10 +371,10 @@ function PeopleTable({
                             {getInitials(manager.full_name)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-xs text-gray-700">{manager.full_name}</span>
+                        <span className="text-xs text-foreground/80">{manager.full_name}</span>
                       </div>
                     ) : (
-                      <span className="text-xs text-gray-400">—</span>
+                      <span className="text-xs text-muted-foreground/70">—</span>
                     )}
                   </TableCell>
 
@@ -383,10 +383,10 @@ function PeopleTable({
                     {team ? (
                       <div className="flex items-center gap-1.5">
                         <div className="h-2 w-2 rounded-full" style={{ backgroundColor: team.color || '#ec4899' }} />
-                        <span className="text-xs text-gray-700">{team.name}</span>
+                        <span className="text-xs text-foreground/80">{team.name}</span>
                       </div>
                     ) : (
-                      <span className="text-xs text-gray-400">—</span>
+                      <span className="text-xs text-muted-foreground/70">—</span>
                     )}
                   </TableCell>
 
@@ -405,13 +405,13 @@ function PeopleTable({
                         {person.custom_role.name}
                       </Badge>
                     ) : (
-                      <span className="text-xs text-gray-400">—</span>
+                      <span className="text-xs text-muted-foreground/70">—</span>
                     )}
                   </TableCell>
 
                   {/* Joined */}
                   <TableCell>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-muted-foreground/70">
                       {person.created_at ? format(parseISO(person.created_at), 'MMM yyyy') : '—'}
                     </span>
                   </TableCell>
@@ -421,7 +421,7 @@ function PeopleTable({
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-400 transition-colors">
+                          <button className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground/70 transition-colors">
                             <MoreHorizontal className="h-4 w-4" />
                           </button>
                         </DropdownMenuTrigger>
@@ -654,7 +654,7 @@ function AddPersonDialog({
                 />
                 <button
                   type="button"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-muted-foreground"
                   onClick={() => setShowPassword((v) => !v)}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -662,7 +662,7 @@ function AddPersonDialog({
               </div>
             </div>
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted-foreground/70">
             The person will be prompted to change this password on first login.
           </p>
         </div>
@@ -745,13 +745,13 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
   }
 
   return (
-    <div className="flex h-full overflow-hidden bg-gray-50">
+    <div className="flex h-full overflow-hidden bg-background">
 
       {/* ── Left Panel ── */}
-      <div className="w-56 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
-        <div className="px-4 py-4 border-b border-gray-100">
-          <h1 className="text-base font-bold text-gray-900">Team & Access</h1>
-          <p className="text-xs text-gray-400 mt-0.5">{profiles.length} members</p>
+      <div className="w-56 flex-shrink-0 bg-card border-r border-border flex flex-col overflow-y-auto">
+        <div className="px-4 py-4 border-b border-border/60">
+          <h1 className="text-base font-bold text-foreground">Team & Access</h1>
+          <p className="text-xs text-muted-foreground/70 mt-0.5">{profiles.length} members</p>
         </div>
 
         <nav className="flex-1 px-2 py-3 space-y-0.5">
@@ -762,19 +762,19 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
               'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
               filterType === 'all'
                 ? 'bg-blue-50 text-blue-700 font-medium'
-                : 'text-gray-600 hover:bg-gray-50'
+                : 'text-muted-foreground hover:bg-muted/30'
             )}
           >
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               All Members
             </div>
-            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{profiles.length}</span>
+            <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">{profiles.length}</span>
           </button>
 
           {/* Role hierarchy */}
           <div className="pt-3 pb-1 px-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">By Role</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">By Role</p>
           </div>
           {ROLE_HIERARCHY.map((r) => {
             const count = roleCounts[r.role] ?? 0
@@ -787,15 +787,15 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
                 style={{ paddingLeft: `${(r.depth * 12) + 12}px` }}
                 className={cn(
                   'w-full flex items-center justify-between gap-2 pr-3 py-1.5 rounded-lg text-sm transition-colors',
-                  active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                  active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-muted-foreground hover:bg-muted/30'
                 )}
               >
                 <div className="flex items-center gap-2">
                   {r.depth > 0 && <ChevronRight className="h-3 w-3 text-gray-300 shrink-0" />}
-                  <span className="text-gray-400">{r.icon}</span>
+                  <span className="text-muted-foreground/70">{r.icon}</span>
                   <span className="text-xs">{r.label}</span>
                 </div>
-                <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full shrink-0">{count}</span>
+                <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full shrink-0">{count}</span>
               </button>
             )
           })}
@@ -804,7 +804,7 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
           {teams.length > 0 && (
             <>
               <div className="pt-3 pb-1 px-3">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Teams</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">Teams</p>
               </div>
               {teams.map((team) => {
                 const active = filterType === 'team' && filterValue === team.id
@@ -815,14 +815,14 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
                     onClick={() => setFilter('team', team.id)}
                     className={cn(
                       'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
-                      active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                      active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-muted-foreground hover:bg-muted/30'
                     )}
                   >
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: team.color || '#ec4899' }} />
                       <span className="text-xs truncate">{team.name}</span>
                     </div>
-                    <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full shrink-0">{count}</span>
+                    <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full shrink-0">{count}</span>
                   </button>
                 )
               })}
@@ -832,11 +832,11 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
 
         {/* Bottom actions */}
         {isAdmin && (
-          <div className="px-3 py-3 border-t border-gray-100 space-y-1">
+          <div className="px-3 py-3 border-t border-border/60 space-y-1">
             <Button
               variant="ghost"
               size="sm"
-              className="w-full justify-start gap-2 text-xs text-gray-500 hover:text-gray-700 h-8"
+              className="w-full justify-start gap-2 text-xs text-muted-foreground hover:text-foreground/80 h-8"
               onClick={() => setShowAddPerson(true)}
             >
               <Plus className="h-3.5 w-3.5" />Add person
@@ -848,9 +848,9 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
       {/* ── Right Panel ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3 flex-shrink-0">
+        <div className="bg-card border-b border-border px-6 py-3 flex items-center gap-3 flex-shrink-0">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
             <Input
               placeholder="Search people…"
               value={search}
@@ -861,12 +861,12 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
 
           <div className="flex items-center gap-1 ml-auto">
             {/* View toggle */}
-            <div className="flex items-center rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+            <div className="flex items-center rounded-lg border border-border p-0.5 bg-muted/30">
               <button
                 onClick={() => setViewMode('table')}
                 className={cn(
                   'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors',
-                  viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  viewMode === 'table' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground/80'
                 )}
               >
                 <LayoutList className="h-3.5 w-3.5" />Table
@@ -875,7 +875,7 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
                 onClick={() => setViewMode('orgchart')}
                 className={cn(
                   'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors',
-                  viewMode === 'orgchart' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  viewMode === 'orgchart' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground/80'
                 )}
               >
                 <GitBranch className="h-3.5 w-3.5" />Org Chart
@@ -895,7 +895,7 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
           {/* Active filter label */}
           {(filterType !== 'all' || search) && (
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">
                 Showing <strong>{filteredProfiles.length}</strong> {filteredProfiles.length === 1 ? 'person' : 'people'}
                 {filterType === 'role' && ` · ${ROLE_HIERARCHY.find((r) => r.role === filterValue)?.label ?? filterValue}`}
                 {filterType === 'team' && ` · ${teams.find((t) => t.id === filterValue)?.name ?? 'Team'}`}

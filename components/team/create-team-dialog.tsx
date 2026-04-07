@@ -186,7 +186,7 @@ export function CreateTeamDialog({
                 >
                   {color === c.value && (
                     <span className="absolute inset-0 flex items-center justify-center">
-                      <span className="h-2 w-2 rounded-full bg-white" />
+                      <span className="h-2 w-2 rounded-full bg-card" />
                     </span>
                   )}
                 </button>
@@ -200,11 +200,11 @@ export function CreateTeamDialog({
 
             {/* Selected tags */}
             {selectedProfiles.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex flex-wrap gap-1.5 p-2 bg-muted/30 rounded-lg border border-border">
                 {selectedProfiles.map((p) => (
                   <span
                     key={p.id}
-                    className="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-full pl-1 pr-2 py-0.5 text-xs font-medium text-gray-700"
+                    className="inline-flex items-center gap-1.5 bg-card border border-border rounded-full pl-1 pr-2 py-0.5 text-xs font-medium text-foreground/80"
                   >
                     <Avatar className="h-4 w-4">
                       <AvatarImage src={p.avatar_url ?? undefined} />
@@ -216,7 +216,7 @@ export function CreateTeamDialog({
                     <button
                       type="button"
                       onClick={() => toggleMember(p.id)}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-muted-foreground/70 hover:text-muted-foreground"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -241,7 +241,7 @@ export function CreateTeamDialog({
                 </SelectContent>
               </Select>
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
                 <Input
                   placeholder="Search people..."
                   value={memberSearch}
@@ -252,9 +252,9 @@ export function CreateTeamDialog({
             </div>
 
             {/* People list */}
-            <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+            <div className="max-h-40 overflow-y-auto border border-border rounded-lg divide-y divide-border">
               {filteredProfiles.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-4">No people found</p>
+                <p className="text-xs text-muted-foreground/70 text-center py-4">No people found</p>
               ) : (
                 filteredProfiles.map((p) => {
                   const isSelected = selectedIds.includes(p.id)
@@ -263,7 +263,7 @@ export function CreateTeamDialog({
                       key={p.id}
                       type="button"
                       onClick={() => toggleMember(p.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 transition-colors ${
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted/30 transition-colors ${
                         isSelected ? 'bg-blue-50' : ''
                       }`}
                     >
@@ -274,8 +274,8 @@ export function CreateTeamDialog({
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{p.full_name}</p>
-                        <p className="text-xs text-gray-400 truncate">{p.email}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{p.full_name}</p>
+                        <p className="text-xs text-muted-foreground/70 truncate">{p.email}</p>
                       </div>
                       {isSelected && (
                         <CheckCircle2 className="h-4 w-4 text-blue-500 flex-shrink-0" />

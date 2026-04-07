@@ -43,7 +43,7 @@ export function LeaveBalanceCard({ type, allocated, used }: LeaveBalanceCardProp
 
   const progressColor =
     allocated === 0
-      ? 'bg-gray-200'
+      ? 'bg-muted'
       : remaining === 0
         ? 'bg-red-500'
         : remaining / allocated > 0.5
@@ -52,7 +52,7 @@ export function LeaveBalanceCard({ type, allocated, used }: LeaveBalanceCardProp
 
   const remainingTextColor =
     allocated === 0
-      ? 'text-gray-500'
+      ? 'text-muted-foreground'
       : remaining === 0
         ? 'text-red-600'
         : remaining / allocated > 0.5
@@ -95,7 +95,7 @@ export function LeaveBalanceCard({ type, allocated, used }: LeaveBalanceCardProp
             </p>
           </div>
         ) : (
-          <div className="rounded-md bg-gray-50 p-2 text-center text-xs text-muted-foreground">
+          <div className="rounded-md bg-muted/30 p-2 text-center text-xs text-muted-foreground">
             No allocation — contact admin
           </div>
         )}

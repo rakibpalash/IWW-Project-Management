@@ -82,8 +82,8 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Workspaces</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-bold text-foreground">Workspaces</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {initialWorkspaces.length} workspace{initialWorkspaces.length !== 1 ? 's' : ''}
           </p>
         </div>
@@ -95,7 +95,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
         <Input
           placeholder="Search workspaces…"
           value={search}
@@ -106,9 +106,9 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
 
       {/* Grid */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 py-16">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 py-16">
           <Building2 className="h-10 w-10 text-gray-300" />
-          <p className="mt-3 text-sm font-medium text-gray-500">
+          <p className="mt-3 text-sm font-medium text-muted-foreground">
             {search ? 'No workspaces match your search' : 'No workspaces yet'}
           </p>
           {!search && (
@@ -129,8 +129,8 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
             <div key={workspace.id} className="relative">
               {/* Clone loading overlay */}
               {cloningId === workspace.id && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/80 backdrop-blur-sm">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-card/80 backdrop-blur-sm">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Cloning…
                   </div>

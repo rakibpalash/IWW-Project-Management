@@ -112,8 +112,8 @@ function TimelineRow({ date, record, settings, isToday }: {
   if (sun) {
     return (
       <div className="relative h-7 flex items-center">
-        <div className="absolute inset-x-0 border-t border-dashed border-gray-200 top-1/2" />
-        <span className="relative z-10 mx-auto bg-gray-50 px-3 text-[11px] font-medium text-gray-400 rounded-full border border-gray-200">
+        <div className="absolute inset-x-0 border-t border-dashed border-border top-1/2" />
+        <span className="relative z-10 mx-auto bg-muted/30 px-3 text-[11px] font-medium text-muted-foreground/70 rounded-full border border-border">
           Weekend
         </span>
       </div>
@@ -122,9 +122,9 @@ function TimelineRow({ date, record, settings, isToday }: {
   if (!ci) {
     return (
       <div className="relative h-7 flex items-center">
-        <div className="absolute inset-x-0 border-t border-gray-100 top-1/2" />
-        <div className="absolute left-0 h-2.5 w-2.5 rounded-full bg-gray-200 top-1/2 -translate-y-1/2 -translate-x-1/2" />
-        <div className="absolute right-0 h-2.5 w-2.5 rounded-full bg-gray-200 top-1/2 -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute inset-x-0 border-t border-border/60 top-1/2" />
+        <div className="absolute left-0 h-2.5 w-2.5 rounded-full bg-muted top-1/2 -translate-y-1/2 -translate-x-1/2" />
+        <div className="absolute right-0 h-2.5 w-2.5 rounded-full bg-muted top-1/2 -translate-y-1/2 translate-x-1/2" />
       </div>
     )
   }
@@ -135,7 +135,7 @@ function TimelineRow({ date, record, settings, isToday }: {
   return (
     <div className="relative h-7 flex items-center">
       {/* base */}
-      <div className="absolute inset-x-0 border-t border-gray-100 top-1/2" />
+      <div className="absolute inset-x-0 border-t border-border/60 top-1/2" />
       {/* worked segment */}
       {cfg && (
         <div
@@ -185,7 +185,7 @@ function WeeklyView({ weekDates, recordByDate, settings, profile, today }: {
       <CheckInCard userId={profile.id} settings={settings} />
 
       {/* Timeline table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
         {weekDates.map((date) => {
           const record = recordByDate[date] ?? null
           const sun = isSunday(date)
@@ -204,20 +204,20 @@ function WeeklyView({ weekDates, recordByDate, settings, profile, today }: {
             <div
               key={date}
               className={cn(
-                'border-b border-gray-100 last:border-0 transition-colors',
+                'border-b border-border/60 last:border-0 transition-colors',
                 isToday && 'bg-blue-50/40',
-                sun && 'bg-gray-50/60',
+                sun && 'bg-muted/30/60',
                 isFuture && !sun && 'opacity-40',
               )}
             >
               <div className="flex items-center gap-3 px-4 py-3 min-h-[64px]">
                 {/* Day */}
                 <div className={cn('w-12 shrink-0 text-center', isToday && 'font-bold')}>
-                  <p className={cn('text-[11px] font-medium uppercase', isToday ? 'text-blue-500' : 'text-gray-400')}>
+                  <p className={cn('text-[11px] font-medium uppercase', isToday ? 'text-blue-500' : 'text-muted-foreground/70')}>
                     {isToday ? 'Today' : dayAbbr}
                   </p>
                   <p className={cn('text-lg font-bold leading-none mt-0.5',
-                    isToday ? 'text-blue-600' : 'text-gray-700')}>
+                    isToday ? 'text-blue-600' : 'text-foreground/80')}>
                     {dayNum}
                   </p>
                 </div>
@@ -226,7 +226,7 @@ function WeeklyView({ weekDates, recordByDate, settings, profile, today }: {
                 <div className="w-28 shrink-0">
                   {ci ? (
                     <>
-                      <p className="text-sm font-semibold text-gray-800">{formatTime12(ci)}</p>
+                      <p className="text-sm font-semibold text-foreground">{formatTime12(ci)}</p>
                       {lateMin > 0 ? (
                         <p className="text-[11px] font-medium text-orange-500">Late by {formatMins(lateMin)}</p>
                       ) : (
@@ -246,7 +246,7 @@ function WeeklyView({ weekDates, recordByDate, settings, profile, today }: {
                 {/* Check-out */}
                 <div className="w-24 shrink-0 text-right">
                   {co ? (
-                    <p className="text-sm font-semibold text-gray-800">{formatTime12(co)}</p>
+                    <p className="text-sm font-semibold text-foreground">{formatTime12(co)}</p>
                   ) : (
                     <p className="text-xs text-gray-300">—</p>
                   )}
@@ -256,12 +256,12 @@ function WeeklyView({ weekDates, recordByDate, settings, profile, today }: {
                 <div className="w-20 shrink-0 text-right">
                   {hoursWorked && hoursWorked !== '--' ? (
                     <>
-                      <p className="text-sm font-bold text-gray-800">{hoursWorked}</p>
-                      <p className="text-[10px] text-gray-400">Hrs worked</p>
+                      <p className="text-sm font-bold text-foreground">{hoursWorked}</p>
+                      <p className="text-[10px] text-muted-foreground/70">Hrs worked</p>
                     </>
                   ) : ci ? (
                     <>
-                      <p className="text-sm text-gray-400">Live</p>
+                      <p className="text-sm text-muted-foreground/70">Live</p>
                       <p className="text-[10px] text-gray-300">Hrs</p>
                     </>
                   ) : null}
@@ -272,7 +272,7 @@ function WeeklyView({ weekDates, recordByDate, settings, profile, today }: {
         })}
 
         {/* Hour axis */}
-        <div className="flex items-center px-4 py-2 bg-gray-50 border-t border-gray-100">
+        <div className="flex items-center px-4 py-2 bg-muted/30 border-t border-border/60">
           <div className="w-12 shrink-0" />
           <div className="w-28 shrink-0" />
           <div className="flex-1 relative h-4 ml-3">
@@ -280,7 +280,7 @@ function WeeklyView({ weekDates, recordByDate, settings, profile, today }: {
               const pct = (h / 24) * 100
               const label = h === 0 ? '12AM' : h === 12 ? '12PM' : h < 12 ? `${String(h).padStart(2,'0')}AM` : `${String(h-12).padStart(2,'0')}PM`
               return (
-                <span key={h} className="absolute text-[9px] text-gray-400 -translate-x-1/2 select-none"
+                <span key={h} className="absolute text-[9px] text-muted-foreground/70 -translate-x-1/2 select-none"
                   style={{ left: `${pct}%` }}>
                   {label}
                 </span>
@@ -293,18 +293,18 @@ function WeeklyView({ weekDates, recordByDate, settings, profile, today }: {
       </div>
 
       {/* Stats bar */}
-      <div className="bg-white rounded-xl border border-gray-200 px-5 py-3 shadow-sm">
+      <div className="bg-card rounded-xl border border-border px-5 py-3 shadow-sm">
         <div className="flex flex-wrap gap-5 text-sm">
           {[
             { color: 'bg-blue-400', label: 'Working Days', value: `${workingDays}` },
             { color: 'bg-green-400', label: 'Present', value: `${presentDays}` },
-            { color: 'bg-gray-300', label: 'Weekend', value: `${weekendDays}` },
+            { color: 'bg-muted', label: 'Weekend', value: `${weekendDays}` },
             { color: 'bg-red-400', label: 'Absent', value: `${absentDays}` },
           ].map(item => (
             <div key={item.label} className="flex items-center gap-2">
               <span className={cn('h-3 w-3 rounded-sm flex-shrink-0', item.color)} />
-              <span className="text-gray-500 text-xs">{item.label}</span>
-              <span className="font-semibold text-gray-800 text-xs">{item.value}</span>
+              <span className="text-muted-foreground text-xs">{item.label}</span>
+              <span className="font-semibold text-foreground text-xs">{item.value}</span>
             </div>
           ))}
         </div>
@@ -320,11 +320,11 @@ function ListView({ monthDates, recordByDate, settings, today }: {
   settings: AttendanceSettings | null; today: string
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+    <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
       {/* Header */}
-      <div className="grid grid-cols-[100px_1fr_1fr_1fr_120px_100px] gap-4 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+      <div className="grid grid-cols-[100px_1fr_1fr_1fr_120px_100px] gap-4 px-4 py-2.5 bg-muted/30 border-b border-border/60">
         {['Date', 'Check In', 'Check Out', 'Status', 'Rule', 'Hrs Worked'].map(h => (
-          <span key={h} className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{h}</span>
+          <span key={h} className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">{h}</span>
         ))}
       </div>
       <div className="divide-y divide-gray-50 max-h-[520px] overflow-y-auto">
@@ -350,22 +350,22 @@ function ListView({ monthDates, recordByDate, settings, today }: {
               )}
             >
               <div>
-                <p className={cn('text-sm font-medium', isToday ? 'text-blue-600' : 'text-gray-700')}>
+                <p className={cn('text-sm font-medium', isToday ? 'text-blue-600' : 'text-foreground/80')}>
                   {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                 </p>
-                <p className="text-xs text-gray-400">{DAY_ABBR[d.getDay()]}</p>
+                <p className="text-xs text-muted-foreground/70">{DAY_ABBR[d.getDay()]}</p>
               </div>
               <div>
                 {ci ? (
                   <>
-                    <p className="text-sm font-medium text-gray-800">{formatTime12(ci)}</p>
+                    <p className="text-sm font-medium text-foreground">{formatTime12(ci)}</p>
                     {lateMin > 0 && <p className="text-xs text-orange-500">Late {formatMins(lateMin)}</p>}
                   </>
                 ) : <p className="text-xs text-gray-300">—</p>}
               </div>
               <div>
                 {co ? (
-                  <p className="text-sm font-medium text-gray-800">{formatTime12(co)}</p>
+                  <p className="text-sm font-medium text-foreground">{formatTime12(co)}</p>
                 ) : <p className="text-xs text-gray-300">—</p>}
               </div>
               <div>
@@ -380,12 +380,12 @@ function ListView({ monthDates, recordByDate, settings, today }: {
               </div>
               <div>
                 {r?.applied_rule ? (
-                  <span className="text-xs text-gray-500 capitalize">{r.applied_rule}</span>
+                  <span className="text-xs text-muted-foreground capitalize">{r.applied_rule}</span>
                 ) : null}
               </div>
               <div>
                 {hw && hw !== '--' ? (
-                  <p className="text-sm font-semibold text-gray-800">{hw}</p>
+                  <p className="text-sm font-semibold text-foreground">{hw}</p>
                 ) : null}
               </div>
             </div>
@@ -415,13 +415,13 @@ function MonthCalendarView({ year, month, recordByDate, today }: {
   while (cells.length % 7 !== 0) cells.push(null)
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+    <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
       {/* Weekday headers */}
-      <div className="grid grid-cols-7 border-b border-gray-100">
+      <div className="grid grid-cols-7 border-b border-border/60">
         {DAY_ABBR.map(d => (
           <div key={d} className={cn(
             'py-2.5 text-center text-xs font-semibold',
-            d === 'Sun' ? 'text-red-400 bg-red-50/30' : 'text-gray-500',
+            d === 'Sun' ? 'text-red-400 bg-red-50/30' : 'text-muted-foreground',
           )}>
             {d}
           </div>
@@ -431,7 +431,7 @@ function MonthCalendarView({ year, month, recordByDate, today }: {
       {/* Calendar grid */}
       <div className="grid grid-cols-7">
         {cells.map((date, idx) => {
-          if (!date) return <div key={idx} className="min-h-[90px] border-b border-r border-gray-50 last:border-r-0 bg-gray-50/20" />
+          if (!date) return <div key={idx} className="min-h-[90px] border-b border-r border-border/50 last:border-r-0 bg-muted/30/20" />
 
           const sun = isSunday(date)
           const isToday = date === today
@@ -448,7 +448,7 @@ function MonthCalendarView({ year, month, recordByDate, today }: {
             <div
               key={date}
               className={cn(
-                'min-h-[90px] p-2 border-b border-r border-gray-100 last:border-r-0',
+                'min-h-[90px] p-2 border-b border-r border-border/60 last:border-r-0',
                 (idx + 1) % 7 === 0 && 'border-r-0',
                 sun && 'bg-amber-50/30',
                 isToday && 'bg-blue-50/20',
@@ -456,7 +456,7 @@ function MonthCalendarView({ year, month, recordByDate, today }: {
             >
               <div className={cn(
                 'text-xs font-semibold mb-1.5 h-5 w-5 flex items-center justify-center rounded-full',
-                isToday ? 'bg-blue-600 text-white' : sun ? 'text-red-400' : 'text-gray-500',
+                isToday ? 'bg-blue-600 text-white' : sun ? 'text-red-400' : 'text-muted-foreground',
               )}>
                 {dayNum}
               </div>
@@ -500,7 +500,7 @@ function MonthStats({ records, year, month }: {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
       {[
-        { label: 'Working Days', value: workingDays, color: 'text-gray-700', bg: 'bg-gray-50 border-gray-200' },
+        { label: 'Working Days', value: workingDays, color: 'text-foreground/80', bg: 'bg-muted/30 border-border' },
         { label: 'Present', value: present, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
         { label: 'On Time', value: onTime, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
         { label: 'Late', value: late, color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
@@ -508,7 +508,7 @@ function MonthStats({ records, year, month }: {
       ].map(item => (
         <div key={item.label} className={cn('rounded-xl border px-3 py-3 text-center', item.bg)}>
           <p className={cn('text-xl font-bold', item.color)}>{item.value}</p>
-          <p className="text-xs text-gray-500 mt-0.5">{item.label}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{item.label}</p>
         </div>
       ))}
     </div>
@@ -567,42 +567,42 @@ export function AttendanceSummaryPage({ profile, settings, allRecords }: Props) 
       {/* Page header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Attendance Summary</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Track your daily attendance and working hours</p>
+          <h1 className="text-xl font-bold text-foreground">Attendance Summary</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Track your daily attendance and working hours</p>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Navigator */}
           {view === 'week' ? (
-            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 shadow-sm">
-              <button onClick={prevWeek} className="p-0.5 hover:text-blue-600 text-gray-500 transition-colors">
+            <div className="flex items-center gap-1 bg-card border border-border rounded-lg px-3 py-1.5 shadow-sm">
+              <button onClick={prevWeek} className="p-0.5 hover:text-blue-600 text-muted-foreground transition-colors">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <div className="flex items-center gap-1.5 px-2">
-                <CalendarDays className="h-3.5 w-3.5 text-gray-400" />
-                <span className="text-xs font-medium text-gray-700 whitespace-nowrap">{formatWeekRange(weekStart)}</span>
+                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/70" />
+                <span className="text-xs font-medium text-foreground/80 whitespace-nowrap">{formatWeekRange(weekStart)}</span>
               </div>
-              <button onClick={nextWeek} className="p-0.5 hover:text-blue-600 text-gray-500 transition-colors">
+              <button onClick={nextWeek} className="p-0.5 hover:text-blue-600 text-muted-foreground transition-colors">
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 shadow-sm">
-              <button onClick={prevMonth} className="p-0.5 hover:text-blue-600 text-gray-500 transition-colors">
+            <div className="flex items-center gap-1 bg-card border border-border rounded-lg px-3 py-1.5 shadow-sm">
+              <button onClick={prevMonth} className="p-0.5 hover:text-blue-600 text-muted-foreground transition-colors">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <div className="flex items-center gap-1.5 px-2">
-                <CalendarDays className="h-3.5 w-3.5 text-gray-400" />
-                <span className="text-xs font-medium text-gray-700">{MONTH_NAMES[month]} {year}</span>
+                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/70" />
+                <span className="text-xs font-medium text-foreground/80">{MONTH_NAMES[month]} {year}</span>
               </div>
-              <button onClick={nextMonth} className="p-0.5 hover:text-blue-600 text-gray-500 transition-colors">
+              <button onClick={nextMonth} className="p-0.5 hover:text-blue-600 text-muted-foreground transition-colors">
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           )}
 
           {/* View toggle */}
-          <div className="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+          <div className="flex items-center bg-card border border-border rounded-lg overflow-hidden shadow-sm">
             {([
               { id: 'week', icon: LayoutGrid, tip: 'Weekly timeline' },
               { id: 'list', icon: List, tip: 'List view' },
@@ -616,7 +616,7 @@ export function AttendanceSummaryPage({ profile, settings, allRecords }: Props) 
                   'p-2 transition-colors',
                   view === id
                     ? 'bg-blue-600 text-white'
-                    : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50',
+                    : 'text-muted-foreground/70 hover:text-foreground/80 hover:bg-muted/30',
                 )}
               >
                 <Icon className="h-4 w-4" />

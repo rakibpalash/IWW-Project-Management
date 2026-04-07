@@ -230,8 +230,8 @@ export function CreateWorkspaceDialog({
             {/* ── Assign Staff ────────────────────────────────────────────── */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-gray-500" />
-                <span className="text-sm font-medium text-gray-700">Assign Staff</span>
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-foreground/80">Assign Staff</span>
                 {selectedStaff.size > 0 && (
                   <span className="ml-auto text-xs text-blue-600 font-medium">
                     {selectedStaff.size} selected
@@ -239,16 +239,16 @@ export function CreateWorkspaceDialog({
                 )}
               </div>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50/50">
+              <div className="rounded-lg border border-border bg-muted/30/50">
                 {/* Staff search */}
-                <div className="p-2 border-b border-gray-200">
+                <div className="p-2 border-b border-border">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
                     <Input
                       placeholder="Search staff…"
                       value={staffSearch}
                       onChange={(e) => setStaffSearch(e.target.value)}
-                      className="pl-8 h-8 text-sm bg-white"
+                      className="pl-8 h-8 text-sm bg-card"
                     />
                   </div>
                 </div>
@@ -256,11 +256,11 @@ export function CreateWorkspaceDialog({
                 {/* Staff list */}
                 {staffLoading ? (
                   <div className="flex items-center justify-center py-6">
-                    <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/70" />
                   </div>
                 ) : filteredStaff.length === 0 ? (
                   <div className="py-6 text-center">
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-muted-foreground/70">
                       {staffSearch ? 'No staff match your search' : 'No staff members found'}
                     </p>
                   </div>
@@ -269,7 +269,7 @@ export function CreateWorkspaceDialog({
                     <ul className="p-1">
                       {filteredStaff.map((staff) => (
                         <li key={staff.id}>
-                          <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-white">
+                          <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-card">
                             <Checkbox
                               checked={selectedStaff.has(staff.id)}
                               onCheckedChange={() => toggleStaff(staff.id)}
@@ -278,10 +278,10 @@ export function CreateWorkspaceDialog({
                               {getInitials(staff.full_name)}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium text-gray-900">
+                              <p className="truncate text-sm font-medium text-foreground">
                                 {staff.full_name}
                               </p>
-                              <p className="truncate text-xs text-gray-500">{staff.email}</p>
+                              <p className="truncate text-xs text-muted-foreground">{staff.email}</p>
                             </div>
                           </label>
                         </li>

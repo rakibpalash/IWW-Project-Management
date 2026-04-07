@@ -204,7 +204,7 @@ export function ProfileSettingsPage({ profile }: ProfileSettingsPageProps) {
             <Input
               value={profile.email}
               disabled
-              className="bg-gray-50 text-muted-foreground"
+              className="bg-muted/30 text-muted-foreground"
             />
             <p className="text-xs text-muted-foreground">
               Email cannot be changed. Contact admin if needed.

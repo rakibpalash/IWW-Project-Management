@@ -153,7 +153,7 @@ export function CustomRolesTab({ initialRoles }: CustomRolesTabProps) {
       ) : (
         <div className="rounded-md border overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-muted/30 border-b">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Role</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Description</th>
@@ -162,7 +162,7 @@ export function CustomRolesTab({ initialRoles }: CustomRolesTabProps) {
             </thead>
             <tbody>
               {roles.map((role) => (
-                <tr key={role.id} className="border-b last:border-0 hover:bg-gray-50/50">
+                <tr key={role.id} className="border-b last:border-0 hover:bg-muted/30/50">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <span

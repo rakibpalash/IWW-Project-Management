@@ -97,8 +97,8 @@ export function AddMembersDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <p className="text-sm text-gray-500">
-            Search for people to add to <span className="font-medium text-gray-700">{teamName}</span>.
+          <p className="text-sm text-muted-foreground">
+            Search for people to add to <span className="font-medium text-foreground/80">{teamName}</span>.
           </p>
 
           {/* Selected tags */}
@@ -107,7 +107,7 @@ export function AddMembersDialog({
               {selectedProfiles.map((p) => (
                 <span
                   key={p.id}
-                  className="inline-flex items-center gap-1.5 bg-white border border-blue-200 rounded-full pl-1 pr-2 py-0.5 text-xs font-medium text-gray-700"
+                  className="inline-flex items-center gap-1.5 bg-card border border-blue-200 rounded-full pl-1 pr-2 py-0.5 text-xs font-medium text-foreground/80"
                 >
                   <Avatar className="h-4 w-4">
                     <AvatarImage src={p.avatar_url ?? undefined} />
@@ -119,7 +119,7 @@ export function AddMembersDialog({
                   <button
                     type="button"
                     onClick={() => toggleMember(p.id)}
-                    className="text-gray-400 hover:text-gray-600 ml-0.5"
+                    className="text-muted-foreground/70 hover:text-muted-foreground ml-0.5"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -130,7 +130,7 @@ export function AddMembersDialog({
 
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
             <Input
               placeholder="Search people by name or email..."
               value={search}
@@ -140,14 +140,14 @@ export function AddMembersDialog({
           </div>
 
           {/* People list */}
-          <div className="max-h-52 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+          <div className="max-h-52 overflow-y-auto border border-border rounded-lg divide-y divide-border">
             {availableProfiles.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/70">
                 <Users className="h-6 w-6 mb-2 opacity-50" />
                 <p className="text-xs">All members are already in this team</p>
               </div>
             ) : filteredProfiles.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-6">No people match your search</p>
+              <p className="text-xs text-muted-foreground/70 text-center py-6">No people match your search</p>
             ) : (
               filteredProfiles.map((p) => {
                 const isSelected = selectedIds.includes(p.id)
@@ -156,7 +156,7 @@ export function AddMembersDialog({
                     key={p.id}
                     type="button"
                     onClick={() => toggleMember(p.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors ${
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/30 transition-colors ${
                       isSelected ? 'bg-blue-50' : ''
                     }`}
                   >
@@ -167,13 +167,13 @@ export function AddMembersDialog({
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{p.full_name}</p>
-                      <p className="text-xs text-gray-400 truncate">{p.email}</p>
+                      <p className="text-sm font-medium text-foreground truncate">{p.full_name}</p>
+                      <p className="text-xs text-muted-foreground/70 truncate">{p.email}</p>
                     </div>
                     {isSelected ? (
                       <CheckCircle2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
                     ) : (
-                      <div className="h-4 w-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                      <div className="h-4 w-4 rounded-full border-2 border-border flex-shrink-0" />
                     )}
                   </button>
                 )

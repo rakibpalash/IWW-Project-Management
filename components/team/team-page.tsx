@@ -27,7 +27,7 @@ interface TeamPageProps {
 const roleConfig: Record<string, { label: string; icon: React.ElementType; className: string }> = {
   super_admin: { label: 'Admin', icon: Shield, className: 'bg-red-100 text-red-700' },
   staff: { label: 'Staff', icon: User, className: 'bg-blue-100 text-blue-700' },
-  client: { label: 'Client', icon: Briefcase, className: 'bg-gray-100 text-gray-700' },
+  client: { label: 'Client', icon: Briefcase, className: 'bg-muted text-foreground/80' },
 }
 
 function getInitials(name: string): string {
@@ -192,7 +192,7 @@ export function TeamPage({
 
       {/* User Grid */}
       {filteredUsers.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground border rounded-lg bg-gray-50">
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground border rounded-lg bg-muted/30">
           <Users className="h-10 w-10 mb-3 opacity-40" />
           <p className="text-sm font-medium">No team members found</p>
           <p className="text-xs mt-1">Try adjusting your filters</p>

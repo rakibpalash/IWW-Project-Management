@@ -144,7 +144,7 @@ export function CreateUserDialog({ open, onOpenChange }: CreateUserDialogProps) 
                 Share this password with the user. They will be prompted to change it on first login.
               </p>
               <div className="flex items-center gap-2 mt-2">
-                <code className="flex-1 rounded bg-white border border-amber-200 px-3 py-2 text-sm font-mono text-amber-900 select-all">
+                <code className="flex-1 rounded bg-card border border-amber-200 px-3 py-2 text-sm font-mono text-amber-900 select-all">
                   {createdUser.tempPassword}
                 </code>
                 <Button size="sm" variant="outline" onClick={handleCopy} className="shrink-0">
