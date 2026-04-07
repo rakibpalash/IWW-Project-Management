@@ -8,6 +8,8 @@ export const metadata = { title: 'Team' }
 
 const profileSelect =
   'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_temp_password, onboarding_completed, created_at, updated_at, custom_role:custom_roles(id, name, color)'
+const baseProfileSelect =
+  'id, full_name, email, avatar_url, role, manager_id, is_temp_password, onboarding_completed, created_at, updated_at'
 
 export default async function TeamServerPage() {
   const user = await getUser()
@@ -18,10 +20,15 @@ export default async function TeamServerPage() {
 
   const admin = createAdminClient()
 
-  const { data: allProfiles } = await admin
+  const { data: allProfilesRaw, error: profilesError } = await admin
     .from('profiles')
     .select(profileSelect)
     .order('full_name')
+
+  // Fallback: if custom_role join fails (migration not yet run), use base select
+  const allProfiles = profilesError
+    ? (await admin.from('profiles').select(baseProfileSelect).order('full_name')).data
+    : allProfilesRaw
 
   // Step 1: fetch teams without member join
   const { data: teamsData } = await admin

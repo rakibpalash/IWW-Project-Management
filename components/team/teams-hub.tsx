@@ -39,13 +39,23 @@ import {
 } from '@/components/ui/table'
 import { useToast } from '@/components/ui/use-toast'
 import { SmartDeleteDialog } from '@/components/ui/smart-delete-dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { getStaffDeleteImpact } from '@/app/actions/delete-impact'
 import { deleteUserAction } from '@/app/actions/user'
 import {
   createUserAction,
   updatePersonAction,
 } from '@/app/actions/user'
-import { addTeamMembersAction } from '@/app/actions/teams'
+import { addTeamMembersAction, createTeamAction, updateTeamAction, deleteTeamAction } from '@/app/actions/teams'
 import {
   Users,
   Plus,
@@ -722,6 +732,7 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
   const isAdmin = profile.role === 'super_admin'
 
   const [profiles, setProfiles] = useState<Profile[]>(allProfiles)
+  const [localTeams, setLocalTeams] = useState<any[]>(teams)
   const [viewMode, setViewMode] = useState<'table' | 'orgchart'>('table')
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'role' | 'team'>('all')
@@ -729,6 +740,10 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
   const [editTarget, setEditTarget] = useState<Profile | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
   const [showAddPerson, setShowAddPerson] = useState(false)
+  // Group CRUD state
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [editGroup, setEditGroup] = useState<any | null>(null)
+  const [deleteGroupId, setDeleteGroupId] = useState<string | null>(null)
 
   // Role counts
   const roleCounts = useMemo(() => {
@@ -740,9 +755,9 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
   // Team counts
   const teamMemberCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const team of teams) counts[team.id] = team.members?.length ?? 0
+    for (const team of localTeams) counts[team.id] = team.members?.length ?? 0
     return counts
-  }, [teams])
+  }, [localTeams])
 
   // Filtered profiles for right panel
   const filteredProfiles = useMemo(() => {
@@ -752,7 +767,7 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
       result = result.filter((p) => p.role === filterValue)
     } else if (filterType === 'team' && filterValue) {
       const teamMembers = new Set(
-        (teams.find((t) => t.id === filterValue)?.members ?? []).map((m: any) => m.user_id)
+        (localTeams.find((t) => t.id === filterValue)?.members ?? []).map((m: any) => m.user_id)
       )
       result = result.filter((p) => teamMembers.has(p.id))
     }
@@ -837,34 +852,72 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
             )
           })}
 
-          {/* Teams section */}
-          {teams.length > 0 && (
-            <>
-              <div className="pt-3 pb-1 px-3">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">Teams</p>
-              </div>
-              {teams.map((team) => {
-                const active = filterType === 'team' && filterValue === team.id
-                const count = teamMemberCounts[team.id] ?? 0
-                return (
-                  <button
-                    key={team.id}
-                    onClick={() => setFilter('team', team.id)}
-                    className={cn(
-                      'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
-                      active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-muted-foreground hover:bg-muted/30'
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: team.color || '#ec4899' }} />
-                      <span className="text-xs truncate">{team.name}</span>
-                    </div>
-                    <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full shrink-0">{count}</span>
-                  </button>
-                )
-              })}
-            </>
+          {/* Groups section */}
+          <div className="pt-3 pb-1 px-3 flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">Groups</p>
+            {isAdmin && (
+              <button
+                onClick={() => setShowCreateGroup(true)}
+                className="h-5 w-5 rounded hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                title="Create group"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          {localTeams.length === 0 && (
+            <p className="text-xs text-muted-foreground/50 px-3 py-1.5">No groups yet</p>
           )}
+          {localTeams.map((team) => {
+            const active = filterType === 'team' && filterValue === team.id
+            const count = teamMemberCounts[team.id] ?? 0
+            return (
+              <div
+                key={team.id}
+                className={cn(
+                  'group relative flex items-center rounded-lg transition-colors',
+                  active ? 'bg-blue-50 dark:bg-blue-950/40' : 'hover:bg-muted/30'
+                )}
+              >
+                <button
+                  onClick={() => setFilter('team', team.id)}
+                  className={cn(
+                    'flex-1 flex items-center justify-between gap-2 px-3 py-1.5 text-sm min-w-0',
+                    active ? 'text-blue-700 font-medium' : 'text-muted-foreground'
+                  )}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: team.color || '#ec4899' }} />
+                    <span className="text-xs truncate">{team.name}</span>
+                  </div>
+                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full shrink-0">{count}</span>
+                </button>
+                {isAdmin && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="hidden group-hover:flex h-6 w-6 mr-1 items-center justify-center rounded hover:bg-muted/60 text-muted-foreground shrink-0">
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-36">
+                      <DropdownMenuItem onClick={() => setEditGroup(team)}>
+                        <Pencil className="mr-2 h-3.5 w-3.5" />
+                        Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeleteGroupId(team.id)}
+                      >
+                        <Trash2 className="mr-2 h-3.5 w-3.5" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+            )
+          })}
         </nav>
 
         {/* Bottom actions */}
@@ -935,7 +988,7 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
               <span className="text-sm text-muted-foreground">
                 Showing <strong>{filteredProfiles.length}</strong> {filteredProfiles.length === 1 ? 'person' : 'people'}
                 {filterType === 'role' && ` · ${ROLE_HIERARCHY.find((r) => r.role === filterValue)?.label ?? filterValue}`}
-                {filterType === 'team' && ` · ${teams.find((t) => t.id === filterValue)?.name ?? 'Team'}`}
+                {filterType === 'team' && ` · ${localTeams.find((t) => t.id === filterValue)?.name ?? 'Group'}`}
                 {search && ` matching "${search}"`}
               </span>
               <button
@@ -951,7 +1004,7 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
             <PeopleTable
               profiles={filteredProfiles}
               allProfiles={profiles}
-              teams={teams}
+              teams={localTeams}
               isAdmin={isAdmin}
               onEdit={setEditTarget}
               onDelete={setDeleteTarget}
@@ -976,7 +1029,7 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
         open={showAddPerson}
         onClose={() => { setShowAddPerson(false); router.refresh() }}
         allProfiles={profiles}
-        teams={teams}
+        teams={localTeams}
       />
 
       {deleteTarget && (
@@ -999,6 +1052,137 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
           }}
         />
       )}
+
+      {/* ── Group CRUD Dialogs ── */}
+      <GroupDialog
+        open={showCreateGroup}
+        onOpenChange={setShowCreateGroup}
+        onSave={async (name, color) => {
+          const result = await createTeamAction({ name, color, team_type: 'public', memberIds: [] })
+          if (!result.success) { toast({ title: 'Failed to create group', description: result.error, variant: 'destructive' }); return }
+          setLocalTeams((prev) => [...prev, { ...result.team, members: [] }])
+          setShowCreateGroup(false)
+          toast({ title: 'Group created', description: `"${name}" was created.` })
+        }}
+      />
+
+      <GroupDialog
+        open={!!editGroup}
+        onOpenChange={(open) => { if (!open) setEditGroup(null) }}
+        initialName={editGroup?.name ?? ''}
+        initialColor={editGroup?.color ?? '#6366f1'}
+        title="Rename Group"
+        onSave={async (name, color) => {
+          if (!editGroup) return
+          const result = await updateTeamAction(editGroup.id, { name, color })
+          if (!result.success) { toast({ title: 'Failed to update group', description: result.error, variant: 'destructive' }); return }
+          setLocalTeams((prev) => prev.map((t) => t.id === editGroup.id ? { ...t, name, color } : t))
+          setEditGroup(null)
+          toast({ title: 'Group updated' })
+        }}
+      />
+
+      <AlertDialog open={!!deleteGroupId} onOpenChange={(open) => { if (!open) setDeleteGroupId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Group</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete &quot;{localTeams.find((t) => t.id === deleteGroupId)?.name}&quot;? Members will not be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (!deleteGroupId) return
+                const result = await deleteTeamAction(deleteGroupId)
+                if (!result.success) { toast({ title: 'Failed to delete group', description: result.error, variant: 'destructive' }); return }
+                setLocalTeams((prev) => prev.filter((t) => t.id !== deleteGroupId))
+                if (filterType === 'team' && filterValue === deleteGroupId) setFilter('all')
+                setDeleteGroupId(null)
+                toast({ title: 'Group deleted' })
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  )
+}
+
+// ── Group Create/Edit Dialog ───────────────────────────────────────────────────
+
+const GROUP_COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
+  '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6',
+]
+
+function GroupDialog({
+  open, onOpenChange, onSave, initialName = '', initialColor = '#6366f1', title = 'Create Group',
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSave: (name: string, color: string) => Promise<void>
+  initialName?: string
+  initialColor?: string
+  title?: string
+}) {
+  const [name, setName] = useState(initialName)
+  const [color, setColor] = useState(initialColor)
+  const [isPending, startTransition] = useTransition()
+
+  // Sync when reopened
+  useState(() => { setName(initialName); setColor(initialColor) })
+
+  function handleSave() {
+    if (!name.trim()) return
+    startTransition(async () => { await onSave(name.trim(), color) })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label>Group Name *</Label>
+            <Input
+              placeholder="e.g. Design Team"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Color</Label>
+            <div className="flex flex-wrap gap-2">
+              {GROUP_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  className={cn(
+                    'h-6 w-6 rounded-full transition-all',
+                    color === c ? 'ring-2 ring-offset-2 ring-foreground scale-110' : 'hover:scale-105'
+                  )}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>Cancel</Button>
+          <Button onClick={handleSave} disabled={isPending || !name.trim()}>
+            {isPending ? 'Saving…' : title === 'Create Group' ? 'Create' : 'Save'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
