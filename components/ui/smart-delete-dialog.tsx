@@ -31,6 +31,7 @@ import {
   Info,
   ChevronLeft,
 } from 'lucide-react'
+import Link from 'next/link'
 import { cn, getInitials } from '@/lib/utils'
 import { DeleteImpact } from '@/app/actions/delete-impact'
 
@@ -262,7 +263,13 @@ export function SmartDeleteDialog({
                         <div className="space-y-1 pl-5">
                           {impact.tasks.slice(0, 5).map((t) => (
                             <div key={t.id} className="flex items-center justify-between text-xs text-amber-800">
-                              <span className="truncate max-w-[200px]">{t.title}</span>
+                              <Link
+                                href={`/projects/${t.project_id}/tasks/${t.id}`}
+                                target="_blank"
+                                className="truncate max-w-[200px] hover:underline hover:text-amber-600"
+                              >
+                                {t.title}
+                              </Link>
                               <Badge
                                 variant="outline"
                                 className="text-[10px] border-amber-300 text-amber-700 shrink-0 ml-2"
@@ -297,7 +304,13 @@ export function SmartDeleteDialog({
                         <div className="space-y-1 pl-5">
                           {impact.projects.slice(0, 4).map((p) => (
                             <div key={p.id} className="flex items-center justify-between text-xs text-amber-800">
-                              <span className="truncate max-w-[180px]">{p.name}</span>
+                              <Link
+                                href={`/projects/${p.id}`}
+                                target="_blank"
+                                className="truncate max-w-[180px] hover:underline hover:text-amber-600"
+                              >
+                                {p.name}
+                              </Link>
                               <Badge
                                 variant="outline"
                                 className="text-[10px] border-amber-300 text-amber-700 shrink-0"

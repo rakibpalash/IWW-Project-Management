@@ -12,7 +12,7 @@ export interface DeleteImpact {
   otherWorkspaces: { id: string; name: string }[]
   otherProjects: { id: string; name: string; workspace_id: string }[]
   // Task list (for project/staff delete)
-  tasks: { id: string; title: string; status: string }[]
+  tasks: { id: string; title: string; status: string; project_id: string }[]
   // Other users for reassignment (staff delete)
   otherUsers: { id: string; full_name: string; avatar_url: string | null }[]
 }
@@ -93,7 +93,7 @@ export async function getProjectDeleteImpact(
       admin.from('projects').select('workspace_id').eq('id', projectId).single(),
       admin
         .from('tasks')
-        .select('id, title, status')
+        .select('id, title, status, project_id')
         .eq('project_id', projectId)
         .is('parent_task_id', null)
         .order('title')
@@ -132,7 +132,7 @@ export async function getProjectDeleteImpact(
         projects: [],
         otherWorkspaces: [],
         otherProjects: otherProjects ?? [],
-        tasks: (taskDetails ?? []).map((t: any) => ({ id: t.id, title: t.title, status: t.status })),
+        tasks: (taskDetails ?? []).map((t: any) => ({ id: t.id, title: t.title, status: t.status, project_id: t.project_id })),
         otherUsers: otherUsers ?? [],
       },
     }
@@ -179,7 +179,7 @@ export async function getStaffDeleteImpact(
     const [{ data: assignedTasks }, { count: projectCount }, { data: otherUsers }] = await Promise.all([
       admin
         .from('task_assignees')
-        .select('task:tasks(id, title, status)')
+        .select('task:tasks(id, title, status, project_id)')
         .eq('user_id', userId),
       admin
         .from('project_members')
@@ -196,7 +196,7 @@ export async function getStaffDeleteImpact(
     const tasks = (assignedTasks ?? [])
       .map((a: any) => a.task)
       .filter(Boolean)
-      .map((t: any) => ({ id: t.id, title: t.title, status: t.status }))
+      .map((t: any) => ({ id: t.id, title: t.title, status: t.status, project_id: t.project_id }))
 
     return {
       success: true,
