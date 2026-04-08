@@ -30,6 +30,7 @@ import {
   ArrowRight,
   Info,
   ChevronLeft,
+  ExternalLink,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn, getInitials } from '@/lib/utils'
@@ -266,9 +267,10 @@ export function SmartDeleteDialog({
                               <Link
                                 href={`/projects/${t.project_id}/tasks/${t.id}`}
                                 target="_blank"
-                                className="truncate max-w-[200px] hover:underline hover:text-amber-600"
+                                className="flex items-center gap-1 truncate max-w-[200px] underline underline-offset-2 text-amber-700 hover:text-amber-900 font-medium"
                               >
                                 {t.title}
+                                <ExternalLink className="h-3 w-3 shrink-0" />
                               </Link>
                               <Badge
                                 variant="outline"
@@ -307,9 +309,10 @@ export function SmartDeleteDialog({
                               <Link
                                 href={`/projects/${p.id}`}
                                 target="_blank"
-                                className="truncate max-w-[180px] hover:underline hover:text-amber-600"
+                                className="flex items-center gap-1 truncate max-w-[180px] underline underline-offset-2 text-amber-700 hover:text-amber-900 font-medium"
                               >
                                 {p.name}
+                                <ExternalLink className="h-3 w-3 shrink-0" />
                               </Link>
                               <Badge
                                 variant="outline"

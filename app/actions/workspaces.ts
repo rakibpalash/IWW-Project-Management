@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 // ── Auth + admin guard ────────────────────────────────────────────────────────
 
@@ -82,14 +82,15 @@ export async function deleteWorkspaceAction(
         const { data: taskIds } = await supabase.from('tasks').select('id').in('project_id', ids)
         if (taskIds && taskIds.length > 0) {
           const tids = taskIds.map((t) => t.id)
-          await supabase.from('task_assignees').delete().in('task_id', tids)
-          await supabase.from('task_watchers').delete().in('task_id', tids)
-          await supabase.from('time_entries').delete().in('task_id', tids)
-          await supabase.from('activity_logs').delete().in('task_id', tids)
-          await supabase.from('comments').delete().in('task_id', tids)
-          await supabase.from('tasks').delete().in('project_id', ids)
+          await admin.from('task_assignees').delete().in('task_id', tids)
+          await admin.from('task_watchers').delete().in('task_id', tids)
+          await admin.from('time_entries').delete().in('task_id', tids)
+          await admin.from('activity_logs').delete().in('task_id', tids)
+          await admin.from('comments').delete().in('task_id', tids)
+          await admin.from('tasks').delete().in('project_id', ids)
         }
-        await supabase.from('projects').delete().in('id', ids)
+        await admin.from('project_members').delete().in('project_id', ids)
+        await admin.from('projects').delete().in('id', ids)
       }
     }
 
@@ -103,8 +104,8 @@ export async function deleteWorkspaceAction(
       'id', (await supabase.auth.getUser()).data.user?.id ?? ''
     ).single()
 
-    await supabase.from('workspace_assignments').delete().eq('workspace_id', workspaceId)
-    const { error } = await supabase.from('workspaces').delete().eq('id', workspaceId)
+    await admin.from('workspace_assignments').delete().eq('workspace_id', workspaceId)
+    const { error } = await admin.from('workspaces').delete().eq('id', workspaceId)
     if (error) return { success: false, error: error.message }
 
     // Send notifications
@@ -125,6 +126,7 @@ export async function deleteWorkspaceAction(
     }
 
     revalidatePath('/workspaces')
+    revalidateTag('workspaces')
     return { success: true }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
