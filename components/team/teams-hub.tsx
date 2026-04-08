@@ -672,11 +672,11 @@ function AddPersonDialog({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Team</Label>
+              <Label>Group</Label>
               <Select value={teamId} onValueChange={setTeamId}>
                 <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none">No team</SelectItem>
+                  <SelectItem value="__none">No group</SelectItem>
                   {teams.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select>
