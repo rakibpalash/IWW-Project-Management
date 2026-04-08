@@ -64,51 +64,30 @@ export async function deleteWorkspaceAction(
     const { supabase } = await requireAdmin()
     const admin = createAdminClient()
 
-    const { data: projects } = await admin
-      .from('projects')
-      .select('id')
-      .eq('workspace_id', workspaceId)
+    // Collect notification data BEFORE deleting
+    const [{ data: members }, { data: deleter }] = await Promise.all([
+      admin.from('workspace_assignments').select('user_id').eq('workspace_id', workspaceId),
+      admin.from('profiles').select('full_name, id').eq(
+        'id', (await supabase.auth.getUser()).data.user?.id ?? ''
+      ).single(),
+    ])
 
-    const ids = (projects ?? []).map((p) => p.id)
-
-    if (ids.length > 0) {
-      if (opts?.moveProjectsToWorkspaceId) {
-        // Move projects to another workspace instead of deleting
-        await admin
-          .from('projects')
-          .update({ workspace_id: opts.moveProjectsToWorkspaceId })
-          .in('id', ids)
-      } else {
-        const { data: taskIds } = await admin.from('tasks').select('id').in('project_id', ids)
-        if (taskIds && taskIds.length > 0) {
-          const tids = taskIds.map((t) => t.id)
-          await admin.from('task_assignees').delete().in('task_id', tids)
-          await admin.from('task_watchers').delete().in('task_id', tids)
-          await admin.from('time_entries').delete().in('task_id', tids)
-          await admin.from('activity_logs').delete().in('task_id', tids)
-          await admin.from('comments').delete().in('task_id', tids)
-        }
-        await admin.from('tasks').delete().in('project_id', ids)
-        await admin.from('project_members').delete().in('project_id', ids)
-        await admin.from('projects').delete().in('id', ids)
-      }
+    if (opts?.moveProjectsToWorkspaceId) {
+      // Move projects to another workspace instead of deleting
+      const { error: moveError } = await admin
+        .from('projects')
+        .update({ workspace_id: opts.moveProjectsToWorkspaceId })
+        .eq('workspace_id', workspaceId)
+      if (moveError) return { success: false, error: moveError.message }
     }
 
-    // Notify affected workspace members
-    const { data: members } = await supabase
-      .from('workspace_assignments')
-      .select('user_id')
-      .eq('workspace_id', workspaceId)
-
-    const { data: deleter } = await admin.from('profiles').select('full_name, id').eq(
-      'id', (await supabase.auth.getUser()).data.user?.id ?? ''
-    ).single()
-
-    await admin.from('workspace_assignments').delete().eq('workspace_id', workspaceId)
+    // Delete the workspace — ON DELETE CASCADE handles all child rows automatically:
+    // workspace_assignments, projects → project_members, tasks → task_assignees,
+    // task_watchers, comments, time_entries, activity_logs
     const { error } = await admin.from('workspaces').delete().eq('id', workspaceId)
     if (error) return { success: false, error: error.message }
 
-    // Send notifications
+    // Send notifications to affected members
     if (members && members.length > 0 && deleter) {
       const notifications = members
         .filter((m) => m.user_id !== deleter.id)
