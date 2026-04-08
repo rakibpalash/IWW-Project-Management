@@ -64,7 +64,7 @@ export async function deleteWorkspaceAction(
     const { supabase } = await requireAdmin()
     const admin = createAdminClient()
 
-    const { data: projects } = await supabase
+    const { data: projects } = await admin
       .from('projects')
       .select('id')
       .eq('workspace_id', workspaceId)
@@ -79,7 +79,7 @@ export async function deleteWorkspaceAction(
           .update({ workspace_id: opts.moveProjectsToWorkspaceId })
           .in('id', ids)
       } else {
-        const { data: taskIds } = await supabase.from('tasks').select('id').in('project_id', ids)
+        const { data: taskIds } = await admin.from('tasks').select('id').in('project_id', ids)
         if (taskIds && taskIds.length > 0) {
           const tids = taskIds.map((t) => t.id)
           await admin.from('task_assignees').delete().in('task_id', tids)
@@ -87,8 +87,8 @@ export async function deleteWorkspaceAction(
           await admin.from('time_entries').delete().in('task_id', tids)
           await admin.from('activity_logs').delete().in('task_id', tids)
           await admin.from('comments').delete().in('task_id', tids)
-          await admin.from('tasks').delete().in('project_id', ids)
         }
+        await admin.from('tasks').delete().in('project_id', ids)
         await admin.from('project_members').delete().in('project_id', ids)
         await admin.from('projects').delete().in('id', ids)
       }

@@ -131,11 +131,15 @@ export function SmartDeleteDialog({
 
   async function handleDelete() {
     setStep('deleting')
-    await onConfirmDelete({
-      moveTasksToProjectId: moveToProject || undefined,
-      moveProjectsToWorkspaceId: moveToWorkspace || undefined,
-      reassignToUserId: reassignToUser || undefined,
-    })
+    try {
+      await onConfirmDelete({
+        moveTasksToProjectId: moveToProject || undefined,
+        moveProjectsToWorkspaceId: moveToWorkspace || undefined,
+        reassignToUserId: reassignToUser || undefined,
+      })
+    } catch {
+      setStep('step3')
+    }
   }
 
   const confirmReady = confirmValue === entityName

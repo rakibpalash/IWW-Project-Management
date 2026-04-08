@@ -67,14 +67,18 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
   // ── Delete ────────────────────────────────────────────────────────────────
   async function handleDelete(opts: { moveProjectsToWorkspaceId?: string }) {
     if (!deleteTarget) return
-    const result = await deleteWorkspaceAction(deleteTarget.id, opts)
-    if (!result.success) {
-      toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
-      return
+    try {
+      const result = await deleteWorkspaceAction(deleteTarget.id, opts)
+      if (!result.success) {
+        toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: 'Workspace deleted', description: `"${deleteTarget.name}" was deleted.` })
+      setDeleteTarget(null)
+      router.push('/workspaces')
+    } catch (err) {
+      toast({ title: 'Delete failed', description: err instanceof Error ? err.message : 'Unexpected error', variant: 'destructive' })
     }
-    toast({ title: 'Workspace deleted', description: `"${deleteTarget.name}" was deleted.` })
-    setDeleteTarget(null)
-    refresh()
   }
 
   return (
