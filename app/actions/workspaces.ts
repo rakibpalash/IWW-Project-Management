@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath } from 'next/cache'
 
 // ── Auth + admin guard ────────────────────────────────────────────────────────
 
@@ -105,7 +105,6 @@ export async function deleteWorkspaceAction(
     }
 
     revalidatePath('/workspaces')
-    revalidateTag('workspaces')
     return { success: true }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
