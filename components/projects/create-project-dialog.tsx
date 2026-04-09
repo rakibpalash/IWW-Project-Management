@@ -207,8 +207,8 @@ export function CreateProjectDialog({
   )
   const selectedPmUser = allUsers.find(u => u.id === projectManager)
 
-  // Team members = all internal users, grouped by manager, excluding selected PM
-  const teamCandidates = allUsers.filter(u => u.id !== projectManager)
+  // Team members = staff only, excluding selected PM
+  const teamCandidates = allUsers.filter(u => u.role === 'staff' && u.id !== projectManager)
 
   const staffByManager = teamCandidates.reduce<Record<string, Profile[]>>((acc, s) => {
     const key = s.manager_id ?? '__none__'
