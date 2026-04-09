@@ -11,10 +11,18 @@ export const metadata = {
 }
 
 export default async function WorkspacesRoute() {
+  // Auth checks must happen outside try-catch so redirects work correctly
   const user = await getUser()
   if (!user) redirect('/login')
 
-  const profile = await getProfile(user.id)
+  let profile
+  try {
+    profile = await getProfile(user.id)
+  } catch (err) {
+    console.error('[WorkspacesRoute] getProfile error:', err)
+    profile = null
+  }
+
   if (!profile || profile.role !== 'super_admin') redirect('/dashboard')
 
   try {
@@ -42,10 +50,10 @@ export default async function WorkspacesRoute() {
 
     return <WorkspacesPage workspaces={workspacesWithCounts} />
   } catch (err) {
-    // Re-throw Next.js redirect/notFound signals — they have a digest property
+    // Re-throw Next.js redirect/notFound signals
     if (err && typeof err === 'object' && 'digest' in err) throw err
     console.error('[WorkspacesRoute] Unexpected error:', err)
-    // Return empty page instead of crashing into error boundary
+    // Show empty state instead of crashing into error boundary
     return <WorkspacesPage workspaces={[]} />
   }
 }

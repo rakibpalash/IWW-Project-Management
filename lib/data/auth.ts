@@ -10,34 +10,45 @@ const PROFILE_SELECT =
  * Layout and page calling this in the same request only hit Supabase once.
  */
 export const getUser = cache(async () => {
-  const supabase = await createClient()
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-  if (error || !user) return null
-  return user
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+    if (error || !user) return null
+    return user
+  } catch {
+    return null
+  }
 })
 
 /**
  * _fetchProfile — cross-request cached via unstable_cache (2 min TTL).
- * Profile rarely changes; safe to cache per user ID.
+ * Key includes userId so each user gets their own cache entry.
  */
-const _fetchProfile = unstable_cache(
-  async (userId: string) => {
-    const admin = createAdminClient()
-    const { data } = await admin
-      .from('profiles')
-      .select(PROFILE_SELECT)
-      .eq('id', userId)
-      .single()
-    return data
-  },
-  ['profile'],
-  { revalidate: 120 }
-)
+const _fetchProfile = (userId: string) =>
+  unstable_cache(
+    async () => {
+      const admin = createAdminClient()
+      const { data } = await admin
+        .from('profiles')
+        .select(PROFILE_SELECT)
+        .eq('id', userId)
+        .single()
+      return data
+    },
+    ['profile', userId],
+    { revalidate: 120 }
+  )()
 
 /**
  * getProfile — React-cache deduplication on top of unstable_cache.
  */
-export const getProfile = cache(_fetchProfile)
+export const getProfile = cache(async (userId: string) => {
+  try {
+    return await _fetchProfile(userId)
+  } catch {
+    return null
+  }
+})
