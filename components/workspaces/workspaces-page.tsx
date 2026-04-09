@@ -174,6 +174,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
         entityType="workspace"
         entityName={deleteTarget?.name ?? ''}
         entityId={deleteTarget?.id ?? ''}
+        allowForceDelete
         onFetchImpact={() => getWorkspaceDeleteImpact(deleteTarget!.id)}
         onConfirmDelete={(opts) => handleDelete({ moveProjectsToWorkspaceId: opts.moveProjectsToWorkspaceId })}
       />

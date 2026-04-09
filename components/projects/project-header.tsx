@@ -245,6 +245,7 @@ export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHea
         entityType="project"
         entityName={project.name}
         entityId={project.id}
+        allowForceDelete={profile.role === 'super_admin'}
         onFetchImpact={() => getProjectDeleteImpact(project.id)}
         onConfirmDelete={async (opts) => {
           const result = await deleteProjectAction(project.id, { moveTasksToProjectId: opts.moveTasksToProjectId })

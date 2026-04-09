@@ -44,6 +44,7 @@ interface SmartDeleteDialogProps {
   entityType: EntityType
   entityName: string
   entityId: string
+  allowForceDelete?: boolean
   onFetchImpact: () => Promise<{ success: boolean; impact?: DeleteImpact; error?: string }>
   onConfirmDelete: (opts: {
     moveTasksToProjectId?: string
@@ -67,6 +68,7 @@ export function SmartDeleteDialog({
   entityType,
   entityName,
   entityId,
+  allowForceDelete = false,
   onFetchImpact,
   onConfirmDelete,
 }: SmartDeleteDialogProps) {
@@ -343,6 +345,20 @@ export function SmartDeleteDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
+              {allowForceDelete && (
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={step === 'loading' || !!error || step === 'deleting'}
+                  className="gap-1.5"
+                >
+                  {step === 'deleting' ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" />Deleting…</>
+                  ) : (
+                    <><Trash2 className="h-4 w-4" />Force Delete</>
+                  )}
+                </Button>
+              )}
               <Button
                 onClick={goToNext}
                 disabled={step === 'loading' || !!error}
