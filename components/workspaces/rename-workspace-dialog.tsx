@@ -43,7 +43,7 @@ interface RenameWorkspaceDialogProps {
   workspace: Workspace | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSuccess: () => void
+  onSuccess: (id: string, name: string, description: string | null) => void
 }
 
 export function RenameWorkspaceDialog({
@@ -87,7 +87,7 @@ export function RenameWorkspaceDialog({
 
       toast({ title: 'Workspace renamed', description: `Renamed to "${values.name}"` })
       onOpenChange(false)
-      onSuccess()
+      onSuccess(workspace.id, values.name, values.description?.trim() || null)
     } finally {
       setSaving(false)
     }

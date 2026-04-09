@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Building2, Search, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -23,11 +23,8 @@ interface WorkspacesPageProps {
 export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPageProps) {
   const router = useRouter()
   const { toast } = useToast()
-  const [, startTransition] = useTransition()
 
-  // Local copy so we can update without triggering a server re-render
   const [workspaces, setWorkspaces] = useState<WorkspaceWithCounts[]>(initialWorkspaces)
-
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [renameTarget, setRenameTarget] = useState<Workspace | null>(null)
@@ -40,11 +37,20 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
       (w.description ?? '').toLowerCase().includes(search.toLowerCase())
   )
 
-  function refresh() {
-    startTransition(() => router.refresh())
+  // ── Create: add to local state instantly ─────────────────────────────────
+  function handleCreateSuccess(newWorkspace: WorkspaceWithCounts) {
+    setWorkspaces((prev) => [newWorkspace, ...prev])
   }
 
-  // ── Clone ─────────────────────────────────────────────────────────────────
+  // ── Rename: update in local state instantly ───────────────────────────────
+  function handleRenameSuccess(id: string, name: string, description: string | null) {
+    setRenameTarget(null)
+    setWorkspaces((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, name, description, updated_at: new Date().toISOString() } : w))
+    )
+  }
+
+  // ── Clone: needs server data for new workspace ────────────────────────────
   async function handleClone(workspace: Workspace) {
     setCloningId(workspace.id)
     try {
@@ -53,34 +59,38 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
         toast({ title: 'Clone failed', description: result.error, variant: 'destructive' })
         return
       }
+      // Add cloned workspace to local state immediately
+      setWorkspaces((prev) => [
+        {
+          id: result.newWorkspaceId!,
+          name: `${workspace.name} (Copy)`,
+          description: (workspace as WorkspaceWithCounts).description ?? null,
+          created_by: '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          member_count: (workspace as WorkspaceWithCounts).member_count,
+          project_count: (workspace as WorkspaceWithCounts).project_count,
+        },
+        ...prev,
+      ])
       toast({ title: 'Workspace cloned', description: `"${workspace.name} (Copy)" created.` })
-      refresh() // clone needs server data for the new workspace
     } finally {
       setCloningId(null)
     }
   }
 
-  // ── Delete ────────────────────────────────────────────────────────────────
+  // ── Delete: remove from local state instantly ─────────────────────────────
   async function handleDelete(opts: { moveProjectsToWorkspaceId?: string }) {
     if (!deleteTarget) return
     const targetId = deleteTarget.id
     const targetName = deleteTarget.name
-
     const result = await deleteWorkspaceAction(targetId, opts)
     if (!result.success) {
-      // Throw so SmartDeleteDialog catches it and shows the error inline
       throw new Error(result.error ?? 'Delete failed')
     }
-    // Remove from local state — no router.refresh() to avoid server re-render crash
     setWorkspaces((prev) => prev.filter((w) => w.id !== targetId))
     setDeleteTarget(null)
     toast({ title: 'Workspace deleted', description: `"${targetName}" was deleted.` })
-  }
-
-  // ── Rename callback ───────────────────────────────────────────────────────
-  function handleRenameSuccess() {
-    setRenameTarget(null)
-    refresh()
   }
 
   return (
@@ -118,12 +128,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
             {search ? 'No workspaces match your search' : 'No workspaces yet'}
           </p>
           {!search && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4 gap-2"
-              onClick={() => setShowCreate(true)}
-            >
+            <Button variant="outline" size="sm" className="mt-4 gap-2" onClick={() => setShowCreate(true)}>
               <Plus className="h-4 w-4" />
               Create your first workspace
             </Button>
@@ -153,14 +158,12 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
         </div>
       )}
 
-      {/* Create dialog */}
       <CreateWorkspaceDialog
         open={showCreate}
         onOpenChange={setShowCreate}
-        onSuccess={refresh}
+        onSuccess={handleCreateSuccess}
       />
 
-      {/* Rename dialog */}
       <RenameWorkspaceDialog
         workspace={renameTarget}
         open={!!renameTarget}
@@ -168,7 +171,6 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
         onSuccess={handleRenameSuccess}
       />
 
-      {/* Smart Delete Dialog */}
       <SmartDeleteDialog
         open={!!deleteTarget}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}

@@ -27,7 +27,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
-import { Profile } from '@/types'
+import { Profile, Workspace } from '@/types'
 import { Search, Users, Loader2 } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 
@@ -42,10 +42,12 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
+type WorkspaceWithCounts = Workspace & { member_count: number; project_count: number }
+
 interface CreateWorkspaceDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSuccess: () => void
+  onSuccess: (workspace: WorkspaceWithCounts) => void
 }
 
 export function CreateWorkspaceDialog({
@@ -158,7 +160,16 @@ export function CreateWorkspaceDialog({
 
       form.reset()
       onOpenChange(false)
-      onSuccess()
+      onSuccess({
+        id: workspace.id,
+        name: values.name.trim(),
+        description: values.description?.trim() || null,
+        created_by: user.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        member_count: selectedStaff.size,
+        project_count: 0,
+      })
     } finally {
       setIsSubmitting(false)
     }
