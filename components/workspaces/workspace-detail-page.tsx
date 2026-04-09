@@ -156,7 +156,7 @@ export function WorkspaceDetailPage({
   const [tlSearch, setTlSearch] = useState('')
   const [listView, setListView] = useState<'list' | 'grid'>('list')
 
-  // ── Tab customisation ──
+  // ── Tab customisation (persisted per-user per-workspace in localStorage) ──
   const ALL_TABS: { key: TabType; label: string; icon: React.ReactNode }[] = [
     { key: 'summary',  label: 'Summary',  icon: <Globe className="h-3.5 w-3.5" /> },
     { key: 'list',     label: 'List',     icon: <LayoutList className="h-3.5 w-3.5" /> },
@@ -164,11 +164,34 @@ export function WorkspaceDetailPage({
     { key: 'calendar', label: 'Calendar', icon: <Calendar className="h-3.5 w-3.5" /> },
     { key: 'timeline', label: 'Timeline', icon: <BarChart2 className="h-3.5 w-3.5" /> },
   ]
-  const [tabOrder, setTabOrder] = useState<TabType[]>(['summary', 'list', 'board', 'calendar', 'timeline'])
-  const [tabLabels, setTabLabels] = useState<Record<TabType, string>>({
+
+  const DEFAULT_TAB_ORDER: TabType[] = ['summary', 'list', 'board', 'calendar', 'timeline']
+  const DEFAULT_TAB_LABELS: Record<TabType, string> = {
     summary: 'Summary', list: 'List', board: 'Board', calendar: 'Calendar', timeline: 'Timeline',
-  })
-  const [defaultTab, setDefaultTab] = useState<TabType>('summary')
+  }
+
+  // Unique key per user + workspace so each user has their own layout
+  const storageKey = `ws-tabs:${profile.id}:${workspace.id}`
+
+  function loadTabPrefs() {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = localStorage.getItem(storageKey)
+      return raw ? JSON.parse(raw) : null
+    } catch { return null }
+  }
+
+  function saveTabPrefs(order: TabType[], labels: Record<TabType, string>, def: TabType) {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ order, labels, default: def }))
+    } catch {}
+  }
+
+  const savedPrefs = loadTabPrefs()
+
+  const [tabOrder, setTabOrder] = useState<TabType[]>(savedPrefs?.order ?? DEFAULT_TAB_ORDER)
+  const [tabLabels, setTabLabels] = useState<Record<TabType, string>>(savedPrefs?.labels ?? DEFAULT_TAB_LABELS)
+  const [defaultTab, setDefaultTab] = useState<TabType>(savedPrefs?.default ?? 'summary')
   const [tabMenuOpen, setTabMenuOpen] = useState<TabType | null>(null)
   const [renamingTab, setRenamingTab] = useState<TabType | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -180,6 +203,7 @@ export function WorkspaceDetailPage({
       if (next < 0 || next >= prev.length) return prev
       const arr = [...prev]
       ;[arr[idx], arr[next]] = [arr[next], arr[idx]]
+      saveTabPrefs(arr, tabLabels, defaultTab)
       return arr
     })
   }
@@ -191,9 +215,18 @@ export function WorkspaceDetailPage({
 
   function confirmRename() {
     if (renamingTab && renameValue.trim()) {
-      setTabLabels(prev => ({ ...prev, [renamingTab]: renameValue.trim() }))
+      const newLabels = { ...tabLabels, [renamingTab]: renameValue.trim() }
+      setTabLabels(newLabels)
+      saveTabPrefs(tabOrder, newLabels, defaultTab)
     }
     setRenamingTab(null)
+  }
+
+  function handleSetDefaultTab(key: TabType) {
+    setDefaultTab(key)
+    setActiveTab(key)
+    saveTabPrefs(tabOrder, tabLabels, key)
+    setTabMenuOpen(null)
   }
 
   function refresh() { startTransition(() => router.refresh()) }
@@ -493,7 +526,7 @@ export function WorkspaceDetailPage({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48">
                   <DropdownMenuItem
-                    onClick={() => { setDefaultTab(tab.key); setActiveTab(tab.key); setTabMenuOpen(null) }}
+                    onClick={() => handleSetDefaultTab(tab.key)}
                     className="flex items-center justify-between"
                   >
                     <span>Set as default</span>
