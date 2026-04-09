@@ -55,10 +55,8 @@ CREATE TABLE IF NOT EXISTS public.projects (
   client_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   start_date DATE,
   due_date DATE,
-  status TEXT NOT NULL DEFAULT 'planning'
-    CHECK (status IN ('planning', 'in_progress', 'on_hold', 'completed', 'cancelled')),
-  priority TEXT NOT NULL DEFAULT 'medium'
-    CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
+  status TEXT NOT NULL DEFAULT 'planning',
+  priority TEXT NOT NULL DEFAULT 'medium',
   progress INTEGER NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
   estimated_hours NUMERIC(10,2),
   created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -78,10 +76,8 @@ CREATE TABLE IF NOT EXISTS public.tasks (
   start_date DATE,
   due_date DATE,
   estimated_hours NUMERIC(10,2),
-  priority TEXT NOT NULL DEFAULT 'medium'
-    CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
-  status TEXT NOT NULL DEFAULT 'todo'
-    CHECK (status IN ('todo', 'in_progress', 'in_review', 'done', 'cancelled')),
+  priority TEXT NOT NULL DEFAULT 'medium',
+  status TEXT NOT NULL DEFAULT 'todo',
   created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
