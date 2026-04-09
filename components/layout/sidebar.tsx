@@ -90,14 +90,14 @@ export function Sidebar({ profile, isOpen, isCollapsed, onClose, onToggleCollaps
       >
         {/* ── Logo ── */}
         <div className={cn(
-          'flex h-14 shrink-0 items-center border-b border-sidebar-border',
-          isCollapsed ? 'lg:justify-center px-0' : 'px-4 justify-between',
+          'flex h-14 shrink-0 items-center border-b border-sidebar-border px-3',
+          isCollapsed ? 'lg:justify-center lg:px-2' : 'justify-between',
         )}>
           {/* Expanded logo */}
           <Link
             href="/dashboard"
             className={cn(
-              'flex items-center gap-3 outline-none',
+              'flex items-center gap-3 outline-none min-w-0',
               isCollapsed && 'lg:hidden',
             )}
             onClick={onClose}
@@ -131,14 +131,47 @@ export function Sidebar({ profile, isOpen, isCollapsed, onClose, onToggleCollaps
             </Tooltip>
           )}
 
-          {/* Mobile close */}
-          <button
-            onClick={onClose}
-            className="lg:hidden p-1.5 rounded-md text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-            aria-label="Close menu"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          {/* Right side: desktop collapse toggle + mobile close */}
+          <div className={cn('flex items-center gap-1', isCollapsed && 'lg:hidden')}>
+            {/* Desktop collapse button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onToggleCollapse}
+                  className="hidden lg:flex h-8 w-8 items-center justify-center rounded-lg text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                  aria-label="Collapse sidebar"
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Collapse</TooltipContent>
+            </Tooltip>
+
+            {/* Mobile close */}
+            <button
+              onClick={onClose}
+              className="lg:hidden p-1.5 rounded-md text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+              aria-label="Close menu"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Desktop expand button when collapsed */}
+          {isCollapsed && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onToggleCollapse}
+                  className="hidden lg:flex h-8 w-8 items-center justify-center rounded-lg text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                  aria-label="Expand sidebar"
+                >
+                  <PanelLeftOpen className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Expand</TooltipContent>
+            </Tooltip>
+          )}
         </div>
 
         {/* ── Nav ── */}
@@ -200,31 +233,6 @@ export function Sidebar({ profile, isOpen, isCollapsed, onClose, onToggleCollaps
             })}
           </ul>
         </nav>
-
-        {/* ── Collapse toggle (desktop) ── */}
-        <div className="hidden lg:flex items-center border-t border-sidebar-border px-2 py-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={onToggleCollapse}
-                className={cn(
-                  'flex h-8 items-center justify-center rounded-lg text-sidebar-foreground/40',
-                  'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors',
-                  isCollapsed ? 'w-full' : 'w-8',
-                )}
-                aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              >
-                {isCollapsed
-                  ? <PanelLeftOpen className="h-4 w-4" />
-                  : <PanelLeftClose className="h-4 w-4" />
-                }
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              {isCollapsed ? 'Expand' : 'Collapse'}
-            </TooltipContent>
-          </Tooltip>
-        </div>
 
         {/* ── User footer ── */}
         <div className={cn(
