@@ -26,7 +26,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import {
-  CalendarIcon, Loader2, Plus, Search, Users, GitBranch, ChevronDown,
+  CalendarIcon, Loader2, Plus, Search, Users, GitBranch, ChevronDown, DollarSign,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn, getInitials } from '@/lib/utils'
@@ -65,6 +65,7 @@ const formSchema = z.object({
   status:           z.string().min(1),
   priority:         z.string().min(1),
   estimated_hours:  z.coerce.number().min(0).optional().or(z.literal('')),
+  fixed_price:      z.coerce.number().min(0).optional().or(z.literal('')),
   description:      z.string().max(2000).optional(),
 })
 
@@ -136,7 +137,7 @@ export function CreateProjectDialog({
       name: '', workspace_id: workspaces.length === 1 ? workspaces[0].id : '',
       client_id: undefined, partner_id: undefined,
       is_internal: false, billing_type: 'hourly',
-      status: '', priority: '', description: '', estimated_hours: '',
+      status: '', priority: '', description: '', estimated_hours: '', fixed_price: '',
     },
   })
 
@@ -243,6 +244,9 @@ export function CreateProjectDialog({
         status: values.status,
         priority: values.priority,
         estimated_hours: values.estimated_hours === '' || values.estimated_hours === undefined ? null : Number(values.estimated_hours),
+        ...(values.billing_type === 'fixed' && values.fixed_price !== '' && values.fixed_price !== undefined
+          ? { fixed_price: Number(values.fixed_price) }
+          : {}),
         description: values.description || null,
         progress: 0,
         created_by: user.id,
@@ -475,6 +479,30 @@ export function CreateProjectDialog({
                   </div>
                 </FormItem>
               )} />
+
+              {billingType === 'fixed' && (
+                <FormField control={form.control} name="fixed_price" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1.5">
+                      <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                      Fixed Price Amount
+                    </FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                        <Input
+                          type="number" min={0} step={0.01}
+                          placeholder="0.00"
+                          className="pl-7"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
 
             </Section>
 
