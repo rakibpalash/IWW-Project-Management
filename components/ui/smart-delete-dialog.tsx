@@ -31,6 +31,7 @@ import {
   Info,
   ChevronLeft,
   ExternalLink,
+  Zap,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn, getInitials } from '@/lib/utils'
@@ -53,90 +54,83 @@ interface SmartDeleteDialogProps {
   }) => Promise<void>
 }
 
-const ENTITY_LABELS: Record<EntityType, { icon: React.ReactNode; label: string }> = {
-  workspace: { icon: <FolderKanban className="h-5 w-5" />, label: 'Workspace' },
-  project:   { icon: <FolderKanban className="h-5 w-5" />, label: 'Project' },
-  task:      { icon: <CheckSquare className="h-5 w-5" />,  label: 'Task' },
-  staff:     { icon: <Users className="h-5 w-5" />,        label: 'Staff Member' },
+const ENTITY_LABELS: Record<EntityType, { label: string }> = {
+  workspace: { label: 'Workspace' },
+  project:   { label: 'Project' },
+  task:      { label: 'Task' },
+  staff:     { label: 'Staff Member' },
 }
 
-type Step = 'loading' | 'step1' | 'step2' | 'step3' | 'deleting'
+type Step = 'loading' | 'impact' | 'reassign' | 'confirm' | 'deleting'
 
 export function SmartDeleteDialog({
   open,
   onOpenChange,
   entityType,
   entityName,
-  entityId,
   allowForceDelete = false,
   onFetchImpact,
   onConfirmDelete,
 }: SmartDeleteDialogProps) {
   const [step, setStep] = useState<Step>('loading')
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [isForceDeleting, setIsForceDeleting] = useState(false)
   const [impact, setImpact] = useState<DeleteImpact | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  // Reassignment options
-  const [moveToProject, setMoveToProject] = useState<string>('')
-  const [moveToWorkspace, setMoveToWorkspace] = useState<string>('')
-  const [reassignToUser, setReassignToUser] = useState<string>('')
-
-  // Step 3 confirm input
+  const [moveToProject, setMoveToProject] = useState('')
+  const [moveToWorkspace, setMoveToWorkspace] = useState('')
+  const [reassignToUser, setReassignToUser] = useState('')
   const [confirmValue, setConfirmValue] = useState('')
 
   const cfg = ENTITY_LABELS[entityType]
-
-  const hasImpact = impact
-    ? impact.taskCount > 0 || impact.projectCount > 0
+  const hasWarning = impact
+    ? impact.taskCount > 0 || impact.projectCount > 0 || impact.members.length > 0
     : false
+  const confirmReady = confirmValue === entityName
 
+  // Reset on close, fetch on open
   useEffect(() => {
     if (!open) {
       setStep('loading')
       setImpact(null)
-      setError(null)
+      setFetchError(null)
       setDeleteError(null)
       setMoveToProject('')
       setMoveToWorkspace('')
       setReassignToUser('')
       setConfirmValue('')
+      setIsForceDeleting(false)
       return
     }
-
     setStep('loading')
     onFetchImpact().then((res) => {
       if (!res.success || !res.impact) {
-        setError(res.error ?? 'Failed to load impact')
-        setStep('step1')
+        setFetchError(res.error ?? 'Failed to load impact')
+        setStep('impact')
         return
       }
       setImpact(res.impact)
-      setStep('step1')
+      setStep('impact')
     })
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function goToNext() {
-    if (step === 'step1') {
-      if (hasImpact) {
-        setStep('step2')
-      } else {
-        setStep('step3')
-      }
-    } else if (step === 'step2') {
-      setStep('step3')
+  // ── Force Delete: immediate, no step change ───────────────────────────────
+  async function handleForceDelete() {
+    setDeleteError(null)
+    setIsForceDeleting(true)
+    try {
+      await onConfirmDelete({})
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed — try again')
+    } finally {
+      setIsForceDeleting(false)
     }
   }
 
-  function goBack() {
-    if (step === 'step2') setStep('step1')
-    else if (step === 'step3') setStep(hasImpact ? 'step2' : 'step1')
-  }
-
-  async function handleDelete() {
+  // ── Confirmed Delete (step 3): changes step to show spinner ──────────────
+  async function handleConfirmedDelete() {
     setDeleteError(null)
-    setIsDeleting(true)
     setStep('deleting')
     try {
       await onConfirmDelete({
@@ -145,411 +139,330 @@ export function SmartDeleteDialog({
         reassignToUserId: reassignToUser || undefined,
       })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unexpected error — check console'
-      setDeleteError(msg)
-      setStep('step1')
-    } finally {
-      setIsDeleting(false)
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed — try again')
+      setStep('confirm')
     }
   }
 
-  const confirmReady = confirmValue === entityName
-
-  // Summary for step 3
   function buildSummary(): string {
     if (!impact) return 'This action cannot be undone.'
     const parts: string[] = []
-    if (entityType === 'staff') {
-      if (impact.taskCount > 0) {
-        if (reassignToUser) {
-          const user = impact.otherUsers.find((u) => u.id === reassignToUser)
-          parts.push(`${impact.taskCount} task${impact.taskCount === 1 ? '' : 's'} will be reassigned to ${user?.full_name ?? 'selected user'}`)
-        } else {
-          parts.push(`${impact.taskCount} task${impact.taskCount === 1 ? '' : 's'} will be unassigned`)
-        }
-      }
-    } else if (entityType === 'project') {
-      if (impact.taskCount > 0) {
-        if (moveToProject) {
-          const proj = impact.otherProjects.find((p) => p.id === moveToProject)
-          parts.push(`${impact.taskCount} task${impact.taskCount === 1 ? '' : 's'} will be moved to "${proj?.name ?? 'selected project'}"`)
-        } else {
-          parts.push(`${impact.taskCount} task${impact.taskCount === 1 ? '' : 's'} will be permanently deleted`)
-        }
-      }
-      if (impact.members.length > 0) {
-        parts.push(`${impact.members.length} ${impact.members.length === 1 ? 'person' : 'people'} will be notified`)
-      }
-    } else if (entityType === 'workspace') {
-      if (impact.projectCount > 0) {
-        if (moveToWorkspace) {
-          const ws = impact.otherWorkspaces.find((w) => w.id === moveToWorkspace)
-          parts.push(`${impact.projectCount} project${impact.projectCount === 1 ? '' : 's'} will be moved to "${ws?.name ?? 'selected workspace'}"`)
-        } else {
-          parts.push(`${impact.projectCount} project${impact.projectCount === 1 ? '' : 's'} and ${impact.taskCount} task${impact.taskCount === 1 ? '' : 's'} will be permanently deleted`)
-        }
-      }
-      if (impact.members.length > 0) {
-        parts.push(`${impact.members.length} ${impact.members.length === 1 ? 'person' : 'people'} will be notified`)
-      }
-    } else if (entityType === 'task') {
-      if (impact.members.length > 0) {
-        parts.push(`${impact.members.length} ${impact.members.length === 1 ? 'person' : 'people'} will be notified`)
-      }
+    if (entityType === 'workspace' && impact.projectCount > 0) {
+      parts.push(
+        moveToWorkspace
+          ? `${impact.projectCount} project${impact.projectCount !== 1 ? 's' : ''} will be moved`
+          : `${impact.projectCount} project${impact.projectCount !== 1 ? 's' : ''} & ${impact.taskCount} task${impact.taskCount !== 1 ? 's' : ''} will be permanently deleted`
+      )
     }
-    if (parts.length === 0) return 'This action cannot be undone.'
-    return parts.join(' and ') + '. This action cannot be undone.'
+    if (entityType === 'project' && impact.taskCount > 0) {
+      parts.push(
+        moveToProject
+          ? `${impact.taskCount} task${impact.taskCount !== 1 ? 's' : ''} will be moved`
+          : `${impact.taskCount} task${impact.taskCount !== 1 ? 's' : ''} will be permanently deleted`
+      )
+    }
+    if (entityType === 'staff' && impact.taskCount > 0) {
+      parts.push(
+        reassignToUser
+          ? `${impact.taskCount} task${impact.taskCount !== 1 ? 's' : ''} will be reassigned`
+          : `${impact.taskCount} task${impact.taskCount !== 1 ? 's' : ''} will be unassigned`
+      )
+    }
+    if (impact.members.length > 0) {
+      parts.push(`${impact.members.length} ${impact.members.length === 1 ? 'person' : 'people'} will be notified`)
+    }
+    return (parts.length ? parts.join(' · ') + '. ' : '') + 'This action cannot be undone.'
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        {/* ── STEP 1: Impact Warning ─────────────────────────────────────── */}
-        {(step === 'loading' || step === 'step1') && (
-          <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-destructive">
-                <Trash2 className="h-5 w-5" />
-                Delete {cfg.label}?
-              </DialogTitle>
-              <DialogDescription asChild>
-                <div className="mt-1">
-                  You are about to permanently delete{' '}
-                  <strong className="text-foreground">&ldquo;{entityName}&rdquo;</strong>.
-                </div>
-              </DialogDescription>
-            </DialogHeader>
+      <DialogContent className="max-w-[420px] p-0 overflow-hidden">
 
-            {step === 'loading' && (
-              <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Checking impact…</span>
+        {/* ── STEP: Impact (loading + impact) ──────────────────────────── */}
+        {(step === 'loading' || step === 'impact') && (
+          <div className="flex flex-col">
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4 border-b">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-foreground">Delete {cfg.label}</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Permanently delete{' '}
+                    <span className="font-medium text-foreground">&ldquo;{entityName}&rdquo;</span>
+                  </p>
+                </div>
               </div>
-            )}
-
-            {step === 'step1' && impact && (
-              <div className="space-y-4">
-                {!hasImpact && impact.members.length === 0 && (
-                  <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3">
-                    <Info className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                    <p className="text-sm text-muted-foreground">
-                      No members or tasks are affected. This action cannot be undone.
-                    </p>
-                  </div>
-                )}
-
-                {(hasImpact || impact.members.length > 0) && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-3">
-                    <div className="flex items-center gap-2 text-amber-800 font-medium text-sm">
-                      <AlertTriangle className="h-4 w-4 shrink-0" />
-                      This will affect:
-                    </div>
-
-                    {/* Affected members */}
-                    {impact.members.length > 0 && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-xs text-amber-700 font-medium">
-                          <Users className="h-3.5 w-3.5" />
-                          {impact.members.length} assigned {impact.members.length === 1 ? 'person' : 'people'}
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 pl-5">
-                          {impact.members.map((m) => (
-                            <div
-                              key={m.id}
-                              className="flex items-center gap-1 rounded-full bg-white border border-amber-200 pl-0.5 pr-2 py-0.5"
-                            >
-                              <Avatar className="h-4 w-4">
-                                <AvatarImage src={m.avatar_url ?? undefined} />
-                                <AvatarFallback className="text-[8px]">{getInitials(m.full_name)}</AvatarFallback>
-                              </Avatar>
-                              <span className="text-xs text-amber-900">{m.full_name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Tasks list (project or staff) */}
-                    {impact.tasks.length > 0 && (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs text-amber-700 font-medium">
-                          <CheckSquare className="h-3.5 w-3.5" />
-                          {impact.taskCount} {impact.taskCount === 1 ? 'task' : 'tasks'} will be affected
-                        </div>
-                        <div className="space-y-1 pl-5">
-                          {impact.tasks.slice(0, 5).map((t) => (
-                            <div key={t.id} className="flex items-center justify-between text-xs text-amber-800">
-                              <Link
-                                href={`/projects/${t.project_id}/tasks/${t.id}`}
-                                target="_blank"
-                                className="flex items-center gap-1 truncate max-w-[200px] underline underline-offset-2 text-amber-700 hover:text-amber-900 font-medium"
-                              >
-                                {t.title}
-                                <ExternalLink className="h-3 w-3 shrink-0" />
-                              </Link>
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] border-amber-300 text-amber-700 shrink-0 ml-2"
-                              >
-                                {t.status}
-                              </Badge>
-                            </div>
-                          ))}
-                          {impact.taskCount > 5 && (
-                            <p className="text-xs text-amber-600">and {impact.taskCount - 5} more</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Tasks count only (no list) for project with no task details */}
-                    {impact.taskCount > 0 && impact.tasks.length === 0 && impact.projects.length === 0 && (
-                      <div className="flex items-center gap-1.5 text-xs text-amber-700 font-medium">
-                        <CheckSquare className="h-3.5 w-3.5" />
-                        {impact.taskCount} {impact.taskCount === 1 ? 'task' : 'tasks'} will be deleted
-                      </div>
-                    )}
-
-                    {/* Projects inside workspace */}
-                    {impact.projects.length > 0 && (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs text-amber-700 font-medium">
-                          <FolderKanban className="h-3.5 w-3.5" />
-                          {impact.projects.length} {impact.projects.length === 1 ? 'project' : 'projects'} &amp;{' '}
-                          {impact.taskCount} {impact.taskCount === 1 ? 'task' : 'tasks'} will be deleted
-                        </div>
-                        <div className="space-y-1 pl-5">
-                          {impact.projects.slice(0, 4).map((p) => (
-                            <div key={p.id} className="flex items-center justify-between text-xs text-amber-800">
-                              <Link
-                                href={`/projects/${p.id}`}
-                                target="_blank"
-                                className="flex items-center gap-1 truncate max-w-[180px] underline underline-offset-2 text-amber-700 hover:text-amber-900 font-medium"
-                              >
-                                {p.name}
-                                <ExternalLink className="h-3 w-3 shrink-0" />
-                              </Link>
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] border-amber-300 text-amber-700 shrink-0"
-                              >
-                                {p.task_count} {p.task_count === 1 ? 'task' : 'tasks'}
-                              </Badge>
-                            </div>
-                          ))}
-                          {impact.projects.length > 4 && (
-                            <p className="text-xs text-amber-600">+{impact.projects.length - 4} more projects</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            {deleteError && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
-                <p className="text-sm text-destructive font-medium">Delete failed</p>
-                <p className="text-xs text-destructive/80 mt-0.5">{deleteError}</p>
-              </div>
-            )}
-
-            <DialogFooter className="gap-2 mt-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              {allowForceDelete && (
-                <Button
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={step === 'loading' || !!error || isDeleting}
-                  className="gap-1.5"
-                >
-                  {isDeleting ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" />Deleting…</>
-                  ) : (
-                    <><Trash2 className="h-4 w-4" />Force Delete</>
-                  )}
-                </Button>
-              )}
-              <Button
-                onClick={goToNext}
-                disabled={step === 'loading' || !!error}
-                className="gap-1.5"
-              >
-                Continue
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-
-        {/* ── STEP 2: Reassignment ──────────────────────────────────────── */}
-        {step === 'step2' && impact && (
-          <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                Reassign or Remove Dependencies
-              </DialogTitle>
-              <DialogDescription>
-                Choose what to do with the affected items before deleting.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-1">
-              {/* Project: move tasks */}
-              {entityType === 'project' && impact.taskCount > 0 && impact.otherProjects.length > 0 && (
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                    Move tasks to another project?
-                    <span className="text-muted-foreground font-normal text-xs">(optional)</span>
-                  </label>
-                  <Select value={moveToProject} onValueChange={setMoveToProject}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="Delete tasks (don't move)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Delete tasks (don&apos;t move)</SelectItem>
-                      {impact.otherProjects.map((p) => (
-                        <SelectItem key={p.id} value={p.id} className="text-sm">
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Workspace: move projects */}
-              {entityType === 'workspace' && impact.projectCount > 0 && impact.otherWorkspaces.length > 0 && (
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                    Move projects to another workspace?
-                    <span className="text-muted-foreground font-normal text-xs">(optional)</span>
-                  </label>
-                  <Select value={moveToWorkspace} onValueChange={setMoveToWorkspace}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="Delete projects (don't move)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Delete projects (don&apos;t move)</SelectItem>
-                      {impact.otherWorkspaces.map((w) => (
-                        <SelectItem key={w.id} value={w.id} className="text-sm">
-                          {w.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Staff: reassign tasks */}
-              {entityType === 'staff' && impact.taskCount > 0 && (
-                <div className="space-y-3">
-                  {/* Task list */}
-                  <div className="space-y-1.5">
-                    <p className="text-sm font-medium">
-                      {impact.taskCount} assigned {impact.taskCount === 1 ? 'task' : 'tasks'}:
-                    </p>
-                    <div className="max-h-40 overflow-y-auto rounded-md border bg-muted/30 divide-y">
-                      {impact.tasks.map((t) => (
-                        <div key={t.id} className="flex items-center justify-between px-3 py-1.5 text-xs">
-                          <span className="truncate max-w-[220px] text-foreground">{t.title}</span>
-                          <Badge variant="outline" className="text-[10px] shrink-0 ml-2">
-                            {t.status}
-                          </Badge>
-                        </div>
-                      ))}
-                      {impact.taskCount > impact.tasks.length && (
-                        <div className="px-3 py-1.5 text-xs text-muted-foreground">
-                          and {impact.taskCount - impact.tasks.length} more…
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Reassign select */}
-                  {impact.otherUsers.length > 0 && (
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium flex items-center gap-1.5">
-                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                        Reassign tasks to:
-                        <span className="text-muted-foreground font-normal text-xs">(optional)</span>
-                      </label>
-                      <Select value={reassignToUser} onValueChange={setReassignToUser}>
-                        <SelectTrigger className="h-9 text-sm">
-                          <SelectValue placeholder="Unassign tasks (don't reassign)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">Unassign tasks (don&apos;t reassign)</SelectItem>
-                          {impact.otherUsers.map((u) => (
-                            <SelectItem key={u.id} value={u.id} className="text-sm">
-                              <div className="flex items-center gap-2">
-                                <Avatar className="h-5 w-5">
-                                  <AvatarImage src={u.avatar_url ?? undefined} />
-                                  <AvatarFallback className="text-[8px]">{getInitials(u.full_name)}</AvatarFallback>
-                                </Avatar>
-                                {u.full_name}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {!reassignToUser && (
-                        <p className="text-xs text-muted-foreground">
-                          If no user is selected, tasks will be unassigned.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <button
-                onClick={() => setStep('step3')}
-                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-              >
-                Skip — delete everything without reassigning
-              </button>
             </div>
 
-            <DialogFooter className="gap-2 mt-2">
-              <Button variant="outline" onClick={goBack} className="gap-1.5">
-                <ChevronLeft className="h-4 w-4" />
-                Back
+            {/* Body */}
+            <div className="px-5 py-4 space-y-3">
+              {step === 'loading' && (
+                <div className="flex items-center justify-center py-6 gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Checking impact…</span>
+                </div>
+              )}
+
+              {step === 'impact' && impact && !hasWarning && (
+                <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3">
+                  <Info className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                  <p className="text-sm text-muted-foreground">
+                    No projects, tasks, or members are affected. This action cannot be undone.
+                  </p>
+                </div>
+              )}
+
+              {step === 'impact' && impact && hasWarning && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 divide-y divide-amber-100">
+                  <div className="flex items-center gap-2 px-3 py-2.5 text-amber-800 font-medium text-sm">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    This will affect:
+                  </div>
+
+                  {/* Members */}
+                  {impact.members.length > 0 && (
+                    <div className="px-3 py-2.5 space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-xs text-amber-700 font-medium">
+                        <Users className="h-3.5 w-3.5" />
+                        {impact.members.length} assigned {impact.members.length === 1 ? 'person' : 'people'}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {impact.members.map((m) => (
+                          <div key={m.id} className="flex items-center gap-1 rounded-full bg-white border border-amber-200 pl-0.5 pr-2 py-0.5">
+                            <Avatar className="h-4 w-4">
+                              <AvatarImage src={m.avatar_url ?? undefined} />
+                              <AvatarFallback className="text-[8px]">{getInitials(m.full_name)}</AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs text-amber-900">{m.full_name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Projects inside workspace */}
+                  {impact.projects.length > 0 && (
+                    <div className="px-3 py-2.5 space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-xs text-amber-700 font-medium">
+                        <FolderKanban className="h-3.5 w-3.5" />
+                        {impact.projects.length} {impact.projects.length === 1 ? 'project' : 'projects'} &amp;{' '}
+                        {impact.taskCount} {impact.taskCount === 1 ? 'task' : 'tasks'} will be deleted
+                      </div>
+                      <div className="space-y-1">
+                        {impact.projects.slice(0, 4).map((p) => (
+                          <div key={p.id} className="flex items-center justify-between text-xs">
+                            <Link
+                              href={`/projects/${p.id}`}
+                              target="_blank"
+                              className="flex items-center gap-1 truncate max-w-[200px] text-amber-700 hover:text-amber-900 underline underline-offset-2 font-medium"
+                            >
+                              {p.name}
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                            </Link>
+                            <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-600 shrink-0">
+                              {p.task_count} tasks
+                            </Badge>
+                          </div>
+                        ))}
+                        {impact.projects.length > 4 && (
+                          <p className="text-xs text-amber-600">+{impact.projects.length - 4} more</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tasks only */}
+                  {impact.tasks.length > 0 && impact.projects.length === 0 && (
+                    <div className="px-3 py-2.5 space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-xs text-amber-700 font-medium">
+                        <CheckSquare className="h-3.5 w-3.5" />
+                        {impact.taskCount} {impact.taskCount === 1 ? 'task' : 'tasks'} will be affected
+                      </div>
+                      <div className="space-y-1">
+                        {impact.tasks.slice(0, 5).map((t) => (
+                          <div key={t.id} className="flex items-center justify-between text-xs">
+                            <Link
+                              href={`/projects/${t.project_id}/tasks/${t.id}`}
+                              target="_blank"
+                              className="flex items-center gap-1 truncate max-w-[200px] text-amber-700 hover:text-amber-900 underline underline-offset-2 font-medium"
+                            >
+                              {t.title}
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                            </Link>
+                            <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-600 shrink-0">
+                              {t.status}
+                            </Badge>
+                          </div>
+                        ))}
+                        {impact.taskCount > 5 && (
+                          <p className="text-xs text-amber-600">and {impact.taskCount - 5} more</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {fetchError && (
+                <p className="text-sm text-destructive">{fetchError}</p>
+              )}
+
+              {/* Inline delete error (shown when force delete fails) */}
+              {deleteError && (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+                  <p className="text-sm font-medium text-destructive">Delete failed</p>
+                  <p className="text-xs text-destructive/70 mt-0.5">{deleteError}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 pb-5 flex items-center justify-between gap-2">
+              <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={isForceDeleting}>
+                Cancel
               </Button>
-              <Button onClick={goToNext} className="gap-1.5">
-                Continue
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </DialogFooter>
-          </>
+              <div className="flex items-center gap-2">
+                {/* Force Delete — only when there's a warning and allowForceDelete */}
+                {allowForceDelete && hasWarning && step === 'impact' && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleForceDelete}
+                    disabled={isForceDeleting || !!fetchError}
+                    className="gap-1.5 bg-red-500 hover:bg-red-600"
+                  >
+                    {isForceDeleting ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" />Deleting…</>
+                    ) : (
+                      <><Zap className="h-3.5 w-3.5" />Force Delete</>
+                    )}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  onClick={() => setStep(hasWarning ? 'reassign' : 'confirm')}
+                  disabled={step === 'loading' || !!fetchError || isForceDeleting}
+                  className="gap-1.5"
+                >
+                  Continue
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
 
-        {/* ── STEP 3: Type to Confirm ───────────────────────────────────── */}
-        {(step === 'step3' || step === 'deleting') && (
-          <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-destructive">
-                <Trash2 className="h-5 w-5" />
-                Delete {cfg.label}?
-              </DialogTitle>
-              <DialogDescription asChild>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  {impact ? buildSummary() : 'This action cannot be undone.'}
+        {/* ── STEP: Reassign ───────────────────────────────────────────── */}
+        {step === 'reassign' && impact && (
+          <div className="flex flex-col">
+            <div className="px-5 pt-5 pb-4 border-b">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 </div>
-              </DialogDescription>
-            </DialogHeader>
+                <div>
+                  <h2 className="text-base font-semibold">Reassign before deleting</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Optional — skip to delete everything</p>
+                </div>
+              </div>
+            </div>
 
-            <div className="space-y-3 py-1">
+            <div className="px-5 py-4 space-y-4">
+              {entityType === 'workspace' && impact.projectCount > 0 && impact.otherWorkspaces.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Move projects to another workspace</label>
+                  <Select value={moveToWorkspace} onValueChange={setMoveToWorkspace}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Delete all projects" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Delete all projects</SelectItem>
+                      {impact.otherWorkspaces.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {entityType === 'project' && impact.taskCount > 0 && impact.otherProjects.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Move tasks to another project</label>
+                  <Select value={moveToProject} onValueChange={setMoveToProject}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Delete all tasks" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Delete all tasks</SelectItem>
+                      {impact.otherProjects.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {entityType === 'staff' && impact.taskCount > 0 && impact.otherUsers.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Reassign tasks to</label>
+                  <Select value={reassignToUser} onValueChange={setReassignToUser}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Unassign all tasks" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Unassign all tasks</SelectItem>
+                      {impact.otherUsers.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-5 w-5">
+                              <AvatarImage src={u.avatar_url ?? undefined} />
+                              <AvatarFallback className="text-[8px]">{getInitials(u.full_name)}</AvatarFallback>
+                            </Avatar>
+                            {u.full_name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 pb-5 flex items-center justify-between gap-2">
+              <Button variant="outline" size="sm" onClick={() => setStep('impact')} className="gap-1.5">
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Back
+              </Button>
+              <Button size="sm" onClick={() => setStep('confirm')} className="gap-1.5">
+                Continue
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP: Confirm (type to delete) ───────────────────────────── */}
+        {(step === 'confirm' || step === 'deleting') && (
+          <div className="flex flex-col">
+            <div className="px-5 pt-5 pb-4 border-b">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-destructive">Confirm deletion</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">{buildSummary()}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">
-                  Type <span className="font-mono text-destructive">{entityName}</span> to confirm
+                <label className="text-sm text-muted-foreground">
+                  Type <span className="font-mono font-semibold text-foreground">{entityName}</span> to confirm
                 </label>
                 <Input
                   placeholder={entityName}
@@ -558,45 +471,46 @@ export function SmartDeleteDialog({
                   disabled={step === 'deleting'}
                   className={cn(
                     'transition-colors',
-                    confirmValue.length > 0 && !confirmReady && 'border-red-400 focus-visible:ring-red-400',
-                    confirmReady && 'border-green-500 focus-visible:ring-green-500'
+                    confirmValue.length > 0 && !confirmReady && 'border-destructive/50 focus-visible:ring-destructive/30',
+                    confirmReady && 'border-green-500 focus-visible:ring-green-500/30'
                   )}
                   autoComplete="off"
                   autoFocus
                 />
               </div>
+              {deleteError && (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
+                  <p className="text-xs text-destructive">{deleteError}</p>
+                </div>
+              )}
             </div>
 
-            <DialogFooter className="gap-2 mt-2">
+            <div className="px-5 pb-5 flex items-center justify-between gap-2">
               <Button
                 variant="outline"
-                onClick={goBack}
+                size="sm"
+                onClick={() => setStep(hasWarning ? 'reassign' : 'impact')}
                 disabled={step === 'deleting'}
                 className="gap-1.5"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5" />
                 Back
               </Button>
               <Button
                 variant="destructive"
-                onClick={handleDelete}
+                size="sm"
+                onClick={handleConfirmedDelete}
                 disabled={!confirmReady || step === 'deleting'}
                 className="gap-1.5"
               >
                 {step === 'deleting' ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Deleting…
-                  </>
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" />Deleting…</>
                 ) : (
-                  <>
-                    <Trash2 className="h-4 w-4" />
-                    Delete {cfg.label}
-                  </>
+                  <><Trash2 className="h-3.5 w-3.5" />Delete {cfg.label}</>
                 )}
               </Button>
-            </DialogFooter>
-          </>
+            </div>
+          </div>
         )}
       </DialogContent>
     </Dialog>
