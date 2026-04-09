@@ -35,12 +35,15 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import { CalendarIcon, Loader2 } from 'lucide-react'
+import { CalendarIcon, Loader2, Plus, Search, Users } from 'lucide-react'
 import { format } from 'date-fns'
-import { cn } from '@/lib/utils'
+import { cn, getInitials } from '@/lib/utils'
 import { PRIORITIES } from '@/lib/constants'
+import Link from 'next/link'
 
 type TaskStatus = { slug: string; name: string; color: string }
 
@@ -90,11 +93,16 @@ export function CreateProjectDialog({
   const [startOpen, setStartOpen] = useState(false)
   const [dueOpen, setDueOpen] = useState(false)
 
+  // Assign staff
+  const [staffList, setStaffList] = useState<Profile[]>([])
+  const [staffSearch, setStaffSearch] = useState('')
+  const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set())
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
-      workspace_id: '',
+      workspace_id: workspaces.length === 1 ? workspaces[0].id : '',
       client_id: undefined,
       partner_id: undefined,
       is_internal: false,
@@ -109,7 +117,11 @@ export function CreateProjectDialog({
   const isInternal = form.watch('is_internal')
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setSelectedStaff(new Set())
+      setStaffSearch('')
+      return
+    }
 
     supabase
       .from('profiles')
@@ -137,6 +149,13 @@ export function CreateProjectDialog({
           form.setValue('status', list[0].slug)
         }
       })
+
+    supabase
+      .from('profiles')
+      .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at')
+      .eq('role', 'staff')
+      .order('full_name')
+      .then(({ data }) => setStaffList((data as Profile[]) ?? []))
   }, [open])
 
   // When switching to internal, force non_billable
@@ -147,6 +166,19 @@ export function CreateProjectDialog({
       form.setValue('partner_id', undefined)
     }
   }, [isInternal])
+
+  function toggleStaff(id: string) {
+    setSelectedStaff(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const filteredStaff = staffList.filter(s =>
+    s.full_name.toLowerCase().includes(staffSearch.toLowerCase()) ||
+    s.email.toLowerCase().includes(staffSearch.toLowerCase())
+  )
 
   async function onSubmit(values: FormValues) {
     setLoading(true)
@@ -193,6 +225,13 @@ export function CreateProjectDialog({
         return
       }
 
+      // Assign selected staff as project members
+      if (selectedStaff.size > 0) {
+        await supabase.from('project_members').insert(
+          [...selectedStaff].map(user_id => ({ project_id: data.id, user_id }))
+        )
+      }
+
       toast({ title: 'Project created', description: `"${data.name}" has been created successfully.` })
       onCreated?.(data as Project)
       form.reset()
@@ -235,7 +274,7 @@ export function CreateProjectDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Workspace *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a workspace" />
@@ -385,6 +424,16 @@ export function CreateProjectDialog({
                             </div>
                           </SelectItem>
                         ))}
+                        <div className="border-t mt-1 pt-1">
+                          <Link
+                            href="/settings"
+                            onClick={() => onOpenChange(false)}
+                            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded cursor-pointer w-full"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Create new status
+                          </Link>
+                        </div>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -408,6 +457,16 @@ export function CreateProjectDialog({
                         {PRIORITIES.map((p) => (
                           <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                         ))}
+                        <div className="border-t mt-1 pt-1">
+                          <Link
+                            href="/settings"
+                            onClick={() => onOpenChange(false)}
+                            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded cursor-pointer w-full"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Create new priority
+                          </Link>
+                        </div>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -512,6 +571,59 @@ export function CreateProjectDialog({
                 </FormItem>
               )}
             />
+
+            {/* Assign Staff */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Assign Staff</span>
+                {selectedStaff.size > 0 && (
+                  <span className="ml-auto text-xs text-blue-600 font-medium">
+                    {selectedStaff.size} selected
+                  </span>
+                )}
+              </div>
+              <div className="rounded-lg border border-border">
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                    <Input
+                      placeholder="Search staff…"
+                      value={staffSearch}
+                      onChange={(e) => setStaffSearch(e.target.value)}
+                      className="pl-8 h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                {staffList.length === 0 ? (
+                  <div className="py-5 text-center text-sm text-muted-foreground">No staff members found</div>
+                ) : filteredStaff.length === 0 ? (
+                  <div className="py-5 text-center text-sm text-muted-foreground">No staff match your search</div>
+                ) : (
+                  <ScrollArea className="h-36">
+                    <ul className="p-1">
+                      {filteredStaff.map((staff) => (
+                        <li key={staff.id}>
+                          <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
+                            <Checkbox
+                              checked={selectedStaff.has(staff.id)}
+                              onCheckedChange={() => toggleStaff(staff.id)}
+                            />
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+                              {getInitials(staff.full_name)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">{staff.full_name}</p>
+                              <p className="truncate text-xs text-muted-foreground">{staff.email}</p>
+                            </div>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                )}
+              </div>
+            </div>
 
             {/* Description */}
             <FormField
