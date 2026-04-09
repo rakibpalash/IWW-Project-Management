@@ -42,10 +42,10 @@ import { Calendar } from '@/components/ui/calendar'
 import { CalendarIcon, Loader2, Plus, Search, Users, Lock, DollarSign } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn, getInitials } from '@/lib/utils'
-import { PRIORITIES } from '@/lib/constants'
 import Link from 'next/link'
 
-type TaskStatus = { slug: string; name: string; color: string }
+type TaskStatus   = { slug: string; name: string; color: string }
+type TaskPriority = { slug: string; name: string; color: string; is_default: boolean }
 
 const BILLING_TYPES: { value: BillingType; label: string; description: string }[] = [
   { value: 'hourly',       label: 'Hourly',      description: 'Billed by hours worked' },
@@ -64,7 +64,7 @@ const formSchema = z.object({
   start_date: z.date().optional(),
   due_date: z.date().optional(),
   status: z.string().min(1),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']),
+  priority: z.string().min(1),
   estimated_hours: z.coerce.number().min(0).optional().or(z.literal('')),
   fixed_price: z.coerce.number().min(0).optional().or(z.literal('')),
   description: z.string().max(2000).optional(),
@@ -98,6 +98,7 @@ export function CreateProjectDialog({
   const [dueOpen, setDueOpen] = useState(false)
 
   // Assign staff
+  const [priorities, setPriorities] = useState<TaskPriority[]>([])
   const [staffList, setStaffList] = useState<Profile[]>([])
   const [staffSearch, setStaffSearch] = useState('')
   const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set())
@@ -112,7 +113,7 @@ export function CreateProjectDialog({
       is_internal: false,
       billing_type: 'hourly',
       status: '',
-      priority: 'medium',
+      priority: '',
       description: '',
       estimated_hours: '',
       fixed_price: '',
@@ -153,6 +154,20 @@ export function CreateProjectDialog({
         setStatuses(list)
         if (list.length > 0 && !form.getValues('status')) {
           form.setValue('status', list[0].slug)
+        }
+      })
+
+    supabase
+      .from('task_priorities')
+      .select('slug, name, color, is_default')
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data }) => {
+        const list = (data as TaskPriority[]) ?? []
+        setPriorities(list)
+        if (list.length > 0 && !form.getValues('priority')) {
+          const def = list.find(p => p.is_default) ?? list[0]
+          form.setValue('priority', def.slug)
         }
       })
 
@@ -512,8 +527,13 @@ export function CreateProjectDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {PRIORITIES.map((p) => (
-                          <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                        {priorities.map((p) => (
+                          <SelectItem key={p.slug} value={p.slug}>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                              {p.name}
+                            </div>
+                          </SelectItem>
                         ))}
                         <div className="border-t mt-1 pt-1">
                           <Link
