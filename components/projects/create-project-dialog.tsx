@@ -147,13 +147,15 @@ export function CreateProjectDialog({
   useEffect(() => {
     if (!open) { setSelectedStaff(new Set()); setStaffSearch(''); setPmSearch(''); setProjectManager(''); return }
 
-    supabase.from('profiles').select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, manager_id')
-      .order('full_name')
-      .then(({ data }) => setClients((data as Profile[]) ?? []))
+    const baseSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
-    supabase.from('profiles').select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, manager_id')
-      .order('full_name')
-      .then(({ data }) => setPartners((data as Profile[]) ?? []))
+    // Clients & partners — all profiles for selection
+    supabase.from('profiles').select(baseSelect).order('full_name')
+      .then(({ data }) => {
+        const list = (data as Profile[]) ?? []
+        setClients(list)
+        setPartners(list)
+      })
 
     supabase.from('task_statuses').select('slug, name, color').eq('is_active', true).order('sort_order')
       .then(({ data }) => {
@@ -172,12 +174,19 @@ export function CreateProjectDialog({
         }
       })
 
-    // All internal users — everyone except external roles
+    // Try with manager_id first (needs migration), fall back to base fields
     supabase.from('profiles')
-      .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, manager_id')
-      .not('role', 'in', '(client,partner)')
+      .select(`${baseSelect}, manager_id`)
       .order('full_name')
-      .then(({ data }) => setAllUsers((data as Profile[]) ?? []))
+      .then(({ data, error }) => {
+        if (error || !data) {
+          // manager_id column not yet available — fetch without it
+          supabase.from('profiles').select(baseSelect).order('full_name')
+            .then(({ data: fallback }) => setAllUsers((fallback as Profile[]) ?? []))
+        } else {
+          setAllUsers((data as Profile[]) ?? [])
+        }
+      })
   }, [open])
 
   useEffect(() => {
