@@ -26,7 +26,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import {
-  CalendarIcon, Loader2, Plus, Search, Users, Lock, DollarSign, GitBranch,
+  CalendarIcon, Loader2, Plus, Search, Users, Lock, DollarSign, GitBranch, ChevronDown,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn, getInitials } from '@/lib/utils'
@@ -68,11 +68,30 @@ interface CreateProjectDialogProps {
   profile?:      Profile
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function Section({
+  label, defaultOpen = true, children,
+}: {
+  label: string; defaultOpen?: boolean; children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="flex items-center gap-2 pt-1">
-      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</span>
-      <div className="flex-1 h-px bg-border" />
+    <div className="border-t border-border pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center gap-1.5 mb-3 group"
+      >
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 text-muted-foreground transition-transform duration-200',
+            !open && '-rotate-90'
+          )}
+        />
+        <span className="text-sm font-semibold text-foreground group-hover:text-foreground/80 transition-colors">
+          {label}
+        </span>
+      </button>
+      {open && <div className="space-y-4 pl-1">{children}</div>}
     </div>
   )
 }
@@ -260,367 +279,366 @@ export function CreateProjectDialog({
             )} />
 
             {/* ── Status & Priority ── */}
-            <SectionLabel>Status & Priority</SectionLabel>
+            <Section label="Status & Priority">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="status" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {statuses.map(s => (
+                          <SelectItem key={s.slug} value={s.slug}>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                              {s.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                        <div className="border-t mt-1 pt-1">
+                          <Link href="/settings?tab=statuses" onClick={() => onOpenChange(false)}
+                            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded w-full">
+                            <Plus className="h-3 w-3" />Create new status
+                          </Link>
+                        </div>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField control={form.control} name="status" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {statuses.map(s => (
-                        <SelectItem key={s.slug} value={s.slug}>
-                          <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                            {s.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                      <div className="border-t mt-1 pt-1">
-                        <Link href="/settings?tab=statuses" onClick={() => onOpenChange(false)}
-                          className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded w-full">
-                          <Plus className="h-3 w-3" />Create new status
-                        </Link>
-                      </div>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )} />
-
-              <FormField control={form.control} name="priority" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Priority</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {priorities.map(p => (
-                        <SelectItem key={p.slug} value={p.slug}>
-                          <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                            {p.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                      <div className="border-t mt-1 pt-1">
-                        <Link href="/settings?tab=priorities" onClick={() => onOpenChange(false)}
-                          className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded w-full">
-                          <Plus className="h-3 w-3" />Create new priority
-                        </Link>
-                      </div>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )} />
-            </div>
+                <FormField control={form.control} name="priority" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Priority</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {priorities.map(p => (
+                          <SelectItem key={p.slug} value={p.slug}>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                              {p.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                        <div className="border-t mt-1 pt-1">
+                          <Link href="/settings?tab=priorities" onClick={() => onOpenChange(false)}
+                            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded w-full">
+                            <Plus className="h-3 w-3" />Create new priority
+                          </Link>
+                        </div>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </Section>
 
             {/* ── Timeline ── */}
-            <SectionLabel>Timeline</SectionLabel>
+            <Section label="Timeline">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="start_date" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Date</FormLabel>
+                    <Popover open={startOpen} onOpenChange={setStartOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? format(field.value, 'PPP') : 'Pick a date'}
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={field.value}
+                          onSelect={date => { field.onChange(date); setStartOpen(false) }}
+                          disabled={date => { const due = form.getValues('due_date'); return due ? date > due : false }}
+                          initialFocus />
+                      </PopoverContent>
+                    </Popover>
+                  </FormItem>
+                )} />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField control={form.control} name="start_date" render={({ field }) => (
+                <FormField control={form.control} name="due_date" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Due Date</FormLabel>
+                    <Popover open={dueOpen} onOpenChange={setDueOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? format(field.value, 'PPP') : 'Pick a date'}
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={field.value}
+                          onSelect={date => { field.onChange(date); setDueOpen(false) }}
+                          disabled={date => { const start = form.getValues('start_date'); return start ? date < start : false }}
+                          initialFocus />
+                      </PopoverContent>
+                    </Popover>
+                  </FormItem>
+                )} />
+              </div>
+
+              <FormField control={form.control} name="estimated_hours" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Start Date</FormLabel>
-                  <Popover open={startOpen} onOpenChange={setStartOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value ? format(field.value, 'PPP') : 'Pick a date'}
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={field.value}
-                        onSelect={date => { field.onChange(date); setStartOpen(false) }}
-                        disabled={date => { const due = form.getValues('due_date'); return due ? date > due : false }}
-                        initialFocus />
-                    </PopoverContent>
-                  </Popover>
+                  <FormLabel>Estimated Hours</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} step={0.5} placeholder="e.g. 40" {...field} value={field.value ?? ''} />
+                  </FormControl>
+                  <FormMessage />
                 </FormItem>
               )} />
-
-              <FormField control={form.control} name="due_date" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Due Date</FormLabel>
-                  <Popover open={dueOpen} onOpenChange={setDueOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value ? format(field.value, 'PPP') : 'Pick a date'}
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={field.value}
-                        onSelect={date => { field.onChange(date); setDueOpen(false) }}
-                        disabled={date => { const start = form.getValues('start_date'); return start ? date < start : false }}
-                        initialFocus />
-                    </PopoverContent>
-                  </Popover>
-                </FormItem>
-              )} />
-            </div>
-
-            <FormField control={form.control} name="estimated_hours" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Estimated Hours</FormLabel>
-                <FormControl>
-                  <Input type="number" min={0} step={0.5} placeholder="e.g. 40" {...field} value={field.value ?? ''} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+            </Section>
 
             {/* ── Client & Billing ── */}
-            <SectionLabel>Client & Billing</SectionLabel>
+            <Section label="Client & Billing" defaultOpen={false}>
+              <FormField control={form.control} name="is_internal" render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <FormLabel className="text-sm font-medium">Internal Project</FormLabel>
+                    <p className="text-xs text-muted-foreground mt-0.5">No client or billing — internal work only</p>
+                  </div>
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                </FormItem>
+              )} />
 
-            <FormField control={form.control} name="is_internal" render={({ field }) => (
-              <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                <div>
-                  <FormLabel className="text-sm font-medium">Internal Project</FormLabel>
-                  <p className="text-xs text-muted-foreground mt-0.5">No client or billing — internal work only</p>
-                </div>
-                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-              </FormItem>
-            )} />
-
-            {!isInternal && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="client_id" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Client</FormLabel>
-                    <Select onValueChange={v => field.onChange(v === '__none__' ? undefined : v)} defaultValue={field.value ?? '__none__'}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="No client" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        <SelectItem value="__none__">No client</SelectItem>
-                        {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="partner_id" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Partner / Reseller</FormLabel>
-                    <Select onValueChange={v => field.onChange(v === '__none__' ? undefined : v)} defaultValue={field.value ?? '__none__'}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="No partner" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        <SelectItem value="__none__">No partner</SelectItem>
-                        {partners.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )} />
-              </div>
-            )}
-
-            <FormField control={form.control} name="billing_type" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Billing Type</FormLabel>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {BILLING_TYPES.map(bt => (
-                    <button key={bt.value} type="button"
-                      disabled={isInternal && bt.value !== 'non_billable'}
-                      onClick={() => field.onChange(bt.value)}
-                      className={cn(
-                        'flex flex-col items-start rounded-lg border p-2.5 text-left transition-colors',
-                        field.value === bt.value ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50',
-                        isInternal && bt.value !== 'non_billable' && 'opacity-40 cursor-not-allowed'
-                      )}>
-                      <span className="text-xs font-semibold">{bt.label}</span>
-                      <span className="text-xs text-muted-foreground mt-0.5">{bt.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </FormItem>
-            )} />
-
-            {billingType === 'fixed' && (
-              <div className="rounded-lg border border-border p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Fixed Price Amount</span>
-                  {!isSuperAdmin && (
-                    <span className="ml-auto flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                      <Lock className="h-3 w-3" />Super admin only
-                    </span>
-                  )}
-                </div>
-                {isSuperAdmin ? (
-                  <FormField control={form.control} name="fixed_price" render={({ field }) => (
+              {!isInternal && (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="client_id" render={({ field }) => (
                     <FormItem>
-                      <FormControl>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                          <Input type="number" min={0} step={0.01} placeholder="0.00" className="pl-7" {...field} value={field.value ?? ''} />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
+                      <FormLabel>Client</FormLabel>
+                      <Select onValueChange={v => field.onChange(v === '__none__' ? undefined : v)} defaultValue={field.value ?? '__none__'}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="No client" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="__none__">No client</SelectItem>
+                          {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </FormItem>
                   )} />
-                ) : (
-                  <div className="flex items-center gap-2 rounded-md bg-muted/50 border border-dashed border-border px-3 py-2.5">
-                    <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <p className="text-sm text-muted-foreground">Pricing is set by the super admin. Contact your administrator.</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── Team ── */}
-            <SectionLabel>Team</SectionLabel>
-
-            {/* Project Manager — searchable picker */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">
-                Project Manager <span className="text-xs text-muted-foreground font-normal">(lead)</span>
-              </label>
-
-              {/* Selected PM chip */}
-              {selectedPmUser && (
-                <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
-                    {getInitials(selectedPmUser.full_name)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{selectedPmUser.full_name}</p>
-                    <p className="truncate text-xs text-muted-foreground capitalize">{selectedPmUser.role.replace(/_/g, ' ')}</p>
-                  </div>
-                  <button type="button" onClick={() => setProjectManager('')}
-                    className="text-xs text-muted-foreground hover:text-destructive transition-colors px-1">
-                    Remove
-                  </button>
+                  <FormField control={form.control} name="partner_id" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Partner / Reseller</FormLabel>
+                      <Select onValueChange={v => field.onChange(v === '__none__' ? undefined : v)} defaultValue={field.value ?? '__none__'}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="No partner" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="__none__">No partner</SelectItem>
+                          {partners.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )} />
                 </div>
               )}
 
-              <div className="rounded-lg border border-border">
-                <div className="p-2 border-b">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                    <Input placeholder="Search for project manager…" value={pmSearch} onChange={e => setPmSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+              <FormField control={form.control} name="billing_type" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Billing Type</FormLabel>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {BILLING_TYPES.map(bt => (
+                      <button key={bt.value} type="button"
+                        disabled={isInternal && bt.value !== 'non_billable'}
+                        onClick={() => field.onChange(bt.value)}
+                        className={cn(
+                          'flex flex-col items-start rounded-lg border p-2.5 text-left transition-colors',
+                          field.value === bt.value ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50',
+                          isInternal && bt.value !== 'non_billable' && 'opacity-40 cursor-not-allowed'
+                        )}>
+                        <span className="text-xs font-semibold">{bt.label}</span>
+                        <span className="text-xs text-muted-foreground mt-0.5">{bt.description}</span>
+                      </button>
+                    ))}
                   </div>
-                </div>
-                {allUsers.length === 0 ? (
-                  <div className="py-4 text-center text-sm text-muted-foreground">No users found</div>
-                ) : (
-                  <ScrollArea className="h-36">
-                    <ul className="p-1">
-                      {filteredPm.map(u => (
-                        <li key={u.id}>
-                          <button type="button" onClick={() => { setProjectManager(u.id); setPmSearch('') }}
-                            className={cn(
-                              'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors',
-                              projectManager === u.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50'
-                            )}>
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
-                              {getInitials(u.full_name)}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">{u.full_name}</p>
-                              <p className="truncate text-xs text-muted-foreground">{u.email}</p>
-                            </div>
-                            <span className="shrink-0 text-[10px] text-muted-foreground capitalize bg-muted rounded px-1.5 py-0.5">
-                              {u.role.replace(/_/g, ' ')}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </ScrollArea>
-                )}
-              </div>
-            </div>
+                </FormItem>
+              )} />
 
-            {/* Assign Team Members */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Assign Team Members</span>
-                {selectedStaff.size > 0 && (
-                  <span className="ml-auto text-xs text-blue-600 font-medium">{selectedStaff.size} selected</span>
-                )}
-              </div>
-              <div className="rounded-lg border border-border">
-                <div className="p-2 border-b">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                    <Input placeholder="Search team members…" value={staffSearch} onChange={e => setStaffSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+              {billingType === 'fixed' && (
+                <div className="rounded-lg border border-border p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Fixed Price Amount</span>
+                    {!isSuperAdmin && (
+                      <span className="ml-auto flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                        <Lock className="h-3 w-3" />Super admin only
+                      </span>
+                    )}
                   </div>
+                  {isSuperAdmin ? (
+                    <FormField control={form.control} name="fixed_price" render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                            <Input type="number" min={0} step={0.01} placeholder="0.00" className="pl-7" {...field} value={field.value ?? ''} />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  ) : (
+                    <div className="flex items-center gap-2 rounded-md bg-muted/50 border border-dashed border-border px-3 py-2.5">
+                      <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <p className="text-sm text-muted-foreground">Pricing is set by the super admin. Contact your administrator.</p>
+                    </div>
+                  )}
                 </div>
+              )}
+            </Section>
 
-                {allUsers.length === 0 ? (
-                  <div className="py-5 text-center text-sm text-muted-foreground">No users found</div>
-                ) : teamCandidates.length === 0 ? (
-                  <div className="py-5 text-center text-sm text-muted-foreground">No other members to assign</div>
-                ) : (
-                  <ScrollArea className="h-44">
-                    {showGrouped ? (
-                      <div className="p-1">
-                        {Object.entries(staffByManager).map(([managerId, members]) => {
-                          const manager = managerId === '__none__' ? null : allUsers.find(m => m.id === managerId)
-                          return (
-                            <div key={managerId}>
-                              <div className="flex items-center gap-1.5 px-2 py-1 mt-1">
-                                <GitBranch className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-                                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                  {manager ? `Reports to: ${manager.full_name}` : 'No manager assigned'}
-                                </span>
-                              </div>
-                              {members.map(staff => (
-                                <label key={staff.id} className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 pl-6 hover:bg-muted/50 transition-colors">
-                                  <Checkbox checked={selectedStaff.has(staff.id)} onCheckedChange={() => toggleStaff(staff.id)} />
-                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700">
-                                    {getInitials(staff.full_name)}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm font-medium">{staff.full_name}</p>
-                                    <p className="truncate text-xs text-muted-foreground">{staff.email}</p>
-                                  </div>
-                                </label>
-                              ))}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    ) : (
+            {/* ── Team ── */}
+            <Section label="Team">
+              {/* Project Manager — searchable picker */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">
+                  Project Manager <span className="text-xs text-muted-foreground font-normal">(lead)</span>
+                </label>
+
+                {selectedPmUser && (
+                  <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                      {getInitials(selectedPmUser.full_name)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{selectedPmUser.full_name}</p>
+                      <p className="truncate text-xs text-muted-foreground capitalize">{selectedPmUser.role.replace(/_/g, ' ')}</p>
+                    </div>
+                    <button type="button" onClick={() => setProjectManager('')}
+                      className="text-xs text-muted-foreground hover:text-destructive transition-colors px-1">
+                      Remove
+                    </button>
+                  </div>
+                )}
+
+                <div className="rounded-lg border border-border">
+                  <div className="p-2 border-b">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                      <Input placeholder="Search for project manager…" value={pmSearch} onChange={e => setPmSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+                    </div>
+                  </div>
+                  {allUsers.length === 0 ? (
+                    <div className="py-4 text-center text-sm text-muted-foreground">No users found</div>
+                  ) : (
+                    <ScrollArea className="h-36">
                       <ul className="p-1">
-                        {filteredStaff.length === 0 ? (
-                          <li className="py-4 text-center text-sm text-muted-foreground">No members match your search</li>
-                        ) : filteredStaff.map(staff => (
-                          <li key={staff.id}>
-                            <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
-                              <Checkbox checked={selectedStaff.has(staff.id)} onCheckedChange={() => toggleStaff(staff.id)} />
-                              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700">
-                                {getInitials(staff.full_name)}
+                        {filteredPm.map(u => (
+                          <li key={u.id}>
+                            <button type="button" onClick={() => { setProjectManager(u.id); setPmSearch('') }}
+                              className={cn(
+                                'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors',
+                                projectManager === u.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50'
+                              )}>
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                                {getInitials(u.full_name)}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-medium">{staff.full_name}</p>
-                                <p className="truncate text-xs text-muted-foreground">{staff.email}</p>
+                                <p className="truncate text-sm font-medium">{u.full_name}</p>
+                                <p className="truncate text-xs text-muted-foreground">{u.email}</p>
                               </div>
-                            </label>
+                              <span className="shrink-0 text-[10px] text-muted-foreground capitalize bg-muted rounded px-1.5 py-0.5">
+                                {u.role.replace(/_/g, ' ')}
+                              </span>
+                            </button>
                           </li>
                         ))}
                       </ul>
-                    )}
-                  </ScrollArea>
-                )}
+                    </ScrollArea>
+                  )}
+                </div>
               </div>
-            </div>
+
+              {/* Assign Team Members */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Assign Team Members</span>
+                  {selectedStaff.size > 0 && (
+                    <span className="ml-auto text-xs text-blue-600 font-medium">{selectedStaff.size} selected</span>
+                  )}
+                </div>
+                <div className="rounded-lg border border-border">
+                  <div className="p-2 border-b">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                      <Input placeholder="Search team members…" value={staffSearch} onChange={e => setStaffSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+                    </div>
+                  </div>
+
+                  {allUsers.length === 0 ? (
+                    <div className="py-5 text-center text-sm text-muted-foreground">No users found</div>
+                  ) : teamCandidates.length === 0 ? (
+                    <div className="py-5 text-center text-sm text-muted-foreground">No other members to assign</div>
+                  ) : (
+                    <ScrollArea className="h-44">
+                      {showGrouped ? (
+                        <div className="p-1">
+                          {Object.entries(staffByManager).map(([managerId, members]) => {
+                            const manager = managerId === '__none__' ? null : allUsers.find(m => m.id === managerId)
+                            return (
+                              <div key={managerId}>
+                                <div className="flex items-center gap-1.5 px-2 py-1 mt-1">
+                                  <GitBranch className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    {manager ? `Reports to: ${manager.full_name}` : 'No manager assigned'}
+                                  </span>
+                                </div>
+                                {members.map(staff => (
+                                  <label key={staff.id} className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 pl-6 hover:bg-muted/50 transition-colors">
+                                    <Checkbox checked={selectedStaff.has(staff.id)} onCheckedChange={() => toggleStaff(staff.id)} />
+                                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700">
+                                      {getInitials(staff.full_name)}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-sm font-medium">{staff.full_name}</p>
+                                      <p className="truncate text-xs text-muted-foreground">{staff.email}</p>
+                                    </div>
+                                  </label>
+                                ))}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <ul className="p-1">
+                          {filteredStaff.length === 0 ? (
+                            <li className="py-4 text-center text-sm text-muted-foreground">No members match your search</li>
+                          ) : filteredStaff.map(staff => (
+                            <li key={staff.id}>
+                              <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
+                                <Checkbox checked={selectedStaff.has(staff.id)} onCheckedChange={() => toggleStaff(staff.id)} />
+                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700">
+                                  {getInitials(staff.full_name)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-medium">{staff.full_name}</p>
+                                  <p className="truncate text-xs text-muted-foreground">{staff.email}</p>
+                                </div>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </ScrollArea>
+                  )}
+                </div>
+              </div>
+            </Section>
 
             {/* ── Description ── */}
-            <SectionLabel>Description</SectionLabel>
-
-            <FormField control={form.control} name="description" render={({ field }) => (
-              <FormItem>
-                <FormControl>
-                  <Textarea placeholder="Describe the project goals, scope, and any relevant details…" rows={3} {...field} value={field.value ?? ''} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+            <Section label="Description" defaultOpen={false}>
+              <FormField control={form.control} name="description" render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Textarea placeholder="Describe the project goals, scope, and any relevant details…" rows={3} {...field} value={field.value ?? ''} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </Section>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Cancel</Button>
