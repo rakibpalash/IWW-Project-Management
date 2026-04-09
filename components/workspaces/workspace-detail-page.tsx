@@ -24,7 +24,7 @@ import { Workspace, Profile, Project, Task, ActivityLog } from '@/types'
 import { cn, formatStatus, getInitials, timeAgo } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 import {
-  ArrowLeft, Users, Search, Filter, LayoutGrid, List, MoreHorizontal,
+  Users, Search, Filter, LayoutGrid, List, MoreHorizontal,
   Plus, RefreshCw, ChevronDown, ChevronRight, SlidersHorizontal,
   Share2, Maximize2, UserPlus, FolderKanban, LayoutList, Calendar,
   ExternalLink, CheckCircle2, PenLine, FilePlus2, Clock, Activity,
@@ -400,18 +400,10 @@ export function WorkspaceDetailPage({
   }))
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] -m-6 overflow-hidden">
-
-      {/* Breadcrumb */}
-      <div className="px-6 pt-4">
-        <button onClick={() => router.push('/workspaces')}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2">
-          <ArrowLeft className="h-3.5 w-3.5" />Workspaces
-        </button>
-      </div>
+    <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden">
 
       {/* Header */}
-      <div className="px-6 pb-0">
+      <div className="px-6 pt-4 pb-0">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-md bg-blue-600 flex items-center justify-center shrink-0">
