@@ -75,7 +75,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
       }
       toast({ title: 'Workspace deleted', description: `"${deleteTarget.name}" was deleted.` })
       setDeleteTarget(null)
-      router.push('/workspaces')
+      refresh()
     } catch (err) {
       toast({ title: 'Delete failed', description: err instanceof Error ? err.message : 'Unexpected error', variant: 'destructive' })
     }
