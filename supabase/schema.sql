@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS public.projects (
   priority TEXT NOT NULL DEFAULT 'medium',
   progress INTEGER NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
   estimated_hours NUMERIC(10,2),
+  fixed_price NUMERIC(12,2) DEFAULT NULL,
   created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
