@@ -35,6 +35,17 @@ import Link from 'next/link'
 type TaskStatus   = { slug: string; name: string; color: string }
 type TaskPriority = { slug: string; name: string; color: string; is_default: boolean }
 
+const AVATAR_COLORS = [
+  'bg-rose-400', 'bg-pink-400', 'bg-fuchsia-400', 'bg-purple-400',
+  'bg-violet-400', 'bg-blue-400', 'bg-cyan-400', 'bg-teal-400',
+  'bg-emerald-400', 'bg-green-400', 'bg-amber-400', 'bg-orange-400',
+]
+function avatarColor(id: string) {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]
+}
+
 const BILLING_TYPES: { value: BillingType; label: string; description: string }[] = [
   { value: 'hourly',       label: 'Hourly',      description: 'Billed by hours worked' },
   { value: 'fixed',        label: 'Fixed Price',  description: 'Fixed project cost' },
@@ -137,11 +148,11 @@ export function CreateProjectDialog({
     if (!open) { setSelectedStaff(new Set()); setStaffSearch(''); setPmSearch(''); setProjectManager(''); return }
 
     supabase.from('profiles').select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, manager_id')
-      .eq('role', 'client').order('full_name')
+      .order('full_name')
       .then(({ data }) => setClients((data as Profile[]) ?? []))
 
     supabase.from('profiles').select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, manager_id')
-      .eq('role', 'partner').order('full_name')
+      .order('full_name')
       .then(({ data }) => setPartners((data as Profile[]) ?? []))
 
     supabase.from('task_statuses').select('slug, name, color').eq('is_active', true).order('sort_order')
@@ -532,7 +543,7 @@ export function CreateProjectDialog({
                                 'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors',
                                 projectManager === u.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50'
                               )}>
-                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                              <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', avatarColor(u.id))}>
                                 {getInitials(u.full_name)}
                               </div>
                               <div className="min-w-0 flex-1">
@@ -556,15 +567,12 @@ export function CreateProjectDialog({
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Assign Team Members</span>
-                  {selectedStaff.size > 0 && (
-                    <span className="ml-auto text-xs text-blue-600 font-medium">{selectedStaff.size} selected</span>
-                  )}
                 </div>
                 <div className="rounded-lg border border-border">
                   <div className="p-2 border-b">
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                      <Input placeholder="Search team members…" value={staffSearch} onChange={e => setStaffSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+                      <Input placeholder="Search staffs…" value={staffSearch} onChange={e => setStaffSearch(e.target.value)} className="pl-8 h-8 text-sm bg-background" />
                     </div>
                   </div>
 
@@ -573,23 +581,23 @@ export function CreateProjectDialog({
                   ) : teamCandidates.length === 0 ? (
                     <div className="py-5 text-center text-sm text-muted-foreground">No other members to assign</div>
                   ) : (
-                    <ScrollArea className="h-44">
+                    <ScrollArea className="h-52">
                       {showGrouped ? (
                         <div className="p-1">
                           {Object.entries(staffByManager).map(([managerId, members]) => {
                             const manager = managerId === '__none__' ? null : allUsers.find(m => m.id === managerId)
                             return (
                               <div key={managerId}>
-                                <div className="flex items-center gap-1.5 px-2 py-1 mt-1">
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 mt-1">
                                   <GitBranch className="h-3 w-3 text-muted-foreground/60 shrink-0" />
                                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                                     {manager ? `Reports to: ${manager.full_name}` : 'No manager assigned'}
                                   </span>
                                 </div>
                                 {members.map(staff => (
-                                  <label key={staff.id} className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 pl-6 hover:bg-muted/50 transition-colors">
+                                  <label key={staff.id} className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
                                     <Checkbox checked={selectedStaff.has(staff.id)} onCheckedChange={() => toggleStaff(staff.id)} />
-                                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700">
+                                    <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', avatarColor(staff.id))}>
                                       {getInitials(staff.full_name)}
                                     </div>
                                     <div className="min-w-0 flex-1">
@@ -610,7 +618,7 @@ export function CreateProjectDialog({
                             <li key={staff.id}>
                               <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
                                 <Checkbox checked={selectedStaff.has(staff.id)} onCheckedChange={() => toggleStaff(staff.id)} />
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700">
+                                <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', avatarColor(staff.id))}>
                                   {getInitials(staff.full_name)}
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -624,6 +632,13 @@ export function CreateProjectDialog({
                       )}
                     </ScrollArea>
                   )}
+
+                  {/* Selected counter */}
+                  <div className="border-t px-3 py-2">
+                    <p className="text-xs text-muted-foreground">
+                      {selectedStaff.size} member{selectedStaff.size !== 1 ? 's' : ''} selected in total
+                    </p>
+                  </div>
                 </div>
               </div>
             </Section>
