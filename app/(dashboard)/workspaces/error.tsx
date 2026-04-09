@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -12,8 +11,6 @@ export default function WorkspacesError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  const router = useRouter()
-
   useEffect(() => {
     console.error('Workspaces error:', error)
   }, [error])
@@ -31,7 +28,7 @@ export default function WorkspacesError({
       </div>
       <div className="flex gap-3">
         <Button onClick={reset}>Try again</Button>
-        <Button variant="outline" onClick={() => router.push('/workspaces')}>Reload page</Button>
+        <Button variant="outline" onClick={() => window.location.reload()}>Reload page</Button>
       </div>
     </div>
   )

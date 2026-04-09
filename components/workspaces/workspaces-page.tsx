@@ -14,11 +14,10 @@ import { deleteWorkspaceAction, cloneWorkspaceAction } from '@/app/actions/works
 import { getWorkspaceDeleteImpact } from '@/app/actions/delete-impact'
 import { Workspace } from '@/types'
 
+type WorkspaceWithCounts = Workspace & { member_count: number; project_count: number }
+
 interface WorkspacesPageProps {
-  workspaces: (Workspace & {
-    member_count: number
-    project_count: number
-  })[]
+  workspaces: WorkspaceWithCounts[]
 }
 
 export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPageProps) {
@@ -26,19 +25,16 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
   const { toast } = useToast()
   const [, startTransition] = useTransition()
 
+  // Local copy so we can update without triggering a server re-render
+  const [workspaces, setWorkspaces] = useState<WorkspaceWithCounts[]>(initialWorkspaces)
+
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
-
-  // Rename state
   const [renameTarget, setRenameTarget] = useState<Workspace | null>(null)
-
-  // Delete state
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
-
-  // Clone state
   const [cloningId, setCloningId] = useState<string | null>(null)
 
-  const filtered = initialWorkspaces.filter(
+  const filtered = workspaces.filter(
     (w) =>
       w.name.toLowerCase().includes(search.toLowerCase()) ||
       (w.description ?? '').toLowerCase().includes(search.toLowerCase())
@@ -58,7 +54,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
         return
       }
       toast({ title: 'Workspace cloned', description: `"${workspace.name} (Copy)" created.` })
-      refresh()
+      refresh() // clone needs server data for the new workspace
     } finally {
       setCloningId(null)
     }
@@ -67,18 +63,27 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
   // ── Delete ────────────────────────────────────────────────────────────────
   async function handleDelete(opts: { moveProjectsToWorkspaceId?: string }) {
     if (!deleteTarget) return
+    const targetId = deleteTarget.id
+    const targetName = deleteTarget.name
     try {
-      const result = await deleteWorkspaceAction(deleteTarget.id, opts)
+      const result = await deleteWorkspaceAction(targetId, opts)
       if (!result.success) {
         toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
         return
       }
-      toast({ title: 'Workspace deleted', description: `"${deleteTarget.name}" was deleted.` })
+      // Remove from local state — no router.refresh() to avoid server re-render crash
+      setWorkspaces((prev) => prev.filter((w) => w.id !== targetId))
       setDeleteTarget(null)
-      refresh()
+      toast({ title: 'Workspace deleted', description: `"${targetName}" was deleted.` })
     } catch (err) {
       toast({ title: 'Delete failed', description: err instanceof Error ? err.message : 'Unexpected error', variant: 'destructive' })
     }
+  }
+
+  // ── Rename callback ───────────────────────────────────────────────────────
+  function handleRenameSuccess() {
+    setRenameTarget(null)
+    refresh()
   }
 
   return (
@@ -88,7 +93,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
         <div>
           <h1 className="text-2xl font-bold text-foreground">Workspaces</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {initialWorkspaces.length} workspace{initialWorkspaces.length !== 1 ? 's' : ''}
+            {workspaces.length} workspace{workspaces.length !== 1 ? 's' : ''}
           </p>
         </div>
         <Button onClick={() => setShowCreate(true)} className="gap-2 sm:w-auto w-full">
@@ -131,7 +136,6 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((workspace) => (
             <div key={workspace.id} className="relative">
-              {/* Clone loading overlay */}
               {cloningId === workspace.id && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-card/80 backdrop-blur-sm">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -164,7 +168,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
         workspace={renameTarget}
         open={!!renameTarget}
         onOpenChange={(open) => { if (!open) setRenameTarget(null) }}
-        onSuccess={refresh}
+        onSuccess={handleRenameSuccess}
       />
 
       {/* Smart Delete Dialog */}
