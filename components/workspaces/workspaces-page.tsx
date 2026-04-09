@@ -65,19 +65,16 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
     if (!deleteTarget) return
     const targetId = deleteTarget.id
     const targetName = deleteTarget.name
-    try {
-      const result = await deleteWorkspaceAction(targetId, opts)
-      if (!result.success) {
-        toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
-        return
-      }
-      // Remove from local state — no router.refresh() to avoid server re-render crash
-      setWorkspaces((prev) => prev.filter((w) => w.id !== targetId))
-      setDeleteTarget(null)
-      toast({ title: 'Workspace deleted', description: `"${targetName}" was deleted.` })
-    } catch (err) {
-      toast({ title: 'Delete failed', description: err instanceof Error ? err.message : 'Unexpected error', variant: 'destructive' })
+
+    const result = await deleteWorkspaceAction(targetId, opts)
+    if (!result.success) {
+      // Throw so SmartDeleteDialog catches it and shows the error inline
+      throw new Error(result.error ?? 'Delete failed')
     }
+    // Remove from local state — no router.refresh() to avoid server re-render crash
+    setWorkspaces((prev) => prev.filter((w) => w.id !== targetId))
+    setDeleteTarget(null)
+    toast({ title: 'Workspace deleted', description: `"${targetName}" was deleted.` })
   }
 
   // ── Rename callback ───────────────────────────────────────────────────────

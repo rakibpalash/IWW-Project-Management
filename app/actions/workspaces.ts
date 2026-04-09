@@ -85,7 +85,10 @@ export async function deleteWorkspaceAction(
     // workspace_assignments, projects → project_members, tasks → task_assignees,
     // task_watchers, comments, time_entries, activity_logs
     const { error } = await admin.from('workspaces').delete().eq('id', workspaceId)
-    if (error) return { success: false, error: error.message }
+    if (error) {
+      console.error('[deleteWorkspaceAction] DB error:', error.message, error.code, error.details)
+      return { success: false, error: error.message }
+    }
 
     // Send notifications to affected members
     if (members && members.length > 0 && deleter) {

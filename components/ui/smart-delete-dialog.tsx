@@ -75,6 +75,7 @@ export function SmartDeleteDialog({
   const [step, setStep] = useState<Step>('loading')
   const [impact, setImpact] = useState<DeleteImpact | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Reassignment options
   const [moveToProject, setMoveToProject] = useState<string>('')
@@ -95,6 +96,7 @@ export function SmartDeleteDialog({
       setStep('loading')
       setImpact(null)
       setError(null)
+      setDeleteError(null)
       setMoveToProject('')
       setMoveToWorkspace('')
       setReassignToUser('')
@@ -132,6 +134,7 @@ export function SmartDeleteDialog({
   }
 
   async function handleDelete() {
+    setDeleteError(null)
     setStep('deleting')
     try {
       await onConfirmDelete({
@@ -139,8 +142,10 @@ export function SmartDeleteDialog({
         moveProjectsToWorkspaceId: moveToWorkspace || undefined,
         reassignToUserId: reassignToUser || undefined,
       })
-    } catch {
-      setStep('step3')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unexpected error — check console'
+      setDeleteError(msg)
+      setStep('step1')
     }
   }
 
@@ -340,6 +345,12 @@ export function SmartDeleteDialog({
             )}
 
             {error && <p className="text-sm text-destructive">{error}</p>}
+            {deleteError && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
+                <p className="text-sm text-destructive font-medium">Delete failed</p>
+                <p className="text-xs text-destructive/80 mt-0.5">{deleteError}</p>
+              </div>
+            )}
 
             <DialogFooter className="gap-2 mt-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
