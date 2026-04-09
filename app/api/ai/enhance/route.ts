@@ -15,7 +15,11 @@ export async function POST(req: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' })
+    // Use apiVersion: 'v1' — the default v1beta does not expose gemini-1.5-flash
+    const model = genAI.getGenerativeModel(
+      { model: 'gemini-1.5-flash' },
+      { apiVersion: 'v1' }
+    )
 
     const prompt = `You are helping write a concise, professional description for a project management ${context ?? 'workspace'}.
 
