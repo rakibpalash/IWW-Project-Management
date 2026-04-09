@@ -8,6 +8,7 @@ import {
   differenceInDays, startOfWeek, addMonths, subMonths,
   isSameMonth, isToday,
 } from 'date-fns'
+import { cloneWorkspaceAction } from '@/app/actions/workspaces'
 import { AssignStaffDialog } from './assign-staff-dialog'
 import { RenameWorkspaceDialog } from './rename-workspace-dialog'
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog'
@@ -24,7 +25,7 @@ import { Workspace, Profile, Project, Task, ActivityLog } from '@/types'
 import { cn, formatStatus, getInitials, timeAgo } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 import {
-  Users, Search, Filter, LayoutGrid, List, MoreHorizontal,
+  Users, Search, Filter, LayoutGrid, List, MoreHorizontal, Loader2, Copy,
   Plus, RefreshCw, ChevronDown, ChevronRight, SlidersHorizontal,
   Share2, Maximize2, UserPlus, FolderKanban, LayoutList, Calendar,
   ExternalLink, CheckCircle2, PenLine, FilePlus2, Clock, Activity,
@@ -143,6 +144,7 @@ export function WorkspaceDetailPage({
   const [activeTab, setActiveTab] = useState<TabType>('summary')
   const [showAssign, setShowAssign] = useState(false)
   const [showRenameWorkspace, setShowRenameWorkspace] = useState(false)
+  const [isCloning, setIsCloning] = useState(false)
   const [workspaceName, setWorkspaceName] = useState(workspace.name)
   const [showCreateProject, setShowCreateProject] = useState(false)
   const [showCreateTask, setShowCreateTask] = useState(false)
@@ -446,8 +448,25 @@ export function WorkspaceDetailPage({
                     New project
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => navigator.clipboard.writeText(workspace.id)}>
-                  Copy workspace ID
+                <DropdownMenuItem
+                  disabled={isCloning}
+                  onClick={async () => {
+                    setIsCloning(true)
+                    try {
+                      const result = await cloneWorkspaceAction(workspace.id)
+                      if (!result.success) {
+                        toast({ title: 'Clone failed', description: result.error, variant: 'destructive' })
+                      } else {
+                        toast({ title: 'Workspace cloned', description: `"${workspaceName} (Copy)" created.` })
+                        router.push('/workspaces')
+                      }
+                    } finally {
+                      setIsCloning(false)
+                    }
+                  }}
+                >
+                  {isCloning ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <Copy className="h-3.5 w-3.5 mr-2" />}
+                  {isCloning ? 'Cloning…' : 'Clone workspace'}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
