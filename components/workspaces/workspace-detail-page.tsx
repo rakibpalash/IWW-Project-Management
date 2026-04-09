@@ -1295,7 +1295,7 @@ export function WorkspaceDetailPage({
 
       {isAdmin && (
         <CreateProjectDialog open={showCreateProject} onOpenChange={setShowCreateProject}
-          workspaces={[workspace]} onCreated={refresh} />
+          workspaces={[workspace]} onCreated={refresh} profile={profile} />
       )}
 
       {projects.length > 0 && (

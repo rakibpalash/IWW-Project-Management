@@ -300,6 +300,7 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
           onOpenChange={setShowCreateDialog}
           workspaces={workspaces}
           onCreated={handleProjectCreated}
+          profile={profile}
         />
       )}
     </div>

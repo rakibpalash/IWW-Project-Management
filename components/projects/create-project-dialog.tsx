@@ -39,7 +39,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import { CalendarIcon, Loader2, Plus, Search, Users } from 'lucide-react'
+import { CalendarIcon, Loader2, Plus, Search, Users, Lock, DollarSign } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn, getInitials } from '@/lib/utils'
 import { PRIORITIES } from '@/lib/constants'
@@ -66,6 +66,7 @@ const formSchema = z.object({
   status: z.string().min(1),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
   estimated_hours: z.coerce.number().min(0).optional().or(z.literal('')),
+  fixed_price: z.coerce.number().min(0).optional().or(z.literal('')),
   description: z.string().max(2000).optional(),
 })
 
@@ -76,6 +77,7 @@ interface CreateProjectDialogProps {
   onOpenChange: (open: boolean) => void
   workspaces: Workspace[]
   onCreated?: (project: Project) => void
+  profile?: Profile
 }
 
 export function CreateProjectDialog({
@@ -83,7 +85,9 @@ export function CreateProjectDialog({
   onOpenChange,
   workspaces,
   onCreated,
+  profile,
 }: CreateProjectDialogProps) {
+  const isSuperAdmin = profile?.role === 'super_admin'
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
@@ -111,10 +115,12 @@ export function CreateProjectDialog({
       priority: 'medium',
       description: '',
       estimated_hours: '',
+      fixed_price: '',
     },
   })
 
   const isInternal = form.watch('is_internal')
+  const billingType = form.watch('billing_type')
 
   useEffect(() => {
     if (!open) {
@@ -204,6 +210,10 @@ export function CreateProjectDialog({
           values.estimated_hours === '' || values.estimated_hours === undefined
             ? null
             : Number(values.estimated_hours),
+        fixed_price:
+          values.billing_type === 'fixed' && isSuperAdmin && values.fixed_price !== '' && values.fixed_price !== undefined
+            ? Number(values.fixed_price)
+            : null,
         description: values.description || null,
         progress: 0,
         created_by: user.id,
@@ -400,6 +410,54 @@ export function CreateProjectDialog({
                 </FormItem>
               )}
             />
+
+            {/* Fixed Price Amount — only visible when billing type is fixed */}
+            {billingType === 'fixed' && (
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Fixed Price Amount</span>
+                  {!isSuperAdmin && (
+                    <span className="ml-auto flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                      <Lock className="h-3 w-3" />
+                      Super admin only
+                    </span>
+                  )}
+                </div>
+                {isSuperAdmin ? (
+                  <FormField
+                    control={form.control}
+                    name="fixed_price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={0.01}
+                              placeholder="0.00"
+                              className="pl-7"
+                              {...field}
+                              value={field.value ?? ''}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : (
+                  <div className="flex items-center gap-2 rounded-md bg-muted/50 border border-dashed border-border px-3 py-2.5">
+                    <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <p className="text-sm text-muted-foreground">
+                      Pricing is set by the super admin. Contact your administrator to configure the fixed price for this project.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Status + Priority */}
             <div className="grid grid-cols-2 gap-4">
