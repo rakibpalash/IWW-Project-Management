@@ -10,7 +10,6 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-avatar": "^1.1.1",

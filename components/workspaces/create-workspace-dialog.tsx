@@ -30,7 +30,6 @@ import { createClient } from '@/lib/supabase/client'
 import { Profile, Workspace } from '@/types'
 import { Search, Users, Loader2 } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
-import { EnhanceButton } from '@/components/ui/enhance-button'
 
 const formSchema = z.object({
   name: z
@@ -226,14 +225,7 @@ export function CreateWorkspaceDialog({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel>Description</FormLabel>
-                    <EnhanceButton
-                      value={field.value ?? ''}
-                      context="workspace"
-                      onEnhanced={(text) => form.setValue('description', text, { shouldValidate: true })}
-                    />
-                  </div>
+                  <FormLabel>Description</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="What is this workspace for?"

@@ -27,7 +27,6 @@ import { useToast } from '@/components/ui/use-toast'
 import { Loader2 } from 'lucide-react'
 import { renameWorkspaceAction } from '@/app/actions/workspaces'
 import { Workspace } from '@/types'
-import { EnhanceButton } from '@/components/ui/enhance-button'
 
 const formSchema = z.object({
   name: z
@@ -132,14 +131,7 @@ export function RenameWorkspaceDialog({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel>Description</FormLabel>
-                    <EnhanceButton
-                      value={field.value ?? ''}
-                      context="workspace"
-                      onEnhanced={(text) => form.setValue('description', text, { shouldValidate: true })}
-                    />
-                  </div>
+                  <FormLabel>Description</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="What is this workspace for?"
