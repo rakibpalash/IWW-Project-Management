@@ -22,6 +22,7 @@ interface SettingsPageProps {
   taskStatuses: CustomTaskStatus[]
   taskPriorities: CustomTaskPriority[]
   customRoles: CustomRole[]
+  defaultTab?: string
 }
 
 export function SettingsPage({
@@ -34,7 +35,9 @@ export function SettingsPage({
   taskStatuses,
   taskPriorities,
   customRoles,
+  defaultTab,
 }: SettingsPageProps) {
+  const resolvedDefault = defaultTab ?? (isAdmin ? 'attendance' : 'profile')
   return (
     <div className="page-inner">
       <div>
@@ -44,7 +47,7 @@ export function SettingsPage({
         </p>
       </div>
 
-      <Tabs defaultValue={isAdmin ? 'attendance' : 'profile'} className="space-y-4">
+      <Tabs defaultValue={resolvedDefault} className="space-y-4">
         <TabsList className="flex-wrap h-auto gap-1">
           {isAdmin && (
             <>

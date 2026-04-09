@@ -484,7 +484,7 @@ export function CreateProjectDialog({
                         ))}
                         <div className="border-t mt-1 pt-1">
                           <Link
-                            href="/settings"
+                            href="/settings?tab=statuses"
                             onClick={() => onOpenChange(false)}
                             className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded cursor-pointer w-full"
                           >
@@ -517,7 +517,7 @@ export function CreateProjectDialog({
                         ))}
                         <div className="border-t mt-1 pt-1">
                           <Link
-                            href="/settings"
+                            href="/settings?tab=priorities"
                             onClick={() => onOpenChange(false)}
                             className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded cursor-pointer w-full"
                           >

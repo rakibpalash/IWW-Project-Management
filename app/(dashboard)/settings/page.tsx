@@ -15,7 +15,12 @@ const profileSelect =
 const staffProfileSelect =
   'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_temp_password, onboarding_completed, created_at, updated_at'
 
-export default async function SettingsServerPage() {
+export default async function SettingsServerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
+  const { tab } = await searchParams
   const user = await getUser()
   if (!user) redirect('/login')
 
@@ -78,6 +83,7 @@ export default async function SettingsServerPage() {
       taskStatuses={taskStatuses}
       taskPriorities={taskPriorities}
       customRoles={customRoles}
+      defaultTab={tab}
     />
   )
 }
