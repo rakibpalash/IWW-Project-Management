@@ -26,7 +26,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import {
-  CalendarIcon, Loader2, Plus, Search, Users, Lock, DollarSign, GitBranch, ChevronDown,
+  CalendarIcon, Loader2, Plus, Search, Users, GitBranch, ChevronDown,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn, getInitials } from '@/lib/utils'
@@ -65,7 +65,6 @@ const formSchema = z.object({
   status:           z.string().min(1),
   priority:         z.string().min(1),
   estimated_hours:  z.coerce.number().min(0).optional().or(z.literal('')),
-  fixed_price:      z.coerce.number().min(0).optional().or(z.literal('')),
   description:      z.string().max(2000).optional(),
 })
 
@@ -137,7 +136,7 @@ export function CreateProjectDialog({
       name: '', workspace_id: workspaces.length === 1 ? workspaces[0].id : '',
       client_id: undefined, partner_id: undefined,
       is_internal: false, billing_type: 'hourly',
-      status: '', priority: '', description: '', estimated_hours: '', fixed_price: '',
+      status: '', priority: '', description: '', estimated_hours: '',
     },
   })
 
@@ -242,7 +241,6 @@ export function CreateProjectDialog({
         status: values.status,
         priority: values.priority,
         estimated_hours: values.estimated_hours === '' || values.estimated_hours === undefined ? null : Number(values.estimated_hours),
-        fixed_price: values.billing_type === 'fixed' && isSuperAdmin && values.fixed_price !== '' && values.fixed_price !== undefined ? Number(values.fixed_price) : null,
         description: values.description || null,
         progress: 0,
         created_by: user.id,
@@ -476,37 +474,6 @@ export function CreateProjectDialog({
                 </FormItem>
               )} />
 
-              {billingType === 'fixed' && (
-                <div className="rounded-lg border border-border p-4 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Fixed Price Amount</span>
-                    {!isSuperAdmin && (
-                      <span className="ml-auto flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                        <Lock className="h-3 w-3" />Super admin only
-                      </span>
-                    )}
-                  </div>
-                  {isSuperAdmin ? (
-                    <FormField control={form.control} name="fixed_price" render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                            <Input type="number" min={0} step={0.01} placeholder="0.00" className="pl-7" {...field} value={field.value ?? ''} />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                  ) : (
-                    <div className="flex items-center gap-2 rounded-md bg-muted/50 border border-dashed border-border px-3 py-2.5">
-                      <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <p className="text-sm text-muted-foreground">Pricing is set by the super admin. Contact your administrator.</p>
-                    </div>
-                  )}
-                </div>
-              )}
             </Section>
 
             {/* ── Team ── */}
