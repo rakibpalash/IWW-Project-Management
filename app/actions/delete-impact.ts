@@ -84,13 +84,12 @@ export async function getProjectDeleteImpact(
   try {
     const admin = createAdminClient()
 
-    const [{ data: tasksRaw }, { data: project }, { data: taskDetails }] = await Promise.all([
+    const [{ data: tasksRaw }, { data: taskDetails }, { data: projectMembers }] = await Promise.all([
       admin
         .from('tasks')
         .select('id, task_assignees(user:profiles(id, full_name, avatar_url))')
         .eq('project_id', projectId)
         .is('parent_task_id', null),
-      admin.from('projects').select('workspace_id').eq('id', projectId).single(),
       admin
         .from('tasks')
         .select('id, title, status, project_id')
@@ -98,10 +97,23 @@ export async function getProjectDeleteImpact(
         .is('parent_task_id', null)
         .order('title')
         .limit(20),
+      // Fetch actual project team members
+      admin
+        .from('project_members')
+        .select('user:profiles(id, full_name, avatar_url)')
+        .eq('project_id', projectId),
     ])
 
-    // Unique members across all tasks
+    // Unique members: project team members + task assignees
     const memberMap = new Map<string, { id: string; full_name: string; avatar_url: string | null }>()
+
+    // Project team members (leads + members)
+    for (const pm of projectMembers ?? []) {
+      const u = (pm as any).user
+      if (u && !memberMap.has(u.id)) memberMap.set(u.id, u)
+    }
+
+    // Also include task assignees
     for (const task of tasksRaw ?? []) {
       for (const ta of (task as any).task_assignees ?? []) {
         const u = ta.user
@@ -109,7 +121,7 @@ export async function getProjectDeleteImpact(
       }
     }
 
-    // Other workspaces and projects for move option
+    // Other projects for move option
     const [{ data: otherProjects }, { data: otherUsers }] = await Promise.all([
       admin
         .from('projects')
