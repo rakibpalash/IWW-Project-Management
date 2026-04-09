@@ -149,13 +149,13 @@ export function CreateProjectDialog({
 
     const baseSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
-    // Clients & partners — all profiles for selection
-    supabase.from('profiles').select(baseSelect).order('full_name')
-      .then(({ data }) => {
-        const list = (data as Profile[]) ?? []
-        setClients(list)
-        setPartners(list)
-      })
+    // Clients — only role='client'
+    supabase.from('profiles').select(baseSelect).eq('role', 'client').order('full_name')
+      .then(({ data }) => setClients((data as Profile[]) ?? []))
+
+    // Partners — only role='partner'
+    supabase.from('profiles').select(baseSelect).eq('role', 'partner').order('full_name')
+      .then(({ data }) => setPartners((data as Profile[]) ?? []))
 
     supabase.from('task_statuses').select('slug, name, color').eq('is_active', true).order('sort_order')
       .then(({ data }) => {
