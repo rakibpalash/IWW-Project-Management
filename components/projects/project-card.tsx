@@ -333,6 +333,7 @@ export function ProjectCard({
             open={showEditDialog}
             onOpenChange={setShowEditDialog}
             project={project}
+            isSuperAdmin={userRole === 'super_admin'}
             onUpdated={(updated) => {
               setShowEditDialog(false)
               onUpdated?.(updated)

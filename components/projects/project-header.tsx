@@ -231,6 +231,7 @@ export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHea
           open={showEditDialog}
           onOpenChange={setShowEditDialog}
           project={project}
+          isSuperAdmin={profile.role === 'super_admin'}
           onUpdated={(updated) => {
             setShowEditDialog(false)
             onProjectUpdated?.(updated)

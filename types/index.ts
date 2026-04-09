@@ -66,6 +66,7 @@ export interface Project {
   priority: Priority
   progress: number
   estimated_hours: number | null
+  fixed_price: number | null
   created_by: string
   created_at: string
   updated_at: string
