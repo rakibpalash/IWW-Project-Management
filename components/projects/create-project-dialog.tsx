@@ -92,12 +92,12 @@ export function CreateProjectDialog({
   const [startOpen,  setStartOpen]  = useState(false)
   const [dueOpen,    setDueOpen]    = useState(false)
 
-  // Hierarchy
-  const [managers,       setManagers]       = useState<Profile[]>([])
+  // All internal users (everyone except client/partner)
+  const [allUsers,       setAllUsers]       = useState<Profile[]>([])
   const [projectManager, setProjectManager] = useState<string>('')
+  const [pmSearch,       setPmSearch]       = useState('')
 
   // Assign staff
-  const [staffList,     setStaffList]     = useState<Profile[]>([])
   const [staffSearch,   setStaffSearch]   = useState('')
   const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set())
 
@@ -115,7 +115,7 @@ export function CreateProjectDialog({
   const billingType = form.watch('billing_type')
 
   useEffect(() => {
-    if (!open) { setSelectedStaff(new Set()); setStaffSearch(''); setProjectManager(''); return }
+    if (!open) { setSelectedStaff(new Set()); setStaffSearch(''); setPmSearch(''); setProjectManager(''); return }
 
     supabase.from('profiles').select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, manager_id')
       .eq('role', 'client').order('full_name')
@@ -142,16 +142,12 @@ export function CreateProjectDialog({
         }
       })
 
+    // All internal users — everyone except external roles
     supabase.from('profiles')
       .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, manager_id')
-      .in('role', ['super_admin', 'account_manager', 'project_manager'])
+      .not('role', 'in', '("client","partner")')
       .order('full_name')
-      .then(({ data }) => setManagers((data as Profile[]) ?? []))
-
-    supabase.from('profiles')
-      .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, manager_id')
-      .eq('role', 'staff').order('full_name')
-      .then(({ data }) => setStaffList((data as Profile[]) ?? []))
+      .then(({ data }) => setAllUsers((data as Profile[]) ?? []))
   }, [open])
 
   useEffect(() => {
@@ -166,14 +162,24 @@ export function CreateProjectDialog({
     setSelectedStaff(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
 
-  const staffByManager = staffList.reduce<Record<string, Profile[]>>((acc, s) => {
+  // Users available as project manager (anyone internal)
+  const filteredPm = allUsers.filter(u =>
+    u.full_name.toLowerCase().includes(pmSearch.toLowerCase()) ||
+    u.email.toLowerCase().includes(pmSearch.toLowerCase())
+  )
+  const selectedPmUser = allUsers.find(u => u.id === projectManager)
+
+  // Team members = all internal users, grouped by manager, excluding selected PM
+  const teamCandidates = allUsers.filter(u => u.id !== projectManager)
+
+  const staffByManager = teamCandidates.reduce<Record<string, Profile[]>>((acc, s) => {
     const key = s.manager_id ?? '__none__'
     if (!acc[key]) acc[key] = []
     acc[key].push(s)
     return acc
   }, {})
 
-  const filteredStaff = staffList.filter(s =>
+  const filteredStaff = teamCandidates.filter(s =>
     s.full_name.toLowerCase().includes(staffSearch.toLowerCase()) ||
     s.email.toLowerCase().includes(staffSearch.toLowerCase())
   )
@@ -467,32 +473,69 @@ export function CreateProjectDialog({
             {/* ── Team ── */}
             <SectionLabel>Team</SectionLabel>
 
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">
+            {/* Project Manager — searchable picker */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">
                 Project Manager <span className="text-xs text-muted-foreground font-normal">(lead)</span>
               </label>
-              <Select value={projectManager} onValueChange={setProjectManager}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select project manager…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">No project manager</SelectItem>
-                  {managers.map(m => (
-                    <SelectItem key={m.id} value={m.id}>
-                      <div className="flex items-center gap-2">
-                        <div className="h-5 w-5 shrink-0 rounded-full bg-blue-100 flex items-center justify-center text-[9px] font-bold text-blue-700">
-                          {getInitials(m.full_name)}
-                        </div>
-                        <span>{m.full_name}</span>
-                        <span className="text-xs text-muted-foreground capitalize">{m.role.replace('_', ' ')}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+              {/* Selected PM chip */}
+              {selectedPmUser && (
+                <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                    {getInitials(selectedPmUser.full_name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{selectedPmUser.full_name}</p>
+                    <p className="truncate text-xs text-muted-foreground capitalize">{selectedPmUser.role.replace(/_/g, ' ')}</p>
+                  </div>
+                  <button type="button" onClick={() => setProjectManager('')}
+                    className="text-xs text-muted-foreground hover:text-destructive transition-colors px-1">
+                    Remove
+                  </button>
+                </div>
+              )}
+
+              <div className="rounded-lg border border-border">
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                    <Input placeholder="Search for project manager…" value={pmSearch} onChange={e => setPmSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+                  </div>
+                </div>
+                {allUsers.length === 0 ? (
+                  <div className="py-4 text-center text-sm text-muted-foreground">No users found</div>
+                ) : (
+                  <ScrollArea className="h-36">
+                    <ul className="p-1">
+                      {filteredPm.map(u => (
+                        <li key={u.id}>
+                          <button type="button" onClick={() => { setProjectManager(u.id); setPmSearch('') }}
+                            className={cn(
+                              'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors',
+                              projectManager === u.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50'
+                            )}>
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                              {getInitials(u.full_name)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">{u.full_name}</p>
+                              <p className="truncate text-xs text-muted-foreground">{u.email}</p>
+                            </div>
+                            <span className="shrink-0 text-[10px] text-muted-foreground capitalize bg-muted rounded px-1.5 py-0.5">
+                              {u.role.replace(/_/g, ' ')}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-2">
+            {/* Assign Team Members */}
+            <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">Assign Team Members</span>
@@ -504,18 +547,20 @@ export function CreateProjectDialog({
                 <div className="p-2 border-b">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                    <Input placeholder="Search staff…" value={staffSearch} onChange={e => setStaffSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+                    <Input placeholder="Search team members…" value={staffSearch} onChange={e => setStaffSearch(e.target.value)} className="pl-8 h-8 text-sm" />
                   </div>
                 </div>
 
-                {staffList.length === 0 ? (
-                  <div className="py-5 text-center text-sm text-muted-foreground">No staff members found</div>
+                {allUsers.length === 0 ? (
+                  <div className="py-5 text-center text-sm text-muted-foreground">No users found</div>
+                ) : teamCandidates.length === 0 ? (
+                  <div className="py-5 text-center text-sm text-muted-foreground">No other members to assign</div>
                 ) : (
                   <ScrollArea className="h-44">
                     {showGrouped ? (
                       <div className="p-1">
                         {Object.entries(staffByManager).map(([managerId, members]) => {
-                          const manager = managerId === '__none__' ? null : managers.find(m => m.id === managerId) ?? staffList.find(m => m.id === managerId)
+                          const manager = managerId === '__none__' ? null : allUsers.find(m => m.id === managerId)
                           return (
                             <div key={managerId}>
                               <div className="flex items-center gap-1.5 px-2 py-1 mt-1">
@@ -543,7 +588,7 @@ export function CreateProjectDialog({
                     ) : (
                       <ul className="p-1">
                         {filteredStaff.length === 0 ? (
-                          <li className="py-4 text-center text-sm text-muted-foreground">No staff match your search</li>
+                          <li className="py-4 text-center text-sm text-muted-foreground">No members match your search</li>
                         ) : filteredStaff.map(staff => (
                           <li key={staff.id}>
                             <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
