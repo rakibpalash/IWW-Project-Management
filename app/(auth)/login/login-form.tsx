@@ -186,7 +186,7 @@ export function LoginForm() {
         </form>
       </CardContent>
 
-      <CardFooter className="justify-center border-t border-slate-100 pt-4 pb-5">
+      <CardFooter className="flex flex-col items-center gap-2 border-t border-slate-100 pt-4 pb-5">
         <p className="text-sm text-slate-500">
           Having trouble?{' '}
           <Link
@@ -194,6 +194,15 @@ export function LoginForm() {
             className="font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors"
           >
             Reset your password
+          </Link>
+        </p>
+        <p className="text-sm text-slate-500">
+          New organisation?{' '}
+          <Link
+            href="/register"
+            className="font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+          >
+            Create Organisation
           </Link>
         </p>
       </CardFooter>
