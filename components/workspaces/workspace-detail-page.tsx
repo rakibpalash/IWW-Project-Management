@@ -557,7 +557,7 @@ export function WorkspaceDetailPage({
           <DialogHeader>
             <DialogTitle>Rename tab</DialogTitle>
           </DialogHeader>
-          <div className="py-2">
+          <div className="py-2 space-y-2">
             <Label className="text-xs text-muted-foreground mb-1 block">Tab name</Label>
             <Input
               value={renameValue}
@@ -565,6 +565,15 @@ export function WorkspaceDetailPage({
               onKeyDown={e => { if (e.key === 'Enter') confirmRename() }}
               autoFocus
             />
+            {renamingTab && renameValue !== DEFAULT_TAB_LABELS[renamingTab] && (
+              <button
+                type="button"
+                onClick={() => setRenameValue(DEFAULT_TAB_LABELS[renamingTab])}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+              >
+                Reset to default ("{DEFAULT_TAB_LABELS[renamingTab]}")
+              </button>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setRenamingTab(null)}>Cancel</Button>
