@@ -164,7 +164,7 @@ export function CreateProjectDialog({
     // All internal users — everyone except external roles
     supabase.from('profiles')
       .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, manager_id')
-      .not('role', 'in', '("client","partner")')
+      .not('role', 'in', '(client,partner)')
       .order('full_name')
       .then(({ data }) => setAllUsers((data as Profile[]) ?? []))
   }, [open])
