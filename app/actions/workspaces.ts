@@ -104,7 +104,10 @@ export async function deleteWorkspaceAction(
       if (notifications.length > 0) await admin.from('notifications').insert(notifications)
     }
 
-    revalidatePath('/workspaces')
+    // Do NOT call revalidatePath here — Next.js 15 auto re-renders the page
+    // when revalidatePath is called from a server action, which crashes the
+    // WorkspacesRoute server component. The client removes the workspace from
+    // local state directly (optimistic update) so no server revalidation needed.
     return { success: true }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
