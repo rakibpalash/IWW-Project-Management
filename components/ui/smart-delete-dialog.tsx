@@ -73,6 +73,7 @@ export function SmartDeleteDialog({
   onConfirmDelete,
 }: SmartDeleteDialogProps) {
   const [step, setStep] = useState<Step>('loading')
+  const [isDeleting, setIsDeleting] = useState(false)
   const [impact, setImpact] = useState<DeleteImpact | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -135,6 +136,7 @@ export function SmartDeleteDialog({
 
   async function handleDelete() {
     setDeleteError(null)
+    setIsDeleting(true)
     setStep('deleting')
     try {
       await onConfirmDelete({
@@ -146,6 +148,8 @@ export function SmartDeleteDialog({
       const msg = err instanceof Error ? err.message : 'Unexpected error — check console'
       setDeleteError(msg)
       setStep('step1')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -360,10 +364,10 @@ export function SmartDeleteDialog({
                 <Button
                   variant="destructive"
                   onClick={handleDelete}
-                  disabled={step === 'loading' || !!error || step === 'deleting'}
+                  disabled={step === 'loading' || !!error || isDeleting}
                   className="gap-1.5"
                 >
-                  {step === 'deleting' ? (
+                  {isDeleting ? (
                     <><Loader2 className="h-4 w-4 animate-spin" />Deleting…</>
                   ) : (
                     <><Trash2 className="h-4 w-4" />Force Delete</>
