@@ -9,6 +9,7 @@ import {
   isSameMonth, isToday,
 } from 'date-fns'
 import { AssignStaffDialog } from './assign-staff-dialog'
+import { RenameWorkspaceDialog } from './rename-workspace-dialog'
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog'
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -141,6 +142,8 @@ export function WorkspaceDetailPage({
   const [, startTransition] = useTransition()
   const [activeTab, setActiveTab] = useState<TabType>('summary')
   const [showAssign, setShowAssign] = useState(false)
+  const [showRenameWorkspace, setShowRenameWorkspace] = useState(false)
+  const [workspaceName, setWorkspaceName] = useState(workspace.name)
   const [showCreateProject, setShowCreateProject] = useState(false)
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [search, setSearch] = useState('')
@@ -381,7 +384,7 @@ export function WorkspaceDetailPage({
             <div className="h-8 w-8 rounded-md bg-blue-600 flex items-center justify-center shrink-0">
               <FolderKanban className="h-4 w-4 text-white" />
             </div>
-            <h1 className="text-xl font-bold">{workspace.name}</h1>
+            <h1 className="text-xl font-bold">{workspaceName}</h1>
             <div className="flex -space-x-1.5">
               {members.slice(0, 5).map(m => (
                 <Avatar key={m.id} className="h-6 w-6 border-2 border-background">
@@ -402,9 +405,12 @@ export function WorkspaceDetailPage({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => navigator.clipboard.writeText(workspace.id)}>
-                  Copy workspace ID
-                </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => setShowRenameWorkspace(true)}>
+                    <Pencil className="h-3.5 w-3.5 mr-2" />
+                    Edit workspace
+                  </DropdownMenuItem>
+                )}
                 {isAdmin && (
                   <DropdownMenuItem onClick={() => setShowAssign(true)}>
                     Manage members
@@ -415,6 +421,9 @@ export function WorkspaceDetailPage({
                     New project
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onClick={() => navigator.clipboard.writeText(workspace.id)}>
+                  Copy workspace ID
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -1195,6 +1204,15 @@ export function WorkspaceDetailPage({
       )}
 
       {/* ── Dialogs ── */}
+      <RenameWorkspaceDialog
+        workspace={{ ...workspace, name: workspaceName }}
+        open={showRenameWorkspace}
+        onOpenChange={setShowRenameWorkspace}
+        onSuccess={(_, name) => {
+          setWorkspaceName(name)
+        }}
+      />
+
       <AssignStaffDialog open={showAssign} onOpenChange={setShowAssign}
         workspaceId={workspace.id} currentMemberIds={members.map(m => m.id)}
         onSuccess={refresh} />
