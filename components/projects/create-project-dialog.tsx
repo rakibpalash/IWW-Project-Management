@@ -200,10 +200,12 @@ export function CreateProjectDialog({
     setSelectedStaff(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
 
-  // Users available as project manager (anyone internal)
+  // Users available as project manager — exclude client/partner roles
   const filteredPm = allUsers.filter(u =>
-    u.full_name.toLowerCase().includes(pmSearch.toLowerCase()) ||
-    u.email.toLowerCase().includes(pmSearch.toLowerCase())
+    u.role !== 'client' && u.role !== 'partner' && (
+      u.full_name.toLowerCase().includes(pmSearch.toLowerCase()) ||
+      u.email.toLowerCase().includes(pmSearch.toLowerCase())
+    )
   )
   const selectedPmUser = allUsers.find(u => u.id === projectManager)
 
