@@ -144,7 +144,16 @@ export function CreateProjectDialog({
   const billingType = form.watch('billing_type')
 
   useEffect(() => {
-    if (!open) { setSelectedStaff(new Set()); setStaffSearch(''); setPmSearch(''); setProjectManager(''); return }
+    if (!open) {
+      setSelectedStaff(new Set()); setStaffSearch(''); setPmSearch(''); setProjectManager('')
+      form.reset({
+        name: '', workspace_id: workspaces.length === 1 ? workspaces[0].id : '',
+        client_id: undefined, partner_id: undefined,
+        is_internal: false, billing_type: 'hourly',
+        status: '', priority: '', description: '', estimated_hours: '',
+      })
+      return
+    }
 
     const baseSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
@@ -193,6 +202,11 @@ export function CreateProjectDialog({
       form.setValue('billing_type', 'non_billable')
       form.setValue('client_id', undefined)
       form.setValue('partner_id', undefined)
+    } else {
+      // Restore billing type when Internal is toggled off
+      if (form.getValues('billing_type') === 'non_billable') {
+        form.setValue('billing_type', 'hourly')
+      }
     }
   }, [isInternal])
 
@@ -253,7 +267,17 @@ export function CreateProjectDialog({
       selectedStaff.forEach(uid => {
         if (uid !== projectManager) memberInserts.push({ project_id: data.id, user_id: uid, project_role: 'member' })
       })
-      if (memberInserts.length > 0) await supabase.from('project_members').insert(memberInserts)
+      if (memberInserts.length > 0) {
+        const { error: memberError } = await supabase.from('project_members').insert(memberInserts)
+        if (memberError) {
+          toast({ title: 'Project created', description: `"${data.name}" created, but some team members could not be assigned.`, variant: 'destructive' })
+          onCreated?.(data as Project)
+          form.reset()
+          onOpenChange(false)
+          router.push(`/projects/${data.id}`)
+          return
+        }
+      }
 
       toast({ title: 'Project created', description: `"${data.name}" has been created successfully.` })
       onCreated?.(data as Project)
@@ -429,7 +453,7 @@ export function CreateProjectDialog({
                   <FormField control={form.control} name="client_id" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Client</FormLabel>
-                      <Select onValueChange={v => field.onChange(v === '__none__' ? undefined : v)} defaultValue={field.value ?? '__none__'}>
+                      <Select onValueChange={v => field.onChange(v === '__none__' ? undefined : v)} value={field.value ?? '__none__'}>
                         <FormControl><SelectTrigger><SelectValue placeholder="No client" /></SelectTrigger></FormControl>
                         <SelectContent>
                           <SelectItem value="__none__">No client</SelectItem>
@@ -441,7 +465,7 @@ export function CreateProjectDialog({
                   <FormField control={form.control} name="partner_id" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Partner / Reseller</FormLabel>
-                      <Select onValueChange={v => field.onChange(v === '__none__' ? undefined : v)} defaultValue={field.value ?? '__none__'}>
+                      <Select onValueChange={v => field.onChange(v === '__none__' ? undefined : v)} value={field.value ?? '__none__'}>
                         <FormControl><SelectTrigger><SelectValue placeholder="No partner" /></SelectTrigger></FormControl>
                         <SelectContent>
                           <SelectItem value="__none__">No partner</SelectItem>
@@ -486,7 +510,7 @@ export function CreateProjectDialog({
 
                 {selectedPmUser && (
                   <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                    <div className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avatarColor(selectedPmUser.id))}>
                       {getInitials(selectedPmUser.full_name)}
                     </div>
                     <div className="min-w-0 flex-1">
