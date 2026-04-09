@@ -1,24 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import { Role } from '@/types'
 import {
-  LayoutDashboard,
-  CheckSquare,
-  Clock,
-  Users,
-  FolderKanban,
-  CalendarCheck,
-  BarChart3,
-  ShieldCheck,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  X,
+  CheckSquare, Clock, CalendarCheck, FolderKanban,
+  Users, BarChart3, Eye, ChevronRight,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface OnboardingModalProps {
   open: boolean
@@ -28,366 +18,304 @@ interface OnboardingModalProps {
   onFinish: () => void
 }
 
-// ── Role-specific copy ────────────────────────────────────────────────────────
-
-const STAFF_GREETING = {
-  headline: 'Welcome aboard!',
-  sub: "You'll manage tasks and track your time right here. Let's get you set up.",
-}
-
-const ROLE_GREETING: Record<Role, { headline: string; sub: string }> = {
-  super_admin: {
-    headline: 'Welcome, Admin!',
-    sub: 'You can manage workspaces, projects, and your entire team from one place.',
-  },
-  account_manager: STAFF_GREETING,
-  project_manager: STAFF_GREETING,
-  staff: STAFF_GREETING,
-  client: {
-    headline: 'Welcome!',
-    sub: 'Track your project progress, view task statuses, and stay in the loop — all here.',
-  },
-  partner: {
-    headline: 'Welcome, Partner!',
-    sub: 'Track your project progress, view task statuses, and stay in the loop — all here.',
-  },
-}
+// ── Role content ──────────────────────────────────────────────────────────────
 
 const STAFF_FEATURES = [
-  {
-    icon: <CheckSquare className="h-6 w-6 text-blue-500" />,
-    title: 'My Tasks',
-    description: 'See all tasks assigned to you, update statuses, and add comments in real time.',
-  },
-  {
-    icon: <Clock className="h-6 w-6 text-orange-500" />,
-    title: 'Time Tracker',
-    description: 'Log time against tasks effortlessly and keep your timesheets accurate.',
-  },
-  {
-    icon: <CalendarCheck className="h-6 w-6 text-green-500" />,
-    title: 'Attendance & Leave',
-    description: 'Check in each morning, request leave, and view your remaining balance.',
-  },
+  { icon: <CheckSquare className="h-5 w-5 text-blue-500" />,    title: 'My Tasks',         desc: 'See all tasks assigned to you and update statuses in real time.' },
+  { icon: <Clock className="h-5 w-5 text-orange-500" />,        title: 'Time Tracker',     desc: 'Log time against tasks and keep your timesheets accurate.' },
+  { icon: <CalendarCheck className="h-5 w-5 text-green-500" />, title: 'Attendance',       desc: 'Check in each morning and manage your leave requests.' },
 ]
 
-const ROLE_FEATURES: Record<
-  Role,
-  { icon: React.ReactNode; title: string; description: string }[]
-> = {
+const ROLE_FEATURES: Record<Role, typeof STAFF_FEATURES> = {
   super_admin: [
-    {
-      icon: <FolderKanban className="h-6 w-6 text-blue-500" />,
-      title: 'Workspaces & Projects',
-      description: 'Organise work into workspaces and create projects for each client or initiative.',
-    },
-    {
-      icon: <Users className="h-6 w-6 text-purple-500" />,
-      title: 'Team Management',
-      description: 'Invite staff, assign roles, and manage permissions across your organisation.',
-    },
-    {
-      icon: <CalendarCheck className="h-6 w-6 text-green-500" />,
-      title: 'Attendance & Leave',
-      description: 'Monitor daily check-ins, configure attendance rules, and approve leave requests.',
-    },
+    { icon: <FolderKanban className="h-5 w-5 text-blue-500" />,   title: 'Workspaces & Projects', desc: 'Organise work into workspaces and create projects for each client.' },
+    { icon: <Users className="h-5 w-5 text-purple-500" />,        title: 'Team Management',       desc: 'Invite staff, assign roles, and manage permissions.' },
+    { icon: <CalendarCheck className="h-5 w-5 text-green-500" />, title: 'Attendance',            desc: 'Monitor daily check-ins and approve leave requests.' },
   ],
   account_manager: STAFF_FEATURES,
   project_manager: STAFF_FEATURES,
-  staff: STAFF_FEATURES,
+  staff:           STAFF_FEATURES,
   client: [
-    {
-      icon: <FolderKanban className="h-6 w-6 text-blue-500" />,
-      title: 'Your Projects',
-      description: "Get a bird's-eye view of every project we are running for you.",
-    },
-    {
-      icon: <BarChart3 className="h-6 w-6 text-purple-500" />,
-      title: 'Progress Tracking',
-      description: 'Live progress bars and status updates keep you informed at all times.',
-    },
-    {
-      icon: <Eye className="h-6 w-6 text-green-500" />,
-      title: 'Task Visibility',
-      description: 'Drill into individual tasks and milestones to see exactly where things stand.',
-    },
+    { icon: <FolderKanban className="h-5 w-5 text-blue-500" />,  title: 'Your Projects',   desc: "Bird's-eye view of every project we're running for you." },
+    { icon: <BarChart3 className="h-5 w-5 text-purple-500" />,   title: 'Progress',        desc: 'Live progress bars and status updates keep you informed.' },
+    { icon: <Eye className="h-5 w-5 text-green-500" />,          title: 'Task Visibility', desc: 'Drill into tasks and milestones to see exactly where things stand.' },
   ],
   partner: [
-    {
-      icon: <FolderKanban className="h-6 w-6 text-blue-500" />,
-      title: 'Your Projects',
-      description: "Get a bird's-eye view of every project we are running with you.",
-    },
-    {
-      icon: <BarChart3 className="h-6 w-6 text-purple-500" />,
-      title: 'Progress Tracking',
-      description: 'Live progress bars and status updates keep you informed at all times.',
-    },
-    {
-      icon: <Eye className="h-6 w-6 text-green-500" />,
-      title: 'Task Visibility',
-      description: 'Drill into individual tasks and milestones to see exactly where things stand.',
-    },
+    { icon: <FolderKanban className="h-5 w-5 text-blue-500" />,  title: 'Your Projects',   desc: "Bird's-eye view of every project we're running with you." },
+    { icon: <BarChart3 className="h-5 w-5 text-purple-500" />,   title: 'Progress',        desc: 'Live progress bars and status updates keep you informed.' },
+    { icon: <Eye className="h-5 w-5 text-green-500" />,          title: 'Task Visibility', desc: 'Drill into tasks to see exactly where things stand.' },
   ],
 }
 
 const STAFF_TIPS = [
-  {
-    title: 'Check in every morning',
-    body: 'Open Attendance and hit Check In as soon as you start work to keep your record clean.',
-  },
-  {
-    title: 'Update your task statuses',
-    body: 'Move tasks through Todo → In Progress → In Review → Done as you work.',
-  },
-  {
-    title: 'Log time as you go',
-    body: 'Use the Time Tracker on each task to keep accurate records of your work hours.',
-  },
+  { title: 'Check in every morning',      body: 'Open Attendance and hit Check In as soon as you start work.' },
+  { title: 'Update your task statuses',   body: 'Move tasks through Todo → In Progress → Done as you work.' },
+  { title: 'Log time as you go',          body: 'Use the Time Tracker on each task for accurate hours.' },
 ]
 
 const ROLE_TIPS: Record<Role, { title: string; body: string }[]> = {
   super_admin: [
-    {
-      title: 'Create your first workspace',
-      body: 'Head to the Workspaces section to create a workspace and start adding projects.',
-    },
-    {
-      title: 'Invite your team',
-      body: 'Go to Settings → Team to invite staff members and assign them to workspaces.',
-    },
-    {
-      title: 'Configure attendance rules',
-      body: 'Visit Attendance → Settings to set check-in windows and late-arrival thresholds.',
-    },
+    { title: 'Create your first workspace', body: 'Head to Workspaces to create one and start adding projects.' },
+    { title: 'Invite your team',            body: 'Go to Settings → Team to invite staff members.' },
+    { title: 'Configure attendance rules',  body: 'Visit Attendance → Settings to set check-in windows.' },
   ],
   account_manager: STAFF_TIPS,
   project_manager: STAFF_TIPS,
-  staff: STAFF_TIPS,
+  staff:           STAFF_TIPS,
   client: [
-    {
-      title: 'Bookmark your dashboard',
-      body: 'Your dashboard gives you a real-time summary of all active projects at a glance.',
-    },
-    {
-      title: 'Explore task details',
-      body: 'Click any task to see its description, assignees, and the latest activity.',
-    },
-    {
-      title: 'Reach out if you need help',
-      body: 'Use the comments section on tasks to ask questions directly to the team.',
-    },
+    { title: 'Bookmark your dashboard', body: 'Your dashboard gives a real-time summary of all active projects.' },
+    { title: 'Explore task details',    body: 'Click any task to see its description, assignees, and activity.' },
+    { title: 'Reach out if needed',     body: 'Use task comments to ask questions directly to the team.' },
   ],
   partner: [
-    {
-      title: 'Bookmark your dashboard',
-      body: 'Your dashboard gives you a real-time summary of all active projects at a glance.',
-    },
-    {
-      title: 'Explore task details',
-      body: 'Click any task to see its description, assignees, and the latest activity.',
-    },
-    {
-      title: 'Reach out if you need help',
-      body: 'Use the comments section on tasks to ask questions directly to the team.',
-    },
+    { title: 'Bookmark your dashboard', body: 'Your dashboard gives a real-time summary of all active projects.' },
+    { title: 'Explore task details',    body: 'Click any task to see its description, assignees, and activity.' },
+    { title: 'Reach out if needed',     body: 'Use task comments to ask questions directly to the team.' },
   ],
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Theme preview thumbnails ──────────────────────────────────────────────────
 
-export function OnboardingModal({
-  open,
-  role,
-  fullName,
-  onSkip,
-  onFinish,
-}: OnboardingModalProps) {
-  const [step, setStep] = useState(0)
-  const totalSteps = 3
+function LightPreview() {
+  return (
+    <div className="w-full h-full rounded bg-gray-100 p-2 flex flex-col gap-1.5">
+      <div className="flex gap-1">
+        <div className="h-1.5 w-1.5 rounded-full bg-gray-300" />
+        <div className="h-1.5 w-8 rounded bg-gray-300" />
+      </div>
+      <div className="flex gap-1.5 flex-1">
+        <div className="w-8 rounded bg-gray-200 flex flex-col gap-1 p-1">
+          {[3,5,4].map((w,i) => <div key={i} className={`h-1 rounded bg-gray-300`} style={{width:`${w*6}px`}} />)}
+        </div>
+        <div className="flex-1 rounded bg-white flex flex-col gap-1 p-1">
+          <div className="h-2 w-16 rounded bg-indigo-300" />
+          {[8,6,7].map((w,i) => <div key={i} className="h-1 rounded bg-gray-200" style={{width:`${w*7}px`}} />)}
+        </div>
+      </div>
+    </div>
+  )
+}
 
-  const firstName = fullName.split(' ')[0] || fullName
-  const greeting = ROLE_GREETING[role]
-  const features = ROLE_FEATURES[role]
-  const tips = ROLE_TIPS[role]
+function DarkPreview() {
+  return (
+    <div className="w-full h-full rounded bg-gray-900 p-2 flex flex-col gap-1.5">
+      <div className="flex gap-1">
+        <div className="h-1.5 w-1.5 rounded-full bg-gray-600" />
+        <div className="h-1.5 w-8 rounded bg-gray-600" />
+      </div>
+      <div className="flex gap-1.5 flex-1">
+        <div className="w-8 rounded bg-gray-800 flex flex-col gap-1 p-1">
+          {[3,5,4].map((w,i) => <div key={i} className="h-1 rounded bg-gray-700" style={{width:`${w*6}px`}} />)}
+        </div>
+        <div className="flex-1 rounded bg-gray-800 flex flex-col gap-1 p-1">
+          <div className="h-2 w-16 rounded bg-indigo-500" />
+          {[8,6,7].map((w,i) => <div key={i} className="h-1 rounded bg-gray-700" style={{width:`${w*7}px`}} />)}
+        </div>
+      </div>
+    </div>
+  )
+}
 
-  const progressPct = ((step + 1) / totalSteps) * 100
+// ── Main component ────────────────────────────────────────────────────────────
+
+export function OnboardingModal({ open, role, fullName, onSkip, onFinish }: OnboardingModalProps) {
+  const { setTheme, theme } = useTheme()
+  const [step, setStep]             = useState(0)
+  const [selectedTheme, setSelectedTheme] = useState<'light' | 'dark'>(theme === 'dark' ? 'dark' : 'light')
+
+  const totalSteps = 4
+  const firstName  = fullName.split(' ')[0] || fullName
+  const features   = ROLE_FEATURES[role]
+  const tips       = ROLE_TIPS[role]
 
   function handleNext() {
-    if (step < totalSteps - 1) setStep((s) => s + 1)
+    if (step === 1) {
+      setTheme(selectedTheme)
+    }
+    if (step < totalSteps - 1) setStep(s => s + 1)
     else onFinish()
   }
 
-  function handleBack() {
-    if (step > 0) setStep((s) => s - 1)
+  function handleDotClick(i: number) {
+    if (step === 1) setTheme(selectedTheme)
+    setStep(i)
   }
 
+  const isLast = step === totalSteps - 1
+
+  if (!open) return null
+
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onSkip() }}>
-      <DialogContent
-        className="max-w-lg p-0 overflow-hidden gap-0"
-        onInteractOutside={(e) => e.preventDefault()}
-      >
-        {/* Header bar */}
-        <div className="relative bg-gradient-to-br from-blue-600 to-indigo-700 px-8 pt-8 pb-6 text-white">
-          <button
-            onClick={onSkip}
-            className="absolute top-4 right-4 rounded-full p-1 text-white/70 hover:text-white hover:bg-card/10 transition-colors"
-            aria-label="Skip onboarding"
-          >
-            <X className="h-4 w-4" />
-          </button>
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-background px-6 py-10">
 
-          <div className="flex items-center gap-2 mb-4">
-            <ShieldCheck className="h-7 w-7 opacity-90" />
-            <span className="text-sm font-medium uppercase tracking-wider opacity-80">
-              IWW Project Manager
-            </span>
+      {/* Top spacer */}
+      <div />
+
+      {/* Content */}
+      <div className="flex flex-col items-center text-center w-full max-w-md">
+
+        {/* Step 1 — Welcome */}
+        {step === 0 && (
+          <div className="flex flex-col items-center gap-5 animate-in fade-in slide-in-from-bottom-3 duration-300">
+            {/* App icon */}
+            <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg">
+              <FolderKanban className="h-10 w-10 text-white" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-3xl font-bold tracking-tight">Welcome to IWW PM</h1>
+              <p className="text-muted-foreground text-sm leading-relaxed max-w-xs mx-auto">
+                A purpose-built system for managing projects, teams, and client work — all in one place.
+              </p>
+            </div>
+            <Button
+              size="lg"
+              className="w-64 mt-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleNext}
+            >
+              Get started
+            </Button>
           </div>
+        )}
 
-          {step === 0 && (
-            <div
-              className="transition-all duration-300 ease-in-out"
-              key="step-0-header"
+        {/* Step 2 — Choose theme */}
+        {step === 1 && (
+          <div className="flex flex-col items-center gap-6 w-full animate-in fade-in slide-in-from-bottom-3 duration-300">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-bold tracking-tight">Choose your style</h1>
+              <p className="text-muted-foreground text-sm">Change your theme at any time via Settings.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 w-full">
+              {([
+                { value: 'light', label: 'Light', preview: <LightPreview /> },
+                { value: 'dark',  label: 'Dark',  preview: <DarkPreview /> },
+              ] as const).map(({ value, label, preview }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setSelectedTheme(value)}
+                  className={cn(
+                    'rounded-xl border-2 p-2 text-sm font-medium transition-all',
+                    selectedTheme === value
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30'
+                      : 'border-border hover:border-muted-foreground/40'
+                  )}
+                >
+                  <div className="h-28 w-full mb-2 rounded overflow-hidden">
+                    {preview}
+                  </div>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              size="lg"
+              className="w-64 bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleNext}
             >
-              <h2 className="text-2xl font-bold mb-1">
-                {greeting.headline.replace('!', `, ${firstName}!`)}
-              </h2>
-              <p className="text-sm text-white/80">{greeting.sub}</p>
-            </div>
-          )}
-
-          {step === 1 && (
-            <div key="step-1-header" className="transition-all duration-300">
-              <h2 className="text-2xl font-bold mb-1">Key Features</h2>
-              <p className="text-sm text-white/80">
-                Here's what you can do with IWW PM.
-              </p>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div key="step-2-header" className="transition-all duration-300">
-              <h2 className="text-2xl font-bold mb-1">Quick-Start Tips</h2>
-              <p className="text-sm text-white/80">
-                A few things to get you going right away.
-              </p>
-            </div>
-          )}
-
-          {/* Progress bar */}
-          <div className="mt-5">
-            <Progress
-              value={progressPct}
-              className="h-1 bg-card/20 [&>div]:bg-card"
-            />
+              Continue
+            </Button>
           </div>
-        </div>
+        )}
 
-        {/* Body */}
-        <div className="px-8 py-6 min-h-[220px]">
-          {/* Step 1 – Welcome */}
-          {step === 0 && (
-            <div
-              key="step-0-body"
-              className="flex flex-col items-center text-center gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300"
-            >
-              <LayoutDashboard className="h-16 w-16 text-indigo-500 mt-2" />
-              <p className="text-muted-foreground text-sm leading-relaxed max-w-xs">
-                This short guide will help you understand the platform and
-                configure it for your needs. You can always replay this tour
-                from the Settings page.
-              </p>
+        {/* Step 3 — Key features */}
+        {step === 2 && (
+          <div className="flex flex-col items-center gap-6 w-full animate-in fade-in slide-in-from-bottom-3 duration-300">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-bold tracking-tight">
+                {role === 'super_admin' ? `Welcome, ${firstName}!` : `Hi ${firstName}!`}
+              </h1>
+              <p className="text-muted-foreground text-sm">Here's what you can do with IWW PM.</p>
             </div>
-          )}
 
-          {/* Step 2 – Features */}
-          {step === 1 && (
-            <div
-              key="step-1-body"
-              className="grid gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300"
-            >
+            <div className="w-full space-y-3 text-left">
               {features.map((f, i) => (
-                <div key={i} className="flex items-start gap-3">
+                <div key={i} className="flex items-start gap-3 rounded-xl border border-border p-3.5">
                   <div className="mt-0.5 shrink-0">{f.icon}</div>
                   <div>
-                    <p className="font-medium text-sm">{f.title}</p>
-                    <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">
-                      {f.description}
-                    </p>
+                    <p className="font-semibold text-sm">{f.title}</p>
+                    <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">{f.desc}</p>
                   </div>
                 </div>
               ))}
             </div>
-          )}
 
-          {/* Step 3 – Tips */}
-          {step === 2 && (
-            <ol
-              key="step-2-body"
-              className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            <Button
+              size="lg"
+              className="w-64 bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleNext}
             >
+              Continue <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
+        {/* Step 4 — Tips */}
+        {step === 3 && (
+          <div className="flex flex-col items-center gap-6 w-full animate-in fade-in slide-in-from-bottom-3 duration-300">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-bold tracking-tight">Quick-start tips</h1>
+              <p className="text-muted-foreground text-sm">A few things to get you going right away.</p>
+            </div>
+
+            <div className="w-full space-y-3 text-left">
               {tips.map((t, i) => (
-                <li key={i} className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                <div key={i} className="flex gap-3 rounded-xl border border-border p-3.5">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 text-xs font-bold">
                     {i + 1}
                   </span>
                   <div>
-                    <p className="font-medium text-sm">{t.title}</p>
-                    <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">
-                      {t.body}
-                    </p>
+                    <p className="font-semibold text-sm">{t.title}</p>
+                    <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">{t.body}</p>
                   </div>
-                </li>
+                </div>
               ))}
-            </ol>
-          )}
+            </div>
+
+            <Button
+              size="lg"
+              className="w-64 bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={onFinish}
+            >
+              Let's go!
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom — dots + skip */}
+      <div className="flex flex-col items-center gap-4">
+        {/* Pagination dots */}
+        <div className="flex items-center gap-2">
+          {Array.from({ length: totalSteps }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => handleDotClick(i)}
+              aria-label={`Step ${i + 1}`}
+              className={cn(
+                'h-2 rounded-full transition-all duration-200',
+                i === step
+                  ? 'w-5 bg-indigo-600'
+                  : 'w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50'
+              )}
+            />
+          ))}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-8 py-4 border-t bg-muted/30">
-          {/* Step dots */}
-          <div className="flex items-center gap-1.5">
-            {Array.from({ length: totalSteps }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setStep(i)}
-                className={`h-2 rounded-full transition-all duration-200 ${
-                  i === step
-                    ? 'w-5 bg-indigo-600'
-                    : 'w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50'
-                }`}
-                aria-label={`Go to step ${i + 1}`}
-              />
-            ))}
-          </div>
+        {/* Skip */}
+        {!isLast && (
+          <button
+            type="button"
+            onClick={onSkip}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Skip for now
+          </button>
+        )}
+      </div>
 
-          <div className="flex items-center gap-2">
-            {step > 0 && (
-              <Button variant="ghost" size="sm" onClick={handleBack}>
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Back
-              </Button>
-            )}
-
-            {step < totalSteps - 1 ? (
-              <>
-                <Button variant="ghost" size="sm" onClick={onSkip}>
-                  Skip
-                </Button>
-                <Button size="sm" onClick={handleNext}>
-                  Next
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              </>
-            ) : (
-              <Button size="sm" onClick={onFinish}>
-                Get Started
-              </Button>
-            )}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    </div>
   )
 }
