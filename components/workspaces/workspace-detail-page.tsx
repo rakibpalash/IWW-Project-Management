@@ -233,6 +233,16 @@ export function WorkspaceDetailPage({
 
   function refresh() { startTransition(() => router.refresh()) }
 
+  // Guard: tasks require a project — redirect to project creation if none exist
+  function openCreateTask() {
+    if (projects.length === 0) {
+      setShowCreateProject(true)
+      toast({ title: 'Create a project first', description: 'Tasks must belong to a project. Add one to get started.' })
+    } else {
+      setShowCreateTask(true)
+    }
+  }
+
   // ── Derived data ──
   const now = new Date()
   const sevenDaysAgo = subDays(now, 7)
@@ -639,13 +649,13 @@ export function WorkspaceDetailPage({
                 <h3 className="font-semibold text-sm">Status overview</h3>
                 {tasks.length > 0 && (
                   <button onClick={() => setActiveTab('list')}
-                    className="text-xs text-blue-600 hover:underline">View all work items</button>
+                    className="text-xs text-blue-600 hover:underline">View all tasks</button>
                 )}
               </div>
               <p className="text-xs text-muted-foreground mb-4">
                 {tasks.length === 0
-                  ? 'The status overview will display here after you create some work items'
-                  : 'A snapshot of the status of your work items.'}
+                  ? 'The status overview will display here after you create some tasks'
+                  : 'A snapshot of the status of your tasks.'}
               </p>
               <DonutChart data={[
                 { label: 'To Do',       value: statusCounts['todo'] ?? 0,        color: '#94a3b8' },
@@ -667,7 +677,7 @@ export function WorkspaceDetailPage({
                 <div className="flex flex-col items-center justify-center py-6 text-center">
                   <Activity className="h-8 w-8 text-muted-foreground/30 mb-2" />
                   <p className="text-sm font-medium">No activity yet</p>
-                  <p className="text-xs text-muted-foreground mt-1">Create some work items to see activity here.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Create some tasks to see activity here.</p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-48 overflow-y-auto">
@@ -721,9 +731,9 @@ export function WorkspaceDetailPage({
             {/* Types of work */}
             <div className="rounded-lg border bg-card p-5">
               <h3 className="font-semibold text-sm mb-1">Types of work</h3>
-              <p className="text-xs text-muted-foreground mb-4">A breakdown of work items by type.</p>
+              <p className="text-xs text-muted-foreground mb-4">A breakdown of tasks by type.</p>
               {tasks.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Create some work items to view the breakdown.</p>
+                <p className="text-xs text-muted-foreground">Create some tasks to view the breakdown.</p>
               ) : (
                 <div className="space-y-3">
                   {[
@@ -944,8 +954,8 @@ export function WorkspaceDetailPage({
           {/* Footer */}
           <div className="flex items-center justify-between px-4 py-2 border-t bg-background text-xs text-muted-foreground">
             <button className="flex items-center gap-1.5 hover:text-foreground font-medium"
-              onClick={() => setShowCreateTask(true)}>
-              <Plus className="h-3.5 w-3.5" />Create
+              onClick={openCreateTask}>
+              <Plus className="h-3.5 w-3.5" />Create task
             </button>
             <div className="flex items-center gap-2">
               <span>{filteredTasks.length} of {topLevelTasks.length}</span>
@@ -989,13 +999,26 @@ export function WorkspaceDetailPage({
                 <div className="h-32 w-32 mb-6 opacity-60">
                   <LayoutGrid className="h-full w-full text-blue-200" />
                 </div>
-                <h3 className="text-lg font-bold mb-2">Visualize your work with a board</h3>
-                <p className="text-sm text-muted-foreground mb-4 max-w-xs">
-                  Track, organize and prioritize your team's work. Get started by creating a work item.
-                </p>
-                <Button onClick={() => setShowCreateTask(true)}>
-                  <Plus className="h-4 w-4 mr-2" />Create a work item
-                </Button>
+                <h3 className="text-lg font-bold mb-2">Visualize your tasks with a board</h3>
+                {projects.length === 0 ? (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-4 max-w-xs">
+                      You need a project before you can create tasks. Start by creating a project in this workspace.
+                    </p>
+                    <Button onClick={() => setShowCreateProject(true)}>
+                      <Plus className="h-4 w-4 mr-2" />New project
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-4 max-w-xs">
+                      Track, organize and prioritize your team's tasks. Get started by creating a task.
+                    </p>
+                    <Button onClick={openCreateTask}>
+                      <Plus className="h-4 w-4 mr-2" />Create task
+                    </Button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="flex gap-4 h-full min-h-[400px]">
@@ -1046,8 +1069,8 @@ export function WorkspaceDetailPage({
                         ))}
                         <button
                           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground p-2 rounded hover:bg-muted transition-colors"
-                          onClick={() => setShowCreateTask(true)}>
-                          <Plus className="h-3.5 w-3.5" />Create
+                          onClick={openCreateTask}>
+                          <Plus className="h-3.5 w-3.5" />Create task
                         </button>
                       </div>
                     </div>
@@ -1186,8 +1209,8 @@ export function WorkspaceDetailPage({
                 </div>
               ))}
               <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2.5"
-                onClick={() => setShowCreateTask(true)}>
-                <Plus className="h-3.5 w-3.5" />Create
+                onClick={openCreateTask}>
+                <Plus className="h-3.5 w-3.5" />Create task
               </button>
             </div>
 
