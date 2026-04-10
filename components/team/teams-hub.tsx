@@ -74,6 +74,8 @@ import {
   Eye,
   EyeOff,
   Building2,
+  Loader2,
+  Check,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
@@ -127,34 +129,134 @@ const ROLE_OPTIONS = [
 
 // ── Org Chart ─────────────────────────────────────────────────────────────────
 
-function OrgNodeCard({ person }: { person: Profile }) {
-  const rc = ROLE_HIERARCHY.find((r) => r.role === person.role)
+function OrgNodeCard({
+  person, allProfiles, isAdmin, editingId, onStartEdit, onSave, onCancelEdit,
+}: {
+  person: Profile
+  allProfiles: Profile[]
+  isAdmin: boolean
+  editingId: string | null
+  onStartEdit: (id: string) => void
+  onSave: (personId: string, managerId: string | null) => Promise<void>
+  onCancelEdit: () => void
+}) {
   const badgeClass = ROLE_BADGE[person.role] ?? ROLE_BADGE.staff
+  const isEditing = editingId === person.id
+  const [selectedManagerId, setSelectedManagerId] = useState(person.manager_id ?? '__none')
+  const [saving, setSaving] = useState(false)
+
+  // Reset selection when editing opens
+  useEffect(() => {
+    if (isEditing) setSelectedManagerId(person.manager_id ?? '__none')
+  }, [isEditing, person.manager_id])
+
+  // Valid managers: everyone except self and clients
+  const validManagers = allProfiles.filter(
+    (p) => p.id !== person.id && !['client', 'partner'].includes(p.role)
+  )
+
+  async function handleSave() {
+    setSaving(true)
+    await onSave(person.id, selectedManagerId === '__none' ? null : selectedManagerId)
+    setSaving(false)
+  }
+
   return (
-    <div className="flex flex-col items-center w-44 bg-card border border-border rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow">
-      <Avatar className="h-10 w-10 mb-2">
-        <AvatarImage src={person.avatar_url ?? undefined} />
-        <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(person.full_name)}`}>
-          {getInitials(person.full_name)}
-        </AvatarFallback>
-      </Avatar>
-      <p className="text-xs font-semibold text-foreground text-center leading-tight truncate w-full text-center">{person.full_name}</p>
-      {person.custom_role && (
-        <p className="text-[10px] text-muted-foreground/70 text-center mt-0.5 truncate w-full">{person.custom_role.name}</p>
+    <div className="flex flex-col items-center">
+      {/* Card */}
+      <div
+        className={cn(
+          'flex flex-col items-center w-44 bg-card border rounded-xl p-3 shadow-sm transition-all',
+          isAdmin ? 'cursor-pointer hover:shadow-md hover:border-violet-300' : '',
+          isEditing ? 'border-violet-400 shadow-md ring-1 ring-violet-200' : 'border-border'
+        )}
+        onClick={() => isAdmin && !isEditing && onStartEdit(person.id)}
+      >
+        <Avatar className="h-10 w-10 mb-2">
+          <AvatarImage src={person.avatar_url ?? undefined} />
+          <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(person.full_name)}`}>
+            {getInitials(person.full_name)}
+          </AvatarFallback>
+        </Avatar>
+        <p className="text-xs font-semibold text-foreground text-center leading-tight truncate w-full">{person.full_name}</p>
+        {person.custom_role && (
+          <p className="text-[10px] text-muted-foreground/70 text-center mt-0.5 truncate w-full">{person.custom_role.name}</p>
+        )}
+        <span className={cn('mt-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border', badgeClass)}>
+          {ROLE_LABELS[person.role] ?? person.role}
+        </span>
+        {isAdmin && !isEditing && (
+          <span className="mt-1.5 text-[10px] text-muted-foreground/50 flex items-center gap-0.5">
+            <Pencil className="h-2.5 w-2.5" /> click to edit
+          </span>
+        )}
+      </div>
+
+      {/* Inline edit panel */}
+      {isEditing && (
+        <div className="mt-2 w-52 rounded-lg border border-violet-300 bg-white shadow-lg p-3 space-y-2 z-10">
+          <p className="text-[10px] font-semibold text-violet-700 uppercase tracking-wide">Reports To</p>
+          <Select value={selectedManagerId} onValueChange={setSelectedManagerId}>
+            <SelectTrigger className="h-7 text-xs">
+              <SelectValue placeholder="Select manager…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none">
+                <span className="text-muted-foreground">— No manager (root)</span>
+              </SelectItem>
+              {validManagers.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  <span className="flex items-center gap-1.5">
+                    <span>{m.full_name}</span>
+                    <span className="text-[10px] text-muted-foreground">({ROLE_LABELS[m.role] ?? m.role})</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 text-xs bg-violet-600 text-white rounded-md py-1 hover:bg-violet-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+            >
+              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              className="flex-1 text-xs border rounded-md py-1 text-muted-foreground hover:bg-muted/40 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
-      <span className={cn('mt-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border', badgeClass)}>
-        {ROLE_LABELS[person.role] ?? person.role}
-      </span>
     </div>
   )
 }
 
-function OrgNode({ person, childrenMap, depth = 0 }: { person: Profile; childrenMap: Record<string, Profile[]>; depth?: number }) {
+function OrgNode({
+  person, childrenMap, depth, allProfiles, isAdmin, editingId, onStartEdit, onSave, onCancelEdit,
+}: {
+  person: Profile
+  childrenMap: Record<string, Profile[]>
+  depth?: number
+  allProfiles: Profile[]
+  isAdmin: boolean
+  editingId: string | null
+  onStartEdit: (id: string) => void
+  onSave: (personId: string, managerId: string | null) => Promise<void>
+  onCancelEdit: () => void
+}) {
   const children = childrenMap[person.id] || []
   const isOnly = children.length === 1
+  const sharedProps = { allProfiles, isAdmin, editingId, onStartEdit, onSave, onCancelEdit }
   return (
     <div className="flex flex-col items-center">
-      <OrgNodeCard person={person} />
+      <OrgNodeCard person={person} {...sharedProps} />
       {children.length > 0 && (
         <div className="flex flex-col items-center">
           <div className="w-px h-6 bg-muted" />
@@ -173,8 +275,8 @@ function OrgNode({ person, childrenMap, depth = 0 }: { person: Profile; children
                   ) : (
                     <div className="w-px h-6 bg-muted" />
                   )}
-                  <div className={cn(depth < 2 ? 'px-4' : 'px-2')}>
-                    <OrgNode person={child} childrenMap={childrenMap} depth={depth + 1} />
+                  <div className={cn((depth ?? 0) < 2 ? 'px-4' : 'px-2')}>
+                    <OrgNode person={child} childrenMap={childrenMap} depth={(depth ?? 0) + 1} {...sharedProps} />
                   </div>
                 </div>
               )
@@ -186,9 +288,32 @@ function OrgNode({ person, childrenMap, depth = 0 }: { person: Profile; children
   )
 }
 
-function OrgChartView({ profiles }: { profiles: Profile[] }) {
+function OrgChartView({ profiles, allProfiles, isAdmin }: { profiles: Profile[]; allProfiles: Profile[]; isAdmin: boolean }) {
+  const router = useRouter()
+  const { toast } = useToast()
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [localProfiles, setLocalProfiles] = useState<Profile[]>(profiles)
+
+  // Sync when props change
+  useEffect(() => { setLocalProfiles(profiles) }, [profiles])
+
+  async function handleSave(personId: string, managerId: string | null) {
+    const result = await updatePersonAction(personId, { manager_id: managerId })
+    if (!result.success) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' })
+      return
+    }
+    // Optimistically update local state so chart re-renders immediately
+    setLocalProfiles((prev) =>
+      prev.map((p) => p.id === personId ? { ...p, manager_id: managerId } : p)
+    )
+    setEditingId(null)
+    toast({ title: 'Updated', description: 'Reports To updated successfully.' })
+    router.refresh()
+  }
+
   // Only include internal roles in the chart (exclude client/partner)
-  const chartProfiles = profiles.filter((p) => !['client', 'partner'].includes(p.role))
+  const chartProfiles = localProfiles.filter((p) => !['client', 'partner'].includes(p.role))
 
   const profileMap = Object.fromEntries(chartProfiles.map((p) => [p.id, p]))
 
@@ -202,12 +327,23 @@ function OrgChartView({ profiles }: { profiles: Profile[] }) {
   }
   const hasExplicitHierarchy = chartProfiles.some((p) => p.manager_id && profileMap[p.manager_id])
 
+  const sharedNodeProps = {
+    allProfiles, isAdmin,
+    editingId, onStartEdit: setEditingId, onSave: handleSave, onCancelEdit: () => setEditingId(null),
+  }
+
   if (hasExplicitHierarchy) {
     const roots = chartProfiles.filter((p) => !p.manager_id || !profileMap[p.manager_id])
     return (
-      <div className="overflow-auto flex-1 p-8">
+      <div className="overflow-auto flex-1 p-6">
+        {isAdmin && (
+          <div className="flex items-center gap-1.5 mb-4 text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-1.5 w-fit mx-auto">
+            <Pencil className="h-3 w-3" />
+            Click any card to change who they report to
+          </div>
+        )}
         <div className="flex gap-16 justify-center min-w-max pb-8">
-          {roots.map((root) => <OrgNode key={root.id} person={root} childrenMap={explicitChildrenMap} />)}
+          {roots.map((root) => <OrgNode key={root.id} person={root} childrenMap={explicitChildrenMap} depth={0} {...sharedNodeProps} />)}
         </div>
       </div>
     )
@@ -264,12 +400,14 @@ function OrgChartView({ profiles }: { profiles: Profile[] }) {
 
   return (
     <div className="overflow-auto flex-1 p-6">
-      <div className="flex items-center gap-1.5 mb-4 text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-1.5 w-fit mx-auto">
-        <GitBranch className="h-3 w-3" />
-        Auto-generated from roles — set "Reports To" on each person for a custom hierarchy
+      <div className="flex items-center gap-1.5 mb-4 text-xs text-muted-foreground bg-violet-50 border border-violet-200 rounded-lg px-3 py-1.5 w-fit mx-auto">
+        <GitBranch className="h-3 w-3 text-violet-500" />
+        <span>Auto-generated from roles —</span>
+        <strong className="text-violet-700">click any card</strong>
+        <span>to set "Reports To" and build your real hierarchy</span>
       </div>
       <div className="flex gap-16 justify-center min-w-max pb-8">
-        {roots.map((root) => <OrgNode key={root.id} person={root} childrenMap={roleChildrenMap} />)}
+        {roots.map((root) => <OrgNode key={root.id} person={root} childrenMap={roleChildrenMap} depth={0} {...sharedNodeProps} />)}
       </div>
     </div>
   )
@@ -1060,7 +1198,7 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
               onDelete={setDeleteTarget}
             />
           ) : (
-            <OrgChartView profiles={filteredProfiles} />
+            <OrgChartView profiles={filteredProfiles} allProfiles={profiles} isAdmin={isAdmin} />
           )}
         </div>
       </div>
