@@ -8,7 +8,7 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type AttendanceStatus = 'on_time' | 'late_150' | 'late_250' | 'absent' | 'advance_absence'
 export type AppliedRule = 'general' | 'friday' | 'football' | 'holiday'
 export type DayType = 'sunday' | 'friday' | 'general'
-export type LeaveType = 'yearly' | 'work_from_home' | 'marriage'
+export type LeaveType = 'yearly' | 'work_from_home' | 'marriage' | 'optional'
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
 export interface CustomRole {
@@ -210,10 +210,23 @@ export interface LeaveBalance {
   updated_at: string
 }
 
+export interface OptionalLeave {
+  id: string
+  user_id: string
+  granted_by: string
+  name: string
+  total_days: number
+  used_days: number
+  year: number
+  notes: string | null
+  created_at: string
+}
+
 export interface LeaveRequest {
   id: string
   user_id: string
   leave_type: LeaveType
+  optional_leave_id: string | null
   start_date: string
   end_date: string
   total_days: number

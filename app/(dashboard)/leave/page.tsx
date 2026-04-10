@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { LeavePage } from '@/components/leave/leave-page'
-import { Profile, LeaveBalance, LeaveRequest } from '@/types'
+import { Profile, LeaveBalance, LeaveRequest, OptionalLeave } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 
 export const metadata = {
@@ -159,6 +159,14 @@ export default async function LeaveServerPage() {
           updated_at: '',
         }
 
+    // Staff: fetch optional leaves granted to them this year
+    const { data: myOptionalLeavesRaw } = await supabase
+      .from('optional_leaves')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('year', currentYear)
+      .order('created_at', { ascending: true })
+
     return (
       <LeavePage
         profile={profile as Profile}
@@ -168,6 +176,7 @@ export default async function LeaveServerPage() {
         staffProfiles={[]}
         myBalance={myBalance}
         myRequests={myRequests}
+        myOptionalLeaves={(myOptionalLeavesRaw ?? []) as OptionalLeave[]}
       />
     )
   }

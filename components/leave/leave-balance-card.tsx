@@ -2,13 +2,14 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { Calendar, Home, Heart } from 'lucide-react'
+import { Calendar, Home, Heart, Gift } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface LeaveBalanceCardProps {
-  type: 'yearly' | 'work_from_home' | 'marriage'
+  type: 'yearly' | 'work_from_home' | 'marriage' | 'optional'
   allocated: number
   used: number
+  customLabel?: string   // used when type === 'optional'
 }
 
 const typeConfig = {
@@ -33,11 +34,19 @@ const typeConfig = {
     bgColor: 'bg-pink-50',
     borderColor: 'border-pink-100',
   },
+  optional: {
+    label: 'Optional Leave',
+    icon: Gift,
+    color: 'text-violet-600',
+    bgColor: 'bg-violet-50',
+    borderColor: 'border-violet-100',
+  },
 }
 
-export function LeaveBalanceCard({ type, allocated, used }: LeaveBalanceCardProps) {
+export function LeaveBalanceCard({ type, allocated, used, customLabel }: LeaveBalanceCardProps) {
   const config = typeConfig[type]
   const Icon = config.icon
+  const label = customLabel ?? config.label
   const remaining = Math.max(0, allocated - used)
   const percentage = allocated > 0 ? Math.min(100, (used / allocated) * 100) : 0
 
@@ -67,7 +76,7 @@ export function LeaveBalanceCard({ type, allocated, used }: LeaveBalanceCardProp
             <Icon className={cn('h-5 w-5', config.color)} />
           </div>
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            {config.label}
+            {label}
           </CardTitle>
         </div>
       </CardHeader>

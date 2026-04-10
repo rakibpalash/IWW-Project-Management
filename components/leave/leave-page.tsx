@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Profile, LeaveBalance, LeaveRequest } from '@/types'
+import { Profile, LeaveBalance, LeaveRequest, OptionalLeave } from '@/types'
 import { LeaveBalanceCard } from './leave-balance-card'
 import { ApplyLeaveDialog } from './apply-leave-dialog'
 import { LeaveRequestsTable } from './leave-requests-table'
@@ -38,6 +38,7 @@ interface LeavePageProps {
   staffProfiles: Profile[]
   myBalance: LeaveBalance | null
   myRequests: LeaveRequest[]
+  myOptionalLeaves?: OptionalLeave[]
 }
 
 function getInitials(name: string): string {
@@ -53,10 +54,12 @@ function StaffView({
   profile,
   balance,
   requests,
+  optionalLeaves = [],
 }: {
   profile: Profile
   balance: LeaveBalance | null
   requests: LeaveRequest[]
+  optionalLeaves?: OptionalLeave[]
 }) {
   const [applyOpen, setApplyOpen] = useState(false)
 
@@ -89,6 +92,15 @@ function StaffView({
         <LeaveBalanceCard type="yearly" allocated={yearlyTotal} used={yearlyUsed} />
         <LeaveBalanceCard type="work_from_home" allocated={wfhTotal} used={wfhUsed} />
         <LeaveBalanceCard type="marriage" allocated={marriageTotal} used={marriageUsed} />
+        {optionalLeaves.map((ol) => (
+          <LeaveBalanceCard
+            key={ol.id}
+            type="optional"
+            customLabel={ol.name}
+            allocated={ol.total_days}
+            used={ol.used_days ?? 0}
+          />
+        ))}
       </div>
 
       {/* My Requests */}
@@ -109,7 +121,7 @@ function StaffView({
         />
       </div>
 
-      <ApplyLeaveDialog open={applyOpen} onOpenChange={setApplyOpen} balance={balance} />
+      <ApplyLeaveDialog open={applyOpen} onOpenChange={setApplyOpen} balance={balance} optionalLeaves={optionalLeaves} />
     </div>
   )
 }
@@ -384,6 +396,7 @@ export function LeavePage({
   staffProfiles,
   myBalance,
   myRequests,
+  myOptionalLeaves = [],
 }: LeavePageProps) {
   if (isAdmin) {
     return (
@@ -395,5 +408,5 @@ export function LeavePage({
     )
   }
 
-  return <StaffView profile={profile} balance={myBalance} requests={myRequests} />
+  return <StaffView profile={profile} balance={myBalance} requests={myRequests} optionalLeaves={myOptionalLeaves} />
 }
