@@ -342,3 +342,136 @@ export async function applyLeaveAction(data: {
     return { success: false, error: message }
   }
 }
+
+// ─── Optional Leave Actions ────────────────────────────────────────────────────
+
+export async function createOptionalLeaveAction(data: {
+  name: string
+  userId: string
+  totalDays: number
+  notes?: string
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+    const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!caller || caller.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    const admin = createAdminClient()
+    const year = new Date().getFullYear()
+    const { error } = await admin.from('optional_leaves').insert({
+      name: data.name.trim(),
+      user_id: data.userId,
+      granted_by: user.id,
+      total_days: data.totalDays,
+      used_days: 0,
+      year,
+      notes: data.notes?.trim() || null,
+    })
+    if (error) return { success: false, error: error.message }
+
+    await notifyUser(data.userId, 'Optional Leave Granted',
+      `You've been granted ${data.totalDays} day${data.totalDays !== 1 ? 's' : ''} of "${data.name}" leave.`, '/leave')
+
+    revalidatePath('/leave')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function applyOptionalLeaveAction(data: {
+  optionalLeaveId: string
+  startDate: string
+  endDate: string
+  totalDays: number
+  reason?: string
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+    const admin = createAdminClient()
+
+    const { data: grant } = await admin.from('optional_leaves')
+      .select('*').eq('id', data.optionalLeaveId).eq('user_id', user.id).single()
+    if (!grant) return { success: false, error: 'Optional leave grant not found' }
+    const available = grant.total_days - (grant.used_days ?? 0)
+    if (data.totalDays > available) return { success: false, error: `Only ${available} day(s) available` }
+
+    const { error } = await admin.from('leave_requests').insert({
+      user_id: user.id,
+      leave_type: 'optional',
+      optional_leave_id: data.optionalLeaveId,
+      start_date: data.startDate,
+      end_date: data.endDate,
+      total_days: data.totalDays,
+      reason: data.reason?.trim() || null,
+      status: 'pending',
+    })
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath('/leave')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function approveOptionalLeaveAction(
+  requestId: string, notes: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+    const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!caller || caller.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    const admin = createAdminClient()
+    const { data: request } = await admin.from('leave_requests').select('*').eq('id', requestId).single()
+    if (!request || request.status !== 'pending') return { success: false, error: 'Request not found or not pending' }
+
+    await admin.from('leave_requests').update({
+      status: 'approved', reviewed_by: user.id,
+      reviewed_at: new Date().toISOString(), review_notes: notes || null,
+    }).eq('id', requestId)
+
+    if (request.optional_leave_id) {
+      const { data: grant } = await admin.from('optional_leaves')
+        .select('used_days').eq('id', request.optional_leave_id).single()
+      if (grant) {
+        await admin.from('optional_leaves').update({
+          used_days: (grant.used_days ?? 0) + request.total_days,
+        }).eq('id', request.optional_leave_id)
+      }
+    }
+
+    await notifyUser(request.user_id, 'Optional Leave Approved',
+      'Your optional leave request has been approved.', '/leave')
+
+    revalidatePath('/leave')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function deleteOptionalLeaveAction(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+    const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!caller || caller.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    const admin = createAdminClient()
+    const { error } = await admin.from('optional_leaves').delete().eq('id', id)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/leave')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}

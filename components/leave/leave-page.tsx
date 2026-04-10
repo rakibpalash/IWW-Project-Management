@@ -6,6 +6,7 @@ import { LeaveBalanceCard } from './leave-balance-card'
 import { ApplyLeaveDialog } from './apply-leave-dialog'
 import { LeaveRequestsTable } from './leave-requests-table'
 import { GrantMarriageLeaveDialog } from './grant-marriage-leave-dialog'
+import { CreateOptionalLeaveDialog } from './create-optional-leave-dialog'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
@@ -27,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Search, Heart, Users, FileText, Clock } from 'lucide-react'
+import { Plus, Search, Heart, Users, FileText, Clock, CalendarPlus } from 'lucide-react'
 
 interface LeavePageProps {
   profile: Profile
@@ -123,6 +124,7 @@ function AdminView({
   staffProfiles: Profile[]
 }) {
   const [grantOpen, setGrantOpen] = useState(false)
+  const [optionalOpen, setOptionalOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -148,10 +150,17 @@ function AdminView({
             Manage team leave requests and balances
           </p>
         </div>
-        <Button variant="outline" onClick={() => setGrantOpen(true)}>
-          <Heart className="mr-2 h-4 w-4 text-pink-500" />
-          Grant Marriage Leave
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)}>
+            <Heart className="mr-2 h-4 w-4 text-pink-500" />
+            Grant Marriage Leave
+          </Button>
+          <Button size="sm" onClick={() => setOptionalOpen(true)}
+            className="bg-violet-600 hover:bg-violet-700 text-white">
+            <CalendarPlus className="mr-2 h-4 w-4" />
+            Create Optional Leave
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -362,6 +371,11 @@ function AdminView({
       <GrantMarriageLeaveDialog
         open={grantOpen}
         onOpenChange={setGrantOpen}
+        staffProfiles={staffProfiles}
+      />
+      <CreateOptionalLeaveDialog
+        open={optionalOpen}
+        onClose={() => setOptionalOpen(false)}
         staffProfiles={staffProfiles}
       />
     </div>
