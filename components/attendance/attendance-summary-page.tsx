@@ -187,7 +187,7 @@ function WeeklyView({ weekDates, recordByDate, settings, profile, today }: {
   return (
     <div className="space-y-4">
       {/* Check-in card */}
-      <CheckInCard userId={profile.id} settings={settings} />
+      <CheckInCard userId={profile.id} settings={settings} isAdmin={profile.role === 'super_admin' || profile.role === 'account_manager'} />
 
       {/* Timeline table */}
       <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
@@ -667,7 +667,7 @@ export function AttendanceSummaryPage({ profile, settings, allRecords }: Props) 
       {/* ── List view ── */}
       {view === 'list' && (
         <div className="space-y-4">
-          <CheckInCard userId={profile.id} settings={settings} />
+          <CheckInCard userId={profile.id} settings={settings} isAdmin={profile.role === 'super_admin' || profile.role === 'account_manager'} />
           <MonthStats records={monthRecords} year={year} month={month} />
           <ListView
             monthDates={monthDates}
@@ -681,7 +681,7 @@ export function AttendanceSummaryPage({ profile, settings, allRecords }: Props) 
       {/* ── Month view ── */}
       {view === 'month' && (
         <div className="space-y-4">
-          <CheckInCard userId={profile.id} settings={settings} />
+          <CheckInCard userId={profile.id} settings={settings} isAdmin={profile.role === 'super_admin' || profile.role === 'account_manager'} />
           <MonthStats records={monthRecords} year={year} month={month} />
           <MonthCalendarView
             year={year}
