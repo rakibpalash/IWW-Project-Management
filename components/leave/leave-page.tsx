@@ -150,17 +150,11 @@ function AdminView({
             Manage team leave requests and balances
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)}>
-            <Heart className="mr-2 h-4 w-4 text-pink-500" />
-            Grant Marriage Leave
-          </Button>
-          <Button size="sm" onClick={() => setOptionalOpen(true)}
-            className="bg-violet-600 hover:bg-violet-700 text-white">
-            <CalendarPlus className="mr-2 h-4 w-4" />
-            Create Optional Leave
-          </Button>
-        </div>
+        <Button size="sm" onClick={() => setOptionalOpen(true)}
+          className="bg-violet-600 hover:bg-violet-700 text-white">
+          <CalendarPlus className="mr-2 h-4 w-4" />
+          Create Optional Leave
+        </Button>
       </div>
 
       {/* Summary Cards */}
