@@ -12,26 +12,25 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Search, AlertCircle, Loader2, CalendarPlus, Pencil, Check } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Search, AlertCircle, Loader2, CalendarPlus } from 'lucide-react'
 import { Profile } from '@/types'
 import { createOptionalLeaveAction } from '@/app/actions/leave'
 import { useToast } from '@/components/ui/use-toast'
-import { cn } from '@/lib/utils'
 
 function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
-// Pre-built leave templates — editable after selection
 const LEAVE_TEMPLATES = [
-  { name: 'Hajj Leave',          days: 15, emoji: '🕌' },
-  { name: 'Marriage Leave',      days: 7,  emoji: '💍' },
-  { name: 'Paternity Leave',     days: 7,  emoji: '👶' },
-  { name: 'Bereavement Leave',   days: 3,  emoji: '🕊️' },
-  { name: 'Study Leave',         days: 5,  emoji: '📚' },
-  { name: 'Compassionate Leave', days: 3,  emoji: '🤝' },
-  { name: 'Birthday Leave',      days: 1,  emoji: '🎂' },
-  { name: 'Volunteer Leave',     days: 2,  emoji: '🌱' },
+  { value: 'hajj',     name: 'Hajj Leave',     days: 15, emoji: '🕌' },
+  { value: 'marriage', name: 'Marriage Leave',  days: 7,  emoji: '💍' },
 ]
 
 interface Props {
@@ -44,13 +43,13 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
 
-  const [leaveName, setLeaveName] = useState('')
-  const [totalDays, setTotalDays] = useState('1')
+  const [templateValue, setTemplateValue] = useState('')
+  const [leaveName, setLeaveName]   = useState('')
+  const [totalDays, setTotalDays]   = useState('1')
   const [selectedUserId, setSelectedUserId] = useState('')
-  const [notes, setNotes] = useState('')
+  const [notes, setNotes]           = useState('')
   const [staffSearch, setStaffSearch] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [activeTemplate, setActiveTemplate] = useState<string | null>(null)
+  const [error, setError]           = useState<string | null>(null)
 
   const selectedUser = staffProfiles.find((p) => p.id === selectedUserId)
   const filteredStaff = staffProfiles.filter((p) =>
@@ -59,28 +58,28 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
     p.email.toLowerCase().includes(staffSearch.toLowerCase())
   )
 
-  function applyTemplate(t: typeof LEAVE_TEMPLATES[0]) {
-    setLeaveName(t.name)
-    setTotalDays(String(t.days))
-    setActiveTemplate(t.name)
-  }
-
-  function handleNameChange(val: string) {
-    setLeaveName(val)
-    // If user edits the name manually, deactivate template highlight
-    if (activeTemplate && val !== activeTemplate) setActiveTemplate(null)
+  function handleTemplateChange(val: string) {
+    setTemplateValue(val)
+    if (val === 'custom') {
+      setLeaveName('')
+      setTotalDays('1')
+    } else {
+      const t = LEAVE_TEMPLATES.find((t) => t.value === val)
+      if (t) { setLeaveName(t.name); setTotalDays(String(t.days)) }
+    }
+    setError(null)
   }
 
   function reset() {
-    setLeaveName(''); setTotalDays('1'); setSelectedUserId('')
-    setNotes(''); setStaffSearch(''); setError(null); setActiveTemplate(null)
+    setTemplateValue(''); setLeaveName(''); setTotalDays('1')
+    setSelectedUserId(''); setNotes(''); setStaffSearch(''); setError(null)
   }
 
   function handleClose() { reset(); onClose() }
 
   function handleCreate() {
     if (!leaveName.trim()) { setError('Please enter a leave name'); return }
-    if (!selectedUserId) { setError('Please select a staff member'); return }
+    if (!selectedUserId)   { setError('Please select a staff member'); return }
     const days = parseInt(totalDays, 10)
     if (!days || days < 1) { setError('Days must be at least 1'); return }
     setError(null)
@@ -126,76 +125,74 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
             </Alert>
           )}
 
-          {/* ── Step 1: Leave type ── */}
+          {/* ── Step 1: Leave Type ── */}
           <div className="space-y-3">
             <div>
               <Label className="text-xs font-semibold">
                 Leave Type <span className="text-red-500">*</span>
               </Label>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Pick a pre-built template or enter a custom name — all fields are editable
+                Choose a pre-built template or select &quot;Custom&quot; to enter your own
               </p>
             </div>
 
-            {/* Template chips */}
-            <div className="grid grid-cols-2 gap-2">
-              {LEAVE_TEMPLATES.map((t) => {
-                const isActive = activeTemplate === t.name
-                return (
-                  <button
-                    key={t.name}
-                    type="button"
-                    onClick={() => applyTemplate(t)}
-                    className={cn(
-                      'flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-all text-sm',
-                      isActive
-                        ? 'border-violet-500 bg-violet-50 text-violet-800 ring-1 ring-violet-300'
-                        : 'border-border bg-background hover:bg-muted/40 text-foreground/80'
-                    )}
-                  >
-                    <span className="text-base shrink-0">{t.emoji}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-xs truncate">{t.name}</p>
-                      <p className="text-[10px] text-muted-foreground">{t.days} days</p>
-                    </div>
-                    {isActive && <Check className="h-3.5 w-3.5 text-violet-600 shrink-0" />}
-                  </button>
-                )
-              })}
-            </div>
+            {/* Template dropdown */}
+            <Select value={templateValue} onValueChange={handleTemplateChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select leave type…" />
+              </SelectTrigger>
+              <SelectContent>
+                {LEAVE_TEMPLATES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    <span className="flex items-center gap-2">
+                      <span>{t.emoji}</span>
+                      <span>{t.name}</span>
+                      <span className="text-muted-foreground text-xs">— {t.days} days</span>
+                    </span>
+                  </SelectItem>
+                ))}
+                <SelectItem value="custom">
+                  <span className="flex items-center gap-2">
+                    <span>✏️</span>
+                    <span>Custom leave</span>
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
 
-            {/* Editable name + days — always visible for editing */}
-            <div className="rounded-lg border border-dashed border-violet-300 bg-violet-50/30 p-3 space-y-3">
-              <div className="flex items-center gap-1.5 text-xs text-violet-700 font-medium">
-                <Pencil className="h-3 w-3" />
-                {activeTemplate ? 'Edit template values' : 'Or enter a custom leave'}
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2 space-y-1">
-                  <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Leave Name</Label>
-                  <Input
-                    placeholder="e.g. Hajj Leave"
-                    value={leaveName}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    className="text-sm h-8"
-                  />
+            {/* Editable name + days — shown once a type is chosen */}
+            {templateValue && (
+              <div className="rounded-lg border border-dashed border-violet-300 bg-violet-50/30 p-3 space-y-3">
+                <p className="text-xs text-violet-700 font-medium">
+                  {templateValue === 'custom' ? 'Enter leave details' : 'Edit template values (optional)'}
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Leave Name</Label>
+                    <Input
+                      placeholder="e.g. Hajj Leave"
+                      value={leaveName}
+                      onChange={(e) => setLeaveName(e.target.value)}
+                      className="text-sm h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Days</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={totalDays}
+                      onChange={(e) => setTotalDays(e.target.value)}
+                      className="text-sm h-8"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Days</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="365"
-                    value={totalDays}
-                    onChange={(e) => setTotalDays(e.target.value)}
-                    className="text-sm h-8"
-                  />
-                </div>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* ── Step 2: Staff member ── */}
+          {/* ── Step 2: Staff Member ── */}
           <div className="space-y-2">
             <Label className="text-xs font-semibold">
               Staff Member <span className="text-red-500">*</span>
@@ -267,7 +264,9 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
 
           {/* ── Notes ── */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Notes <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Label className="text-xs font-semibold">
+              Notes <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
             <Textarea
               placeholder="Any internal notes about this leave grant…"
               value={notes}
@@ -284,7 +283,7 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
               <p className="text-sm text-foreground/80">
                 Granting{' '}
                 <strong>{totalDays || 0} day{parseInt(totalDays) !== 1 ? 's' : ''}</strong>{' '}
-                of <strong>"{leaveName}"</strong> to{' '}
+                of <strong>&quot;{leaveName}&quot;</strong> to{' '}
                 <strong>{selectedUser.full_name}</strong>
               </p>
             </div>
@@ -299,7 +298,7 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
           <Button
             size="sm"
             onClick={handleCreate}
-            disabled={isPending || !leaveName.trim() || !selectedUserId}
+            disabled={isPending || !leaveName.trim() || !selectedUserId || !templateValue}
             className="bg-violet-600 hover:bg-violet-700 text-white min-w-[100px]"
           >
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Grant Leave'}
