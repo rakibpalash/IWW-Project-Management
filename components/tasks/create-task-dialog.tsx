@@ -75,6 +75,7 @@ export function CreateTaskDialog({
   const [status, setStatus] = useState<string>('todo')
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([])
   const [members, setMembers] = useState<Profile[]>([])
+  const [mentionableUsers, setMentionableUsers] = useState<Profile[]>([])
   const [loadingMembers, setLoadingMembers] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [createAnother, setCreateAnother] = useState(false)
@@ -90,37 +91,33 @@ export function CreateTaskDialog({
   const titleError = titleTouched && !title.trim()
   const projectError = titleTouched && !selectedProjectId && !defaultProjectId
 
-  // Fetch workspace members when project changes
+  // Fetch all staff (assignee list) and all profiles incl. clients (@ mention) when dialog opens
   useEffect(() => {
-    const projectId = selectedProjectId || defaultProjectId
-    if (!projectId) return
-    const project = projects.find((p) => p.id === projectId)
-    if (!project?.workspace_id) return
-
+    if (!open) return
     setLoadingMembers(true)
     const fetchMembers = async () => {
       const profileSelect =
         'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
-      const { data: assignmentsRaw } = await supabase
-        .from('workspace_assignments')
-        .select(`user:profiles(${profileSelect})`)
-        .eq('workspace_id', project.workspace_id)
-      const { data: admins } = await supabase
+
+      // Assignee list: all internal users (non-client)
+      const { data: staffData } = await supabase
         .from('profiles')
         .select(profileSelect)
-        .eq('role', 'super_admin')
+        .neq('role', 'client')
+        .order('full_name')
 
-      const workspaceMembers: Profile[] = ((assignmentsRaw ?? []) as any[])
-        .map((a) => a.user).filter(Boolean) as Profile[]
-      const memberIds = new Set(workspaceMembers.map((m) => m.id))
-      for (const a of (admins ?? []) as Profile[]) {
-        if (!memberIds.has(a.id)) workspaceMembers.push(a)
-      }
-      setMembers(workspaceMembers)
+      // Mention list: all profiles including clients
+      const { data: allData } = await supabase
+        .from('profiles')
+        .select(profileSelect)
+        .order('full_name')
+
+      setMembers((staffData ?? []) as Profile[])
+      setMentionableUsers((allData ?? []) as Profile[])
       setLoadingMembers(false)
     }
     fetchMembers()
-  }, [selectedProjectId, defaultProjectId, projects])
+  }, [open])
 
   function handleDescriptionChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const val = e.target.value
@@ -161,7 +158,7 @@ export function CreateTaskDialog({
     setTimeout(() => textarea.focus(), 0)
   }
 
-  const mentionMembers = members.filter((m) =>
+  const mentionMembers = mentionableUsers.filter((m) =>
     !mentionQuery || m.full_name.toLowerCase().includes(mentionQuery.toLowerCase())
   )
 
@@ -514,7 +511,7 @@ export function CreateTaskDialog({
                 <div className="py-5 text-center text-sm text-muted-foreground">Loading…</div>
               ) : members.length === 0 ? (
                 <div className="py-5 text-center text-sm text-muted-foreground">
-                  No members found. Select a project first.
+                  No staff members found.
                 </div>
               ) : (
                 <ScrollArea className="h-44">
