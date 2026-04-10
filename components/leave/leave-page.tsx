@@ -5,7 +5,6 @@ import { Profile, LeaveBalance, LeaveRequest, OptionalLeave } from '@/types'
 import { LeaveBalanceCard } from './leave-balance-card'
 import { ApplyLeaveDialog } from './apply-leave-dialog'
 import { LeaveRequestsTable } from './leave-requests-table'
-import { GrantMarriageLeaveDialog } from './grant-marriage-leave-dialog'
 import { CreateOptionalLeaveDialog } from './create-optional-leave-dialog'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -28,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Search, Heart, Users, FileText, Clock, CalendarPlus } from 'lucide-react'
+import { Plus, Search, Users, FileText, Clock, CalendarPlus } from 'lucide-react'
 
 export interface LeaveTemplate {
   id: string
@@ -145,7 +144,6 @@ function AdminView({
   staffProfiles: Profile[]
   leaveTemplates?: LeaveTemplate[]
 }) {
-  const [grantOpen, setGrantOpen] = useState(false)
   const [optionalOpen, setOptionalOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -312,10 +310,6 @@ function AdminView({
             <p className="text-sm text-muted-foreground">
               Leave balances for {new Date().getFullYear()}
             </p>
-            <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)}>
-              <Heart className="mr-2 h-3.5 w-3.5 text-pink-500" />
-              Grant Marriage Leave
-            </Button>
           </div>
           <div className="rounded-md border overflow-hidden">
             <Table>
@@ -384,11 +378,6 @@ function AdminView({
         </TabsContent>
       </Tabs>
 
-      <GrantMarriageLeaveDialog
-        open={grantOpen}
-        onOpenChange={setGrantOpen}
-        staffProfiles={staffProfiles}
-      />
       <CreateOptionalLeaveDialog
         open={optionalOpen}
         onClose={() => setOptionalOpen(false)}
