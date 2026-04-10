@@ -13,28 +13,14 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import {
-  Sparkles, Search, Check, AlertCircle, Loader2, CalendarPlus,
+  Search, Check, AlertCircle, Loader2, CalendarPlus,
 } from 'lucide-react'
 import { Profile } from '@/types'
 import { createOptionalLeaveAction } from '@/app/actions/leave'
 import { useToast } from '@/components/ui/use-toast'
-import { cn } from '@/lib/utils'
-
 function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
 }
-
-// Suggested leave names for quick selection
-const LEAVE_SUGGESTIONS = [
-  'Paternity Leave',
-  'Bereavement Leave',
-  'Study Leave',
-  'Hajj Leave',
-  'Sick Leave Extension',
-  'Compassionate Leave',
-  'Birthday Leave',
-  'Volunteer Leave',
-]
 
 interface Props {
   open: boolean
@@ -47,14 +33,13 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
   const [isPending, startTransition] = useTransition()
 
   const [leaveName, setLeaveName] = useState('')
-  const [customName, setCustomName] = useState('')
   const [selectedUserId, setSelectedUserId] = useState('')
   const [totalDays, setTotalDays] = useState('1')
   const [notes, setNotes] = useState('')
   const [staffSearch, setStaffSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const resolvedName = leaveName === '__custom' ? customName : leaveName
+  const resolvedName = leaveName
   const selectedUser = staffProfiles.find((p) => p.id === selectedUserId)
   const filteredStaff = staffProfiles.filter((p) =>
     !staffSearch ||
@@ -63,7 +48,7 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
   )
 
   function reset() {
-    setLeaveName(''); setCustomName(''); setSelectedUserId('')
+    setLeaveName(''); setSelectedUserId('')
     setTotalDays('1'); setNotes(''); setStaffSearch(''); setError(null)
   }
 
@@ -116,55 +101,18 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
             </Alert>
           )}
 
-          {/* Leave name — suggestions + custom */}
-          <div className="space-y-2">
+          {/* Leave name — custom only */}
+          <div className="space-y-1.5">
             <Label className="text-xs font-semibold">
-              Leave Type <span className="text-red-500">*</span>
+              Leave Name <span className="text-red-500">*</span>
             </Label>
-            <p className="text-xs text-muted-foreground">Pick a suggestion or enter a custom name</p>
-            <div className="flex flex-wrap gap-2">
-              {LEAVE_SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => { setLeaveName(s); setCustomName('') }}
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-all',
-                    leaveName === s
-                      ? 'bg-violet-600 text-white border-violet-600'
-                      : 'bg-muted/40 text-muted-foreground hover:bg-muted border-transparent'
-                  )}
-                >
-                  {leaveName === s && <Check className="h-3 w-3" />}
-                  {s}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setLeaveName('__custom')}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-all',
-                  leaveName === '__custom'
-                    ? 'bg-violet-600 text-white border-violet-600'
-                    : 'bg-muted/40 text-muted-foreground hover:bg-muted border-transparent'
-                )}
-              >
-                <Sparkles className="h-3 w-3" />
-                Custom…
-              </button>
-            </div>
-            {leaveName === '__custom' && (
-              <Input
-                placeholder="e.g. Anniversary Leave"
-                value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
-                className="text-sm mt-1"
-                autoFocus
-              />
-            )}
-            {resolvedName && leaveName !== '__custom' && (
-              <p className="text-xs text-violet-700 font-medium">Selected: {resolvedName}</p>
-            )}
+            <Input
+              placeholder="e.g. Paternity Leave, Hajj Leave, Study Leave…"
+              value={leaveName}
+              onChange={(e) => setLeaveName(e.target.value)}
+              className="text-sm"
+            />
+            <p className="text-xs text-muted-foreground">Enter any custom leave type name</p>
           </div>
 
           {/* Staff member selector */}
