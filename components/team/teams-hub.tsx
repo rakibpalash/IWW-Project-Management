@@ -187,33 +187,89 @@ function OrgNode({ person, childrenMap, depth = 0 }: { person: Profile; children
 }
 
 function OrgChartView({ profiles }: { profiles: Profile[] }) {
-  const profileMap = Object.fromEntries(profiles.map((p) => [p.id, p]))
-  const childrenMap: Record<string, Profile[]> = {}
-  for (const p of profiles) {
+  // Only include internal roles in the chart (exclude client/partner)
+  const chartProfiles = profiles.filter((p) => !['client', 'partner'].includes(p.role))
+
+  const profileMap = Object.fromEntries(chartProfiles.map((p) => [p.id, p]))
+
+  // Try to build hierarchy from actual manager_id links
+  const explicitChildrenMap: Record<string, Profile[]> = {}
+  for (const p of chartProfiles) {
     if (p.manager_id && profileMap[p.manager_id]) {
-      if (!childrenMap[p.manager_id]) childrenMap[p.manager_id] = []
-      childrenMap[p.manager_id].push(p)
+      if (!explicitChildrenMap[p.manager_id]) explicitChildrenMap[p.manager_id] = []
+      explicitChildrenMap[p.manager_id].push(p)
     }
   }
-  const roots = profiles.filter((p) => !p.manager_id || !profileMap[p.manager_id])
-  const hasHierarchy = profiles.some((p) => p.manager_id && profileMap[p.manager_id])
+  const hasExplicitHierarchy = chartProfiles.some((p) => p.manager_id && profileMap[p.manager_id])
 
-  if (!hasHierarchy) {
+  if (hasExplicitHierarchy) {
+    const roots = chartProfiles.filter((p) => !p.manager_id || !profileMap[p.manager_id])
+    return (
+      <div className="overflow-auto flex-1 p-8">
+        <div className="flex gap-16 justify-center min-w-max pb-8">
+          {roots.map((root) => <OrgNode key={root.id} person={root} childrenMap={explicitChildrenMap} />)}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Fallback: auto-build hierarchy from roles ──────────────────────────────
+  const byRole: Record<string, Profile[]> = {}
+  for (const p of chartProfiles) {
+    if (!byRole[p.role]) byRole[p.role] = []
+    byRole[p.role].push(p)
+  }
+
+  const superAdmins     = byRole['super_admin']     ?? []
+  const accountManagers = byRole['account_manager'] ?? []
+  const projectManagers = byRole['project_manager'] ?? []
+  const staffMembers    = byRole['staff']           ?? []
+
+  const roleChildrenMap: Record<string, Profile[]> = {}
+
+  function addChildren(parents: Profile[], children: Profile[]) {
+    if (parents.length === 0 || children.length === 0) return
+    children.forEach((child, i) => {
+      const parent = parents[i % parents.length]
+      if (!roleChildrenMap[parent.id]) roleChildrenMap[parent.id] = []
+      roleChildrenMap[parent.id].push(child)
+    })
+  }
+
+  // account_managers → under super_admins
+  addChildren(superAdmins, accountManagers)
+  // project_managers → under account_managers (fallback: super_admins)
+  addChildren(accountManagers.length > 0 ? accountManagers : superAdmins, projectManagers)
+  // staff → under project_managers → account_managers → super_admins
+  const staffParents = projectManagers.length > 0
+    ? projectManagers
+    : accountManagers.length > 0
+      ? accountManagers
+      : superAdmins
+  addChildren(staffParents, staffMembers)
+
+  const roots = superAdmins.length > 0 ? superAdmins : chartProfiles.slice(0, 1)
+
+  if (roots.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 py-20 text-center">
         <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
           <GitBranch className="h-8 w-8 text-blue-300" />
         </div>
-        <h3 className="text-sm font-semibold text-foreground/80 mb-1">No hierarchy set up yet</h3>
-        <p className="text-xs text-muted-foreground/70 max-w-xs">Assign a "Reports To" for each person to build the org chart.</p>
+        <h3 className="text-sm font-semibold text-foreground/80 mb-1">No team members found</h3>
+        <p className="text-xs text-muted-foreground/70 max-w-xs">Add team members to see the org chart.</p>
       </div>
     )
   }
 
   return (
-    <div className="overflow-auto flex-1 p-8">
+    <div className="overflow-auto flex-1 p-6">
+      <div className="flex items-center gap-1.5 mb-4 text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-1.5 w-fit mx-auto">
+        <GitBranch className="h-3 w-3" />
+        Auto-generated from roles — set "Reports To" on each person for a custom hierarchy
+      </div>
       <div className="flex gap-16 justify-center min-w-max pb-8">
-        {roots.map((root) => <OrgNode key={root.id} person={root} childrenMap={childrenMap} />)}
+        {roots.map((root) => <OrgNode key={root.id} person={root} childrenMap={roleChildrenMap} />)}
       </div>
     </div>
   )
