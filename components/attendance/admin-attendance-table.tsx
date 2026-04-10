@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -273,83 +273,98 @@ export function AdminAttendanceTable({
   }
 
   const presentCount = records.filter((r) => r.check_in_time).length
-  const absentCount = staffProfiles.length - presentCount
+  const lateCount = records.filter((r) => r.status === 'late_150' || r.status === 'late_250').length
+  const absentCount = records.filter((r) => r.status === 'absent' || r.status === 'advance_absence').length
+  const noRecord = staffProfiles.length - records.length
+
+  const statCards = [
+    { color: 'bg-blue-500',   label: 'Total Staff',    value: staffProfiles.length },
+    { color: 'bg-green-500',  label: 'Present',        value: presentCount },
+    { color: 'bg-yellow-400', label: 'Late',           value: lateCount },
+    { color: 'bg-red-500',    label: 'Absent',         value: absentCount },
+    { color: 'bg-gray-300',   label: 'No Record',      value: noRecord },
+    ...(footballRule ? [{ color: 'bg-indigo-500', label: 'Football Rule', value: footballRule.user_ids.length }] : []),
+  ]
 
   return (
-    <div className="space-y-4">
-      {/* Toolbar */}
+    <div className="space-y-5">
+      {/* ── Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Date navigation */}
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigateDate(-1)}>
+        <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 shadow-sm">
+          <button
+            onClick={() => navigateDate(-1)}
+            className="p-0.5 hover:text-blue-600 text-muted-foreground transition-colors"
+          >
             <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="relative">
+          </button>
+          <div className="flex items-center gap-2 px-2">
+            <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
             <Input
               type="date"
               value={selectedDate}
               onChange={(e) => handleDateChange(e.target.value)}
-              className="w-40 h-8 text-sm"
+              className="w-36 h-7 text-sm border-0 p-0 focus-visible:ring-0 bg-transparent font-medium"
             />
+            {loadingDate && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground/70" />}
           </div>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigateDate(1)}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <span className="text-sm text-muted-foreground hidden sm:inline">
-            {format(new Date(selectedDate + 'T00:00:00'), 'EEEE, MMMM d, yyyy')}
-          </span>
-        </div>
-
-        {/* Right side actions */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => setFootballDialogOpen(true)}
+          <button
+            onClick={() => navigateDate(1)}
+            className="p-0.5 hover:text-blue-600 text-muted-foreground transition-colors"
           >
-            <span>⚽</span> Football Rule
-          </Button>
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
+
+        <span className="text-sm text-muted-foreground hidden sm:inline">
+          {format(new Date(selectedDate + 'T00:00:00'), 'EEEE, MMMM d, yyyy')}
+        </span>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 h-9"
+          onClick={() => setFootballDialogOpen(true)}
+        >
+          <span>⚽</span> Football Rule
+        </Button>
       </div>
 
-      {/* Stats bar */}
-      <div className="flex gap-4 text-sm">
-        <span className="text-muted-foreground">
-          Total Staff: <strong>{staffProfiles.length}</strong>
-        </span>
-        <span className="text-green-700">
-          Present: <strong>{presentCount}</strong>
-        </span>
-        <span className="text-red-700">
-          Absent/No record: <strong>{absentCount}</strong>
-        </span>
-        {footballRule && (
-          <span className="text-blue-700">
-            ⚽ Football Rule: <strong>{footballRule.user_ids.length}</strong> staff
-          </span>
-        )}
+      {/* ── Stat cards ── */}
+      <div className="flex gap-3 flex-wrap">
+        {statCards.map((s) => (
+          <div key={s.label} className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3 flex-1 min-w-[110px]">
+            <div className={cn('h-9 w-9 rounded-lg flex items-center justify-center shrink-0', s.color)}>
+              <span className="text-white text-sm font-bold">{s.value}</span>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+              <p className="text-base font-semibold text-foreground">{s.value}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <CalendarDays className="h-4 w-4" />
-            Attendance for {selectedDate}
-            {loadingDate && <Loader2 className="h-3.5 w-3.5 animate-spin ml-1" />}
-          </CardTitle>
-        </CardHeader>
+      {/* ── Table ── */}
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+        {/* Table header label */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/20">
+          <h3 className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-muted-foreground/70" />
+            Attendance — {format(new Date(selectedDate + 'T00:00:00'), 'EEEE, MMMM d, yyyy')}
+          </h3>
+        </div>
         <CardContent className="p-0">
           <TooltipProvider>
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="pl-4 w-52">Name</TableHead>
-                  <TableHead>Check In</TableHead>
-                  <TableHead>Check Out</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-28">Rule</TableHead>
-                  <TableHead className="text-right pr-4 w-36">Actions</TableHead>
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableHead className="pl-4 w-52 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Name</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Check In</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Check Out</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Status</TableHead>
+                  <TableHead className="w-28 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Rule</TableHead>
+                  <TableHead className="text-right pr-4 w-36 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -584,7 +599,7 @@ export function AdminAttendanceTable({
             </div>
           )}
         </CardContent>
-      </Card>
+      </div>
 
       {/* Football Rule Dialog */}
       <FootballRuleDialog
