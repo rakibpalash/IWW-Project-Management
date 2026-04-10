@@ -34,11 +34,13 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import { CalendarIcon, DollarSign, Loader2, Lock } from 'lucide-react'
+import { CalendarIcon, DollarSign, GitBranch, Loader2, Lock, Search, Users } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
-import { cn } from '@/lib/utils'
+import { cn, getInitials } from '@/lib/utils'
 
 type TaskStatus   = { slug: string; name: string; color: string }
 type TaskPriority = { slug: string; name: string; color: string; is_default: boolean }
@@ -49,6 +51,17 @@ const BILLING_TYPES: { value: BillingType; label: string; description: string }[
   { value: 'retainer',     label: 'Retainer',     description: 'Monthly retainer fee' },
   { value: 'non_billable', label: 'Non-Billable', description: 'Internal / no billing' },
 ]
+
+const AVATAR_COLORS = [
+  'bg-rose-400', 'bg-pink-400', 'bg-fuchsia-400', 'bg-purple-400',
+  'bg-violet-400', 'bg-blue-400', 'bg-cyan-400', 'bg-teal-400',
+  'bg-emerald-400', 'bg-green-400', 'bg-amber-400', 'bg-orange-400',
+]
+function avatarColor(id: string) {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]
+}
 
 const formSchema = z.object({
   name:            z.string().min(1, 'Project name is required').max(255),
@@ -94,6 +107,15 @@ export function EditProjectDialog({
   const [startOpen,  setStartOpen]  = useState(false)
   const [dueOpen,    setDueOpen]    = useState(false)
 
+  // Team assignment
+  const [allUsers,       setAllUsers]       = useState<Profile[]>([])
+  const [projectManager, setProjectManager] = useState<string>('')
+  const [pmSearch,       setPmSearch]       = useState('')
+  const [staffSearch,    setStaffSearch]    = useState('')
+  const [selectedStaff,  setSelectedStaff]  = useState<Set<string>>(new Set())
+  // Track existing member record IDs so we can delete removed ones
+  const [existingMembers, setExistingMembers] = useState<{ id: string; user_id: string; project_role: string }[]>([])
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -138,6 +160,33 @@ export function EditProjectDialog({
 
     supabase.from('task_priorities').select('slug, name, color, is_default').eq('is_active', true).order('sort_order')
       .then(({ data }) => setPriorities((data as TaskPriority[]) ?? []))
+
+    // Load all internal users
+    const baseSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+    supabase.from('profiles')
+      .select(`${baseSelect}, manager_id`)
+      .order('full_name')
+      .then(({ data, error }) => {
+        if (error || !data) {
+          supabase.from('profiles').select(baseSelect).order('full_name')
+            .then(({ data: fallback }) => setAllUsers((fallback as Profile[]) ?? []))
+        } else {
+          setAllUsers((data as Profile[]) ?? [])
+        }
+      })
+
+    // Load existing project members
+    supabase.from('project_members')
+      .select('id, user_id, project_role')
+      .eq('project_id', project.id)
+      .then(({ data }) => {
+        if (!data) return
+        setExistingMembers(data)
+        const lead = data.find(m => m.project_role === 'lead')
+        const members = data.filter(m => m.project_role === 'member').map(m => m.user_id)
+        setProjectManager(lead?.user_id ?? '')
+        setSelectedStaff(new Set(members))
+      })
   }, [open])
 
   useEffect(() => {
@@ -147,6 +196,35 @@ export function EditProjectDialog({
       form.setValue('partner_id', undefined)
     }
   }, [isInternal])
+
+  function toggleStaff(id: string) {
+    setSelectedStaff(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  // PM candidates — exclude client/partner
+  const filteredPm = allUsers.filter(u =>
+    u.role !== 'client' && u.role !== 'partner' && (
+      u.full_name.toLowerCase().includes(pmSearch.toLowerCase()) ||
+      u.email.toLowerCase().includes(pmSearch.toLowerCase())
+    )
+  )
+  const selectedPmUser = allUsers.find(u => u.id === projectManager)
+
+  // Staff candidates — exclude PM
+  const teamCandidates = allUsers.filter(u => u.role === 'staff' && u.id !== projectManager)
+
+  const staffByManager = teamCandidates.reduce<Record<string, Profile[]>>((acc, s) => {
+    const key = s.manager_id ?? '__none__'
+    if (!acc[key]) acc[key] = []
+    acc[key].push(s)
+    return acc
+  }, {})
+
+  const filteredStaff = teamCandidates.filter(s =>
+    s.full_name.toLowerCase().includes(staffSearch.toLowerCase()) ||
+    s.email.toLowerCase().includes(staffSearch.toLowerCase())
+  )
+  const showGrouped = !staffSearch.trim()
 
   async function onSubmit(values: FormValues) {
     setLoading(true)
@@ -191,6 +269,44 @@ export function EditProjectDialog({
       if (error) {
         toast({ title: 'Failed to update project', description: error.message, variant: 'destructive' })
         return
+      }
+
+      // ── Sync team members ──────────────────────────────────────────────────
+      // Build desired state
+      const desired: { user_id: string; project_role: 'lead' | 'member' }[] = []
+      if (projectManager) desired.push({ user_id: projectManager, project_role: 'lead' })
+      selectedStaff.forEach(uid => {
+        if (uid !== projectManager) desired.push({ user_id: uid, project_role: 'member' })
+      })
+
+      // Remove members that are no longer desired
+      const desiredIds = new Set(desired.map(d => d.user_id))
+      const toRemove = existingMembers.filter(m => !desiredIds.has(m.user_id)).map(m => m.id)
+      if (toRemove.length > 0) {
+        await supabase.from('project_members').delete().in('id', toRemove)
+      }
+
+      // Add new members not already in existingMembers
+      const existingUserIds = new Set(existingMembers.map(m => m.user_id))
+      const toAdd = desired.filter(d => !existingUserIds.has(d.user_id))
+        .map(d => ({ project_id: project.id, user_id: d.user_id, project_role: d.project_role }))
+      if (toAdd.length > 0) {
+        await supabase.from('project_members').insert(toAdd)
+      }
+
+      // Update role if existing lead changed
+      const existingLead = existingMembers.find(m => m.project_role === 'lead')
+      if (existingLead && projectManager && existingLead.user_id !== projectManager && existingUserIds.has(projectManager)) {
+        await supabase.from('project_members')
+          .update({ project_role: 'lead' })
+          .eq('project_id', project.id)
+          .eq('user_id', projectManager)
+      }
+      // Demote old lead to member if they're now in selectedStaff
+      if (existingLead && existingLead.user_id !== projectManager && selectedStaff.has(existingLead.user_id) && existingUserIds.has(existingLead.user_id)) {
+        await supabase.from('project_members')
+          .update({ project_role: 'member' })
+          .eq('id', existingLead.id)
       }
 
       toast({ title: 'Project updated', description: `"${data.name}" has been updated successfully.` })
@@ -451,6 +567,152 @@ export function EditProjectDialog({
                 <FormMessage />
               </FormItem>
             )} />
+
+            {/* ── Team Assignment ── */}
+            <div className="border-t border-border pt-4 space-y-4">
+              <p className="text-sm font-semibold">Team</p>
+
+              {/* Project Manager */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">
+                  Project Manager <span className="text-xs text-muted-foreground font-normal">(lead)</span>
+                </label>
+
+                {selectedPmUser && (
+                  <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                      {getInitials(selectedPmUser.full_name)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{selectedPmUser.full_name}</p>
+                      <p className="truncate text-xs text-muted-foreground capitalize">{selectedPmUser.role.replace(/_/g, ' ')}</p>
+                    </div>
+                    <button type="button" onClick={() => setProjectManager('')}
+                      className="text-xs text-muted-foreground hover:text-destructive transition-colors px-1">
+                      Remove
+                    </button>
+                  </div>
+                )}
+
+                <div className="rounded-lg border border-border">
+                  <div className="p-2 border-b">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                      <Input placeholder="Search for project manager…" value={pmSearch}
+                        onChange={e => setPmSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+                    </div>
+                  </div>
+                  {allUsers.length === 0 ? (
+                    <div className="py-4 text-center text-sm text-muted-foreground">No users found</div>
+                  ) : (
+                    <ScrollArea className="h-36">
+                      <ul className="p-1">
+                        {filteredPm.map(u => (
+                          <li key={u.id}>
+                            <button type="button" onClick={() => { setProjectManager(u.id); setPmSearch('') }}
+                              className={cn(
+                                'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors',
+                                projectManager === u.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50'
+                              )}>
+                              <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', avatarColor(u.id))}>
+                                {getInitials(u.full_name)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">{u.full_name}</p>
+                                <p className="truncate text-xs text-muted-foreground">{u.email}</p>
+                              </div>
+                              <span className="shrink-0 text-[10px] text-muted-foreground capitalize bg-muted rounded px-1.5 py-0.5">
+                                {u.role.replace(/_/g, ' ')}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </ScrollArea>
+                  )}
+                </div>
+              </div>
+
+              {/* Assign Team Members */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Assign Team Members</span>
+                </div>
+                <div className="rounded-lg border border-border">
+                  <div className="p-2 border-b">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                      <Input placeholder="Search staffs…" value={staffSearch}
+                        onChange={e => setStaffSearch(e.target.value)} className="pl-8 h-8 text-sm bg-background" />
+                    </div>
+                  </div>
+
+                  {allUsers.length === 0 ? (
+                    <div className="py-5 text-center text-sm text-muted-foreground">No users found</div>
+                  ) : teamCandidates.length === 0 ? (
+                    <div className="py-5 text-center text-sm text-muted-foreground">No other members to assign</div>
+                  ) : (
+                    <ScrollArea className="h-52">
+                      {showGrouped ? (
+                        <div className="p-1">
+                          {Object.entries(staffByManager).map(([managerId, members]) => {
+                            const manager = managerId === '__none__' ? null : allUsers.find(m => m.id === managerId)
+                            return (
+                              <div key={managerId}>
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 mt-1">
+                                  <GitBranch className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    {manager ? `Reports to: ${manager.full_name}` : 'No manager assigned'}
+                                  </span>
+                                </div>
+                                {members.map(staff => (
+                                  <label key={staff.id} className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
+                                    <Checkbox checked={selectedStaff.has(staff.id)} onCheckedChange={() => toggleStaff(staff.id)} />
+                                    <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', avatarColor(staff.id))}>
+                                      {getInitials(staff.full_name)}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-sm font-medium">{staff.full_name}</p>
+                                      <p className="truncate text-xs text-muted-foreground">{staff.email}</p>
+                                    </div>
+                                  </label>
+                                ))}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <ul className="p-1">
+                          {filteredStaff.length === 0 ? (
+                            <li className="py-4 text-center text-sm text-muted-foreground">No members match your search</li>
+                          ) : filteredStaff.map(staff => (
+                            <li key={staff.id}>
+                              <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
+                                <Checkbox checked={selectedStaff.has(staff.id)} onCheckedChange={() => toggleStaff(staff.id)} />
+                                <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', avatarColor(staff.id))}>
+                                  {getInitials(staff.full_name)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-medium">{staff.full_name}</p>
+                                  <p className="truncate text-xs text-muted-foreground">{staff.email}</p>
+                                </div>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </ScrollArea>
+                  )}
+
+                  <div className="border-t px-3 py-2">
+                    <p className="text-xs text-muted-foreground">
+                      {selectedStaff.size} member{selectedStaff.size !== 1 ? 's' : ''} selected
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Description */}
             <FormField control={form.control} name="description" render={({ field }) => (

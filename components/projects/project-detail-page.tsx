@@ -5,9 +5,11 @@ import { Project, Task, Profile, ActivityLog, ProjectMember, CustomRole } from '
 import { ProjectHeader } from './project-header'
 import { TimeSummary } from './time-summary'
 import { ProjectTeamSection } from './project-team-section'
+import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -35,6 +37,7 @@ import {
   Users,
   ListTodo,
   BarChart2,
+  Plus,
 } from 'lucide-react'
 
 interface ProjectDetailPageProps {
@@ -59,14 +62,20 @@ export function ProjectDetailPage({
   customRoles,
 }: ProjectDetailPageProps) {
   const [project, setProject] = useState<Project>(initialProject)
+  const [taskList, setTaskList] = useState<Task[]>(tasks)
+  const [showCreateTask, setShowCreateTask] = useState(false)
 
   function handleProjectUpdated(updated: Project) {
     setProject(updated)
   }
 
-  const completedTasks = tasks.filter((t) => t.status === 'done' || t.status === 'cancelled')
-  const activeTasks = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled')
-  const overdueTasks = tasks.filter(
+  function handleTaskCreated(task: Task) {
+    setTaskList(prev => [...prev, task])
+  }
+
+  const completedTasks = taskList.filter((t) => t.status === 'done' || t.status === 'cancelled')
+  const activeTasks = taskList.filter((t) => t.status !== 'done' && t.status !== 'cancelled')
+  const overdueTasks = taskList.filter(
     (t) =>
       isOverdue(t.due_date) &&
       t.status !== 'done' &&
@@ -94,9 +103,9 @@ export function ProjectDetailPage({
           <TabsTrigger value="tasks" className="gap-1.5">
             <ListTodo className="h-4 w-4" />
             <span className="hidden sm:inline">Tasks</span>
-            {tasks.length > 0 && (
+            {taskList.length > 0 && (
               <Badge variant="secondary" className="ml-1 hidden sm:inline-flex text-xs px-1.5 py-0">
-                {tasks.length}
+                {taskList.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -230,14 +239,28 @@ export function ProjectDetailPage({
         {/* TASKS TAB                                                         */}
         {/* ---------------------------------------------------------------- */}
         <TabsContent value="tasks" className="space-y-2">
-          {tasks.length === 0 ? (
-            <EmptyState
-              icon={<ListTodo className="h-10 w-10 text-muted-foreground" />}
-              title="No tasks yet"
-              description="Tasks for this project will appear here once created."
-            />
+          {taskList.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center">
+              <div className="mb-3 rounded-full bg-muted p-4">
+                <ListTodo className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h3 className="text-base font-semibold">No tasks yet</h3>
+              <p className="text-sm text-muted-foreground mt-1 max-w-xs">Tasks for this project will appear here once created.</p>
+              <Button className="mt-4" onClick={() => setShowCreateTask(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Task
+              </Button>
+            </div>
           ) : (
-            tasks.map((task) => <TaskRow key={task.id} task={task} projectId={project.id} />)
+            <>
+              <div className="flex justify-end">
+                <Button size="sm" onClick={() => setShowCreateTask(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Task
+                </Button>
+              </div>
+              {taskList.map((task) => <TaskRow key={task.id} task={task} projectId={project.id} />)}
+            </>
           )}
         </TabsContent>
 
@@ -370,6 +393,15 @@ export function ProjectDetailPage({
           )}
         </TabsContent>
       </Tabs>
+
+      <CreateTaskDialog
+        open={showCreateTask}
+        onOpenChange={setShowCreateTask}
+        projects={[project]}
+        profile={profile}
+        onCreated={handleTaskCreated}
+        projectId={project.id}
+      />
     </div>
   )
 }
