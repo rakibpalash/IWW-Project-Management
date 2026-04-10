@@ -112,19 +112,21 @@ function TimelineRow({ date, record, settings, isToday }: {
   if (sun) {
     return (
       <div className="relative h-7 flex items-center">
-        <div className="absolute inset-x-0 border-t border-dashed border-border top-1/2" />
-        <span className="relative z-10 mx-auto bg-muted/30 px-3 text-[11px] font-medium text-muted-foreground/70 rounded-full border border-border">
+        <div className="absolute left-0 h-2 w-2 rounded-full bg-gray-200 top-1/2 -translate-y-1/2" />
+        <div className="absolute inset-x-3 border-t border-dashed border-border/70 top-1/2" />
+        <span className="relative z-10 mx-auto bg-amber-50 px-3 text-[11px] font-medium text-amber-600/80 rounded-full border border-amber-200/60">
           Weekend
         </span>
+        <div className="absolute right-0 h-2 w-2 rounded-full bg-gray-200 top-1/2 -translate-y-1/2" />
       </div>
     )
   }
   if (!ci) {
     return (
       <div className="relative h-7 flex items-center">
-        <div className="absolute inset-x-0 border-t border-border/60 top-1/2" />
-        <div className="absolute left-0 h-2.5 w-2.5 rounded-full bg-muted top-1/2 -translate-y-1/2 -translate-x-1/2" />
-        <div className="absolute right-0 h-2.5 w-2.5 rounded-full bg-muted top-1/2 -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute left-0 h-2.5 w-2.5 rounded-full bg-gray-200 top-1/2 -translate-y-1/2" />
+        <div className="absolute inset-x-3 border-t border-border/50 top-1/2" />
+        <div className="absolute right-0 h-2.5 w-2.5 rounded-full bg-gray-200 top-1/2 -translate-y-1/2" />
       </div>
     )
   }
@@ -134,8 +136,11 @@ function TimelineRow({ date, record, settings, isToday }: {
 
   return (
     <div className="relative h-7 flex items-center">
-      {/* base */}
-      <div className="absolute inset-x-0 border-t border-border/60 top-1/2" />
+      {/* base line */}
+      <div className="absolute inset-x-0 border-t border-border/50 top-1/2" />
+      {/* endpoint dots */}
+      <div className="absolute left-0 h-2 w-2 rounded-full bg-gray-300 top-1/2 -translate-y-1/2 z-10" />
+      <div className="absolute right-0 h-2 w-2 rounded-full bg-gray-300 top-1/2 -translate-y-1/2 z-10" />
       {/* worked segment */}
       {cfg && (
         <div
@@ -292,19 +297,26 @@ function WeeklyView({ weekDates, recordByDate, settings, profile, today }: {
         </div>
       </div>
 
-      {/* Stats bar */}
-      <div className="bg-card rounded-xl border border-border px-5 py-3 shadow-sm">
-        <div className="flex flex-wrap gap-5 text-sm">
+      {/* Stats bar — matches reference layout */}
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="flex divide-x divide-border flex-wrap">
           {[
-            { color: 'bg-blue-400', label: 'Working Days', value: `${workingDays}` },
-            { color: 'bg-green-400', label: 'Present', value: `${presentDays}` },
-            { color: 'bg-muted', label: 'Weekend', value: `${weekendDays}` },
-            { color: 'bg-red-400', label: 'Absent', value: `${absentDays}` },
+            { color: 'bg-blue-400',   label: 'Payable Days', value: presentDays,  unit: 'Days' },
+            { color: 'bg-green-500',  label: 'Present',      value: presentDays,  unit: 'Days' },
+            { color: 'bg-violet-400', label: 'On Duty',       value: 0,            unit: 'Day'  },
+            { color: 'bg-cyan-400',   label: 'Paid leave',   value: 0,            unit: 'Day'  },
+            { color: 'bg-amber-400',  label: 'Holidays',     value: 0,            unit: 'Day'  },
+            { color: 'bg-gray-300',   label: 'Weekend',      value: weekendDays,  unit: 'Days' },
           ].map(item => (
-            <div key={item.label} className="flex items-center gap-2">
-              <span className={cn('h-3 w-3 rounded-sm flex-shrink-0', item.color)} />
-              <span className="text-muted-foreground text-xs">{item.label}</span>
-              <span className="font-semibold text-foreground text-xs">{item.value}</span>
+            <div key={item.label} className="flex-1 min-w-[100px] px-4 py-3 flex items-start gap-2.5">
+              <span className={cn('h-3 w-[3px] rounded-full mt-1 shrink-0', item.color)} />
+              <div>
+                <p className="text-xs font-semibold text-foreground/80">{item.label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  <span className="font-bold text-foreground text-sm">{item.value}</span>{' '}
+                  {item.value === 1 ? item.unit.replace('s','') : item.unit}
+                </p>
+              </div>
             </div>
           ))}
         </div>
@@ -448,30 +460,38 @@ function MonthCalendarView({ year, month, recordByDate, today }: {
             <div
               key={date}
               className={cn(
-                'min-h-[90px] p-2 border-b border-r border-border/60 last:border-r-0',
+                'min-h-[100px] p-2 border-b border-r border-border/60',
                 (idx + 1) % 7 === 0 && 'border-r-0',
-                sun && 'bg-amber-50/30',
-                isToday && 'bg-blue-50/20',
+                sun && 'bg-amber-50/40',
+                isToday && 'bg-blue-50/30 ring-1 ring-inset ring-blue-200',
               )}
             >
+              {/* Day number */}
               <div className={cn(
-                'text-xs font-semibold mb-1.5 h-5 w-5 flex items-center justify-center rounded-full',
-                isToday ? 'bg-blue-600 text-white' : sun ? 'text-red-400' : 'text-muted-foreground',
+                'text-xs font-bold mb-2 h-6 w-6 flex items-center justify-center rounded-full',
+                isToday ? 'bg-blue-600 text-white' : sun ? 'text-red-400' : 'text-muted-foreground/80',
               )}>
                 {dayNum}
               </div>
 
               {sun ? (
-                <div className="text-[10px] text-gray-300 font-medium">Weekend</div>
+                <div className="text-[10px] text-muted-foreground/40 font-medium">Weekend</div>
               ) : isFuture ? null : record && cfg ? (
-                <div className={cn('rounded-lg px-2 py-1.5 text-center', cfg.bg)}>
-                  <p className={cn('text-[11px] font-semibold', cfg.text)}>{cfg.label}</p>
+                <div className={cn(
+                  'rounded-lg px-2 py-2 border',
+                  cfg.bg,
+                  record.status === 'on_time'  ? 'border-green-200' :
+                  record.status === 'late_150' ? 'border-yellow-200' :
+                  record.status === 'late_250' ? 'border-orange-200' :
+                  record.status === 'absent'   ? 'border-red-200'   : 'border-purple-200'
+                )}>
+                  <p className={cn('text-[11px] font-bold leading-none', cfg.text)}>{cfg.label}</p>
                   {hw && hw !== '--' && (
-                    <p className={cn('text-[10px] font-medium mt-0.5', cfg.text)}>{hw} Hrs</p>
+                    <p className={cn('text-[10px] font-medium mt-1', cfg.text)}>{hw} Hrs</p>
                   )}
                 </div>
               ) : (
-                <div className="text-[10px] text-gray-300">No record</div>
+                <div className="text-[10px] text-muted-foreground/30">No record</div>
               )}
             </div>
           )
@@ -487,30 +507,37 @@ function MonthStats({ records, year, month }: {
   records: AttendanceRecord[]; year: number; month: number
 }) {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const workingDays = Array.from({ length: daysInMonth }, (_, i) => {
-    const d = new Date(year, month, i + 1); return d.getDay() !== 0
-  }).filter(Boolean).length
+  const weekendDays = Array.from({ length: daysInMonth }, (_, i) =>
+    new Date(year, month, i + 1).getDay() === 0
+  ).filter(Boolean).length
+  const workingDays = daysInMonth - weekendDays
 
   const present = records.filter(r => r.check_in_time).length
-  const onTime = records.filter(r => r.status === 'on_time').length
-  const late = records.filter(r => r.status === 'late_150' || r.status === 'late_250').length
-  const absent = records.filter(r => r.status === 'absent' || r.status === 'advance_absence').length
-  const attendanceRate = workingDays > 0 ? Math.round((present / workingDays) * 100) : 0
+  const late    = records.filter(r => r.status === 'late_150' || r.status === 'late_250').length
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-      {[
-        { label: 'Working Days', value: workingDays, color: 'text-foreground/80', bg: 'bg-muted/30 border-border' },
-        { label: 'Present', value: present, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
-        { label: 'On Time', value: onTime, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-        { label: 'Late', value: late, color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
-        { label: 'Attendance', value: `${attendanceRate}%`, color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
-      ].map(item => (
-        <div key={item.label} className={cn('rounded-xl border px-3 py-3 text-center', item.bg)}>
-          <p className={cn('text-xl font-bold', item.color)}>{item.value}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{item.label}</p>
-        </div>
-      ))}
+    <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+      <div className="flex divide-x divide-border flex-wrap">
+        {[
+          { color: 'bg-blue-400',   label: 'Payable Days', value: present,      unit: 'Days' },
+          { color: 'bg-green-500',  label: 'Present',      value: present,      unit: 'Days' },
+          { color: 'bg-yellow-400', label: 'Late',         value: late,         unit: 'Days' },
+          { color: 'bg-violet-400', label: 'On Duty',      value: 0,            unit: 'Day'  },
+          { color: 'bg-cyan-400',   label: 'Paid leave',   value: 0,            unit: 'Day'  },
+          { color: 'bg-gray-300',   label: 'Weekend',      value: weekendDays,  unit: 'Days' },
+        ].map(item => (
+          <div key={item.label} className="flex-1 min-w-[100px] px-4 py-3 flex items-start gap-2.5">
+            <span className={cn('h-3 w-[3px] rounded-full mt-1 shrink-0', item.color)} />
+            <div>
+              <p className="text-xs font-semibold text-foreground/80">{item.label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                <span className="font-bold text-foreground text-sm">{item.value}</span>{' '}
+                {item.value === 1 ? item.unit.replace('s','') : item.unit}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
