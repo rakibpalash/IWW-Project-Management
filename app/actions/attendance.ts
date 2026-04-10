@@ -506,7 +506,7 @@ export async function getMonthlyFinesSummaryAction(
     }>()
 
     for (const r of records) {
-      const profile = r.user as { id: string; full_name: string; avatar_url: string | null } | null
+      const profile = r.user as unknown as { id: string; full_name: string; avatar_url: string | null } | null
       const uid = r.user_id
       if (!map.has(uid)) {
         map.set(uid, {
@@ -713,7 +713,7 @@ export async function getMonthlyFinesDetailAction(
 
     return {
       data: records.map((r) => ({
-        fullName: (r.user as { full_name: string } | null)?.full_name ?? 'Unknown',
+        fullName: (r.user as unknown as { full_name: string } | null)?.full_name ?? 'Unknown',
         date: r.date,
         checkInTime: r.check_in_time,
         status: r.status,

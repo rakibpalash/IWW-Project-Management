@@ -350,7 +350,7 @@ export function PermissionTemplatesTab({ initialTemplates }: PermissionTemplates
                             <ShieldCheck className="h-4 w-4 text-blue-500 shrink-0" />
                             <p className="font-semibold text-sm truncate">{t.name}</p>
                             {t.is_default && (
-                              <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400 shrink-0" title="Default template" />
+                              <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400 shrink-0" aria-label="Default template" />
                             )}
                           </div>
                           {t.description && (
