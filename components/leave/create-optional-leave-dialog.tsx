@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Search, AlertCircle, Loader2, CalendarPlus, Trash2, Pencil, Check, X, Plus,
+  Search, AlertCircle, Loader2, CalendarPlus, Trash2, Pencil, Check, X, Plus, AlertTriangle,
 } from 'lucide-react'
 import { Profile } from '@/types'
 import { LeaveTemplate } from './leave-page'
@@ -29,6 +29,8 @@ import {
   createOptionalLeaveTemplateAction,
   updateOptionalLeaveTemplateAction,
   deleteOptionalLeaveTemplateAction,
+  checkOptionalLeaveTemplateUsageAction,
+  revokeOptionalLeaveGrantsByNameAction,
 } from '@/app/actions/leave'
 import { useToast } from '@/components/ui/use-toast'
 import { cn } from '@/lib/utils'
@@ -44,11 +46,20 @@ interface Props {
   leaveTemplates: LeaveTemplate[]
 }
 
+// Smart delete state per template
+interface DeleteState {
+  id: string
+  name: string
+  checking: boolean
+  grantCount: number | null   // null = not checked yet
+  revoking: boolean
+  deleting: boolean
+}
+
 export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveTemplates: initialTemplates }: Props) {
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
 
-  // Template list (local state so updates reflect immediately)
   const [templates, setTemplates] = useState<LeaveTemplate[]>(initialTemplates)
 
   // Form state
@@ -60,17 +71,20 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
   const [staffSearch, setStaffSearch]   = useState('')
   const [error, setError]               = useState<string | null>(null)
 
-  // Manage mode — inline edit per template
+  // Manage panel
   const [manageOpen, setManageOpen]     = useState(false)
   const [editingId, setEditingId]       = useState<string | null>(null)
   const [editName, setEditName]         = useState('')
   const [editDays, setEditDays]         = useState('')
   const [saving, setSaving]             = useState(false)
 
-  // Add-new-template mode
+  // Add-new-template
   const [addingNew, setAddingNew]       = useState(false)
   const [newName, setNewName]           = useState('')
   const [newDays, setNewDays]           = useState('1')
+
+  // Smart delete
+  const [deleteState, setDeleteState]   = useState<DeleteState | null>(null)
 
   const selectedUser = staffProfiles.find((p) => p.id === selectedUserId)
   const filteredStaff = staffProfiles.filter((p) =>
@@ -83,8 +97,7 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
   function handleTemplateChange(val: string) {
     setTemplateId(val)
     if (val === 'custom') {
-      setLeaveName('')
-      setTotalDays('1')
+      setLeaveName(''); setTotalDays('1')
     } else {
       const t = templates.find((t) => t.id === val)
       if (t) { setLeaveName(t.name); setTotalDays(String(t.default_days)) }
@@ -92,36 +105,65 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
     setError(null)
   }
 
-  // ── Inline edit template ──
+  // ── Inline edit ──
   function startEdit(t: LeaveTemplate) {
-    setEditingId(t.id)
-    setEditName(t.name)
-    setEditDays(String(t.default_days))
+    setEditingId(t.id); setEditName(t.name); setEditDays(String(t.default_days))
+    setDeleteState(null)
   }
 
   async function saveEdit(id: string) {
     if (!editName.trim() || !editDays) return
     setSaving(true)
     const result = await updateOptionalLeaveTemplateAction(id, {
-      name: editName.trim(),
-      default_days: parseInt(editDays, 10),
+      name: editName.trim(), default_days: parseInt(editDays, 10),
     })
     setSaving(false)
     if (!result.success) { toast({ title: 'Error', description: result.error, variant: 'destructive' }); return }
-    setTemplates((prev) => prev.map((t) => t.id === id ? { ...t, name: editName.trim(), default_days: parseInt(editDays, 10) } : t))
-    // If this template is currently selected, update the form fields too
+    setTemplates((prev) => prev.map((t) =>
+      t.id === id ? { ...t, name: editName.trim(), default_days: parseInt(editDays, 10) } : t
+    ))
     if (templateId === id) { setLeaveName(editName.trim()); setTotalDays(editDays) }
     setEditingId(null)
   }
 
-  async function deleteTemplate(id: string, isBuiltin: boolean) {
-    if (isBuiltin) return
-    setSaving(true)
-    const result = await deleteOptionalLeaveTemplateAction(id)
-    setSaving(false)
-    if (!result.success) { toast({ title: 'Error', description: result.error, variant: 'destructive' }); return }
-    setTemplates((prev) => prev.filter((t) => t.id !== id))
-    if (templateId === id) { setTemplateId(''); setLeaveName(''); setTotalDays('1') }
+  // ── Smart delete ──
+  async function initiateDelete(t: LeaveTemplate) {
+    if (t.is_builtin) return
+    setEditingId(null)
+    setDeleteState({ id: t.id, name: t.name, checking: true, grantCount: null, revoking: false, deleting: false })
+
+    const result = await checkOptionalLeaveTemplateUsageAction(t.name)
+    setDeleteState((prev) => prev ? { ...prev, checking: false, grantCount: result.success ? (result.count ?? 0) : 0 } : null)
+  }
+
+  async function confirmDeleteTemplateOnly() {
+    if (!deleteState) return
+    setDeleteState((prev) => prev ? { ...prev, deleting: true } : null)
+    const result = await deleteOptionalLeaveTemplateAction(deleteState.id)
+    if (!result.success) {
+      toast({ title: 'Error', description: result.error, variant: 'destructive' })
+      setDeleteState(null); return
+    }
+    setTemplates((prev) => prev.filter((t) => t.id !== deleteState.id))
+    if (templateId === deleteState.id) { setTemplateId(''); setLeaveName(''); setTotalDays('1') }
+    toast({ title: 'Template deleted', description: `"${deleteState.name}" removed from templates. Existing grants are unaffected.` })
+    setDeleteState(null)
+  }
+
+  async function confirmDeleteAndRevoke() {
+    if (!deleteState) return
+    setDeleteState((prev) => prev ? { ...prev, revoking: true } : null)
+    // Revoke all grants first
+    await revokeOptionalLeaveGrantsByNameAction(deleteState.name)
+    // Then delete template
+    await deleteOptionalLeaveTemplateAction(deleteState.id)
+    setTemplates((prev) => prev.filter((t) => t.id !== deleteState.id))
+    if (templateId === deleteState.id) { setTemplateId(''); setLeaveName(''); setTotalDays('1') }
+    toast({
+      title: 'Template deleted & grants revoked',
+      description: `"${deleteState.name}" and all ${deleteState.grantCount} grant(s) have been removed.`,
+    })
+    setDeleteState(null)
   }
 
   // ── Add new template ──
@@ -129,21 +171,15 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
     if (!newName.trim() || !newDays) return
     setSaving(true)
     const result = await createOptionalLeaveTemplateAction({
-      name: newName.trim(),
-      default_days: parseInt(newDays, 10),
+      name: newName.trim(), default_days: parseInt(newDays, 10),
     })
     setSaving(false)
     if (!result.success) { toast({ title: 'Error', description: result.error, variant: 'destructive' }); return }
     const newTemplate: LeaveTemplate = {
-      id: result.id!,
-      name: newName.trim(),
-      default_days: parseInt(newDays, 10),
-      is_builtin: false,
+      id: result.id!, name: newName.trim(), default_days: parseInt(newDays, 10), is_builtin: false,
     }
     setTemplates((prev) => [...prev, newTemplate])
-    setAddingNew(false)
-    setNewName('')
-    setNewDays('1')
+    setAddingNew(false); setNewName(''); setNewDays('1')
     toast({ title: 'Template saved', description: `"${newName.trim()}" added to templates` })
   }
 
@@ -157,10 +193,7 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
 
     startTransition(async () => {
       const result = await createOptionalLeaveAction({
-        name: leaveName.trim(),
-        userId: selectedUserId,
-        totalDays: days,
-        notes,
+        name: leaveName.trim(), userId: selectedUserId, totalDays: days, notes,
       })
       if (!result.success) { setError(result.error ?? 'Failed to create leave'); return }
       toast({
@@ -175,7 +208,7 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
     setTemplateId(''); setLeaveName(''); setTotalDays('1')
     setSelectedUserId(''); setNotes(''); setStaffSearch(''); setError(null)
     setManageOpen(false); setEditingId(null); setAddingNew(false)
-    setNewName(''); setNewDays('1')
+    setNewName(''); setNewDays('1'); setDeleteState(null)
   }
   function handleClose() { reset(); onClose() }
 
@@ -217,12 +250,10 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
               </div>
               <button
                 type="button"
-                onClick={() => { setManageOpen((v) => !v); setEditingId(null); setAddingNew(false) }}
+                onClick={() => { setManageOpen((v) => !v); setEditingId(null); setAddingNew(false); setDeleteState(null) }}
                 className={cn(
                   'text-xs flex items-center gap-1 px-2 py-1 rounded-md transition-colors',
-                  manageOpen
-                    ? 'bg-violet-100 text-violet-700'
-                    : 'text-muted-foreground hover:text-violet-700 hover:bg-violet-50'
+                  manageOpen ? 'bg-violet-100 text-violet-700' : 'text-muted-foreground hover:text-violet-700 hover:bg-violet-50'
                 )}
               >
                 <Pencil className="h-3 w-3" />
@@ -232,76 +263,137 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
 
             {/* ── Manage Panel ── */}
             {manageOpen && (
-              <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-3 space-y-2">
+              <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-3 space-y-1.5">
                 <p className="text-[11px] font-semibold text-violet-700 uppercase tracking-wide mb-2">
                   Manage Leave Types
                 </p>
-                {templates.map((t) => (
-                  <div key={t.id} className="flex items-center gap-2">
-                    {editingId === t.id ? (
-                      <>
-                        <Input
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="h-7 text-xs flex-1"
-                          placeholder="Leave name"
-                        />
-                        <Input
-                          type="number"
-                          value={editDays}
-                          onChange={(e) => setEditDays(e.target.value)}
-                          className="h-7 text-xs w-16"
-                          min="1"
-                        />
-                        <button type="button" onClick={() => saveEdit(t.id)} disabled={saving}
-                          className="text-green-600 hover:text-green-700 p-1">
-                          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                        </button>
-                        <button type="button" onClick={() => setEditingId(null)}
-                          className="text-muted-foreground hover:text-foreground p-1">
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex-1 text-xs font-medium truncate">{t.name}</span>
-                        <span className="text-[10px] text-muted-foreground">{t.default_days}d</span>
-                        {t.is_builtin && (
-                          <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground">built-in</Badge>
-                        )}
-                        <button type="button" onClick={() => startEdit(t)}
-                          className="text-muted-foreground hover:text-violet-600 p-1 transition-colors">
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                        {!t.is_builtin && (
-                          <button type="button" onClick={() => deleteTemplate(t.id, t.is_builtin)} disabled={saving}
-                            className="text-muted-foreground hover:text-red-500 p-1 transition-colors">
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                ))}
 
-                {/* Add new template */}
+                {templates.map((t) => {
+                  const isDeleting = deleteState?.id === t.id
+
+                  // ── Smart delete confirmation row ──
+                  if (isDeleting) {
+                    return (
+                      <div key={t.id} className="rounded-lg border border-orange-200 bg-orange-50 p-2.5 space-y-2">
+                        {deleteState.checking ? (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Checking active grants…
+                          </div>
+                        ) : deleteState.grantCount !== null && deleteState.grantCount > 0 ? (
+                          <>
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="h-3.5 w-3.5 text-orange-500 mt-0.5 shrink-0" />
+                              <p className="text-xs text-orange-800">
+                                <strong>{deleteState.grantCount} staff member{deleteState.grantCount !== 1 ? 's' : ''}</strong> currently have &quot;{t.name}&quot; leave access.
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              <button
+                                type="button"
+                                onClick={confirmDeleteTemplateOnly}
+                                disabled={deleteState.deleting || deleteState.revoking}
+                                className="text-xs px-2 py-1 rounded-md bg-white border border-orange-300 text-orange-700 hover:bg-orange-50 transition-colors disabled:opacity-50"
+                              >
+                                {deleteState.deleting ? <Loader2 className="h-3 w-3 animate-spin inline mr-1" /> : null}
+                                Delete template only
+                              </button>
+                              <button
+                                type="button"
+                                onClick={confirmDeleteAndRevoke}
+                                disabled={deleteState.deleting || deleteState.revoking}
+                                className="text-xs px-2 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                              >
+                                {deleteState.revoking ? <Loader2 className="h-3 w-3 animate-spin inline mr-1" /> : null}
+                                Delete + revoke all grants
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteState(null)}
+                                disabled={deleteState.deleting || deleteState.revoking}
+                                className="text-xs px-2 py-1 rounded-md bg-white border text-muted-foreground hover:bg-muted/40 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs text-muted-foreground">
+                              No active grants. Delete &quot;{t.name}&quot;?
+                            </p>
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                onClick={confirmDeleteTemplateOnly}
+                                disabled={deleteState.deleting}
+                                className="text-xs px-2 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                              >
+                                {deleteState.deleting ? <Loader2 className="h-3 w-3 animate-spin inline mr-1" /> : null}
+                                Delete
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteState(null)}
+                                className="text-xs px-2 py-1 rounded-md border text-muted-foreground hover:bg-muted/40 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )
+                  }
+
+                  // ── Normal / edit row ──
+                  return (
+                    <div key={t.id} className="flex items-center gap-2">
+                      {editingId === t.id ? (
+                        <>
+                          <Input value={editName} onChange={(e) => setEditName(e.target.value)}
+                            className="h-7 text-xs flex-1" placeholder="Leave name" />
+                          <Input type="number" value={editDays} onChange={(e) => setEditDays(e.target.value)}
+                            className="h-7 text-xs w-16" min="1" />
+                          <button type="button" onClick={() => saveEdit(t.id)} disabled={saving}
+                            className="text-green-600 hover:text-green-700 p-1">
+                            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                          </button>
+                          <button type="button" onClick={() => setEditingId(null)}
+                            className="text-muted-foreground hover:text-foreground p-1">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1 text-xs font-medium truncate">{t.name}</span>
+                          <span className="text-[10px] text-muted-foreground">{t.default_days}d</span>
+                          {t.is_builtin && (
+                            <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground">built-in</Badge>
+                          )}
+                          <button type="button" onClick={() => startEdit(t)}
+                            className="text-muted-foreground hover:text-violet-600 p-1 transition-colors">
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          {!t.is_builtin && (
+                            <button type="button" onClick={() => initiateDelete(t)}
+                              className="text-muted-foreground hover:text-red-500 p-1 transition-colors">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+
+                {/* Add new */}
                 {addingNew ? (
                   <div className="flex items-center gap-2 pt-1 border-t border-violet-200 mt-2">
-                    <Input
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      className="h-7 text-xs flex-1"
-                      placeholder="New leave name…"
-                      autoFocus
-                    />
-                    <Input
-                      type="number"
-                      value={newDays}
-                      onChange={(e) => setNewDays(e.target.value)}
-                      className="h-7 text-xs w-16"
-                      min="1"
-                      placeholder="Days"
-                    />
+                    <Input value={newName} onChange={(e) => setNewName(e.target.value)}
+                      className="h-7 text-xs flex-1" placeholder="New leave name…" autoFocus />
+                    <Input type="number" value={newDays} onChange={(e) => setNewDays(e.target.value)}
+                      className="h-7 text-xs w-16" min="1" placeholder="Days" />
                     <button type="button" onClick={saveNewTemplate} disabled={saving || !newName.trim()}
                       className="text-green-600 hover:text-green-700 p-1 disabled:opacity-40">
                       {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
@@ -312,7 +404,7 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
                     </button>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => setAddingNew(true)}
+                  <button type="button" onClick={() => { setAddingNew(true); setDeleteState(null) }}
                     className="flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-700 mt-1 pt-1 border-t border-violet-200 w-full">
                     <Plus className="h-3 w-3" />
                     Add new type
@@ -321,7 +413,7 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
               </div>
             )}
 
-            {/* Leave type dropdown */}
+            {/* Dropdown */}
             <Select value={templateId} onValueChange={handleTemplateChange}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select leave type…" />
@@ -338,14 +430,13 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
                 <div className="mx-2 my-1 border-t" />
                 <SelectItem value="custom">
                   <span className="flex items-center gap-2 text-violet-700">
-                    <span>✏️</span>
-                    <span>Custom (enter manually)</span>
+                    <span>✏️</span><span>Custom (enter manually)</span>
                   </span>
                 </SelectItem>
               </SelectContent>
             </Select>
 
-            {/* Editable name + days */}
+            {/* Editable fields */}
             {templateId && (
               <div className="rounded-lg border border-dashed border-violet-300 bg-violet-50/30 p-3 space-y-2">
                 <p className="text-xs text-violet-700 font-medium">
@@ -354,23 +445,13 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
                 <div className="grid grid-cols-3 gap-2">
                   <div className="col-span-2 space-y-1">
                     <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Leave Name</Label>
-                    <Input
-                      placeholder="e.g. Hajj Leave"
-                      value={leaveName}
-                      onChange={(e) => setLeaveName(e.target.value)}
-                      className="text-sm h-8"
-                    />
+                    <Input placeholder="e.g. Hajj Leave" value={leaveName}
+                      onChange={(e) => setLeaveName(e.target.value)} className="text-sm h-8" />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Days</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="365"
-                      value={totalDays}
-                      onChange={(e) => setTotalDays(e.target.value)}
-                      className="text-sm h-8"
-                    />
+                    <Input type="number" min="1" max="365" value={totalDays}
+                      onChange={(e) => setTotalDays(e.target.value)} className="text-sm h-8" />
                   </div>
                 </div>
               </div>
@@ -394,11 +475,8 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
                   <p className="text-sm font-medium truncate">{selectedUser.full_name}</p>
                   <p className="text-xs text-muted-foreground truncate">{selectedUser.email}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedUserId('')}
-                  className="text-xs text-violet-600 hover:underline shrink-0"
-                >
+                <button type="button" onClick={() => setSelectedUserId('')}
+                  className="text-xs text-violet-600 hover:underline shrink-0">
                   Change
                 </button>
               </div>
@@ -407,23 +485,17 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
                 <div className="p-2 border-b">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                    <Input
-                      placeholder="Search by name or email…"
-                      value={staffSearch}
-                      onChange={(e) => setStaffSearch(e.target.value)}
-                      className="pl-8 h-8 text-sm"
-                    />
+                    <Input placeholder="Search by name or email…" value={staffSearch}
+                      onChange={(e) => setStaffSearch(e.target.value)} className="pl-8 h-8 text-sm" />
                   </div>
                 </div>
                 <ScrollArea className="h-36">
                   <ul className="p-1">
                     {filteredStaff.map((p) => (
                       <li key={p.id}>
-                        <button
-                          type="button"
+                        <button type="button"
                           onClick={() => { setSelectedUserId(p.id); setStaffSearch('') }}
-                          className="w-full flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors text-left"
-                        >
+                          className="w-full flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors text-left">
                           <Avatar className="h-7 w-7 shrink-0">
                             <AvatarImage src={p.avatar_url ?? undefined} />
                             <AvatarFallback className="text-[10px]">{getInitials(p.full_name)}</AvatarFallback>
@@ -452,24 +524,17 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
             <Label className="text-xs font-semibold">
               Notes <span className="text-muted-foreground font-normal">(optional)</span>
             </Label>
-            <Textarea
-              placeholder="Any internal notes about this leave grant…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="text-sm resize-none"
-            />
+            <Textarea placeholder="Any internal notes about this leave grant…" value={notes}
+              onChange={(e) => setNotes(e.target.value)} rows={2} className="text-sm resize-none" />
           </div>
 
-          {/* ── Summary preview ── */}
+          {/* ── Summary ── */}
           {leaveName.trim() && selectedUser && (
             <div className="rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3">
               <p className="text-xs font-semibold text-violet-700 mb-1">Summary</p>
               <p className="text-sm text-foreground/80">
-                Granting{' '}
-                <strong>{totalDays || 0} day{parseInt(totalDays) !== 1 ? 's' : ''}</strong>{' '}
-                of <strong>&quot;{leaveName}&quot;</strong> to{' '}
-                <strong>{selectedUser.full_name}</strong>
+                Granting <strong>{totalDays || 0} day{parseInt(totalDays) !== 1 ? 's' : ''}</strong>{' '}
+                of <strong>&quot;{leaveName}&quot;</strong> to <strong>{selectedUser.full_name}</strong>
               </p>
             </div>
           )}
@@ -477,12 +542,9 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t bg-muted/20 shrink-0">
-          <Button variant="ghost" size="sm" onClick={handleClose} disabled={isPending}>
-            Cancel
-          </Button>
+          <Button variant="ghost" size="sm" onClick={handleClose} disabled={isPending}>Cancel</Button>
           <Button
-            size="sm"
-            onClick={handleCreate}
+            size="sm" onClick={handleCreate}
             disabled={isPending || !leaveName.trim() || !selectedUserId || !templateId}
             className="bg-violet-600 hover:bg-violet-700 text-white min-w-[100px]"
           >

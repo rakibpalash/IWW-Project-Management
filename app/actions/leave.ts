@@ -526,6 +526,42 @@ export async function updateOptionalLeaveTemplateAction(
   }
 }
 
+export async function checkOptionalLeaveTemplateUsageAction(
+  name: string
+): Promise<{ success: boolean; count?: number; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { count, error } = await supabase
+      .from('optional_leaves')
+      .select('id', { count: 'exact', head: true })
+      .ilike('name', name)
+    if (error) return { success: false, error: error.message }
+    return { success: true, count: count ?? 0 }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function revokeOptionalLeaveGrantsByNameAction(
+  name: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+    const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!caller || caller.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    const admin = createAdminClient()
+    const { error } = await admin.from('optional_leaves').delete().ilike('name', name)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/leave')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 export async function deleteOptionalLeaveTemplateAction(id: string): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient()
