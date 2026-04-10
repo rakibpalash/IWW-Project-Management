@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Profile, Workspace, WorkspaceAssignment, CustomRole } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -29,11 +29,24 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CreateUserDialog } from './create-user-dialog'
 import { SmartDeleteDialog } from '@/components/ui/smart-delete-dialog'
-import { Plus, Search, MoreVertical, UserCog, Loader2, Tag, Crown, Shield, Briefcase, User, Trash2 } from 'lucide-react'
-import { updateUserRoleAction, updatePersonAction, deleteUserAction } from '@/app/actions/user'
+import {
+  Plus, Search, MoreVertical, UserCog, Loader2, Tag, Crown, Shield,
+  Briefcase, User, Trash2, UserCheck, UserX, CheckCircle2, XCircle,
+} from 'lucide-react'
+import { updateUserRoleAction, updatePersonAction, deleteUserAction, toggleUserActiveAction } from '@/app/actions/user'
 import { getStaffDeleteImpact } from '@/app/actions/delete-impact'
 import { assignCustomRoleToUserAction } from '@/app/actions/custom-roles'
 import { getInitials } from '@/lib/utils'
@@ -52,6 +65,7 @@ const ROLE_CONFIG: Record<string, { label: string; badgeClass: string; icon: Rea
   project_manager: { label: 'Team Lead',   badgeClass: 'bg-blue-100 text-blue-700 border-blue-200',         icon: Briefcase },
   staff:           { label: 'Staff',       badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: User },
   client:          { label: 'Client',      badgeClass: 'bg-muted text-muted-foreground border-border',         icon: Briefcase },
+  partner:         { label: 'Partner',     badgeClass: 'bg-amber-100 text-amber-700 border-amber-200',       icon: Briefcase },
 }
 
 const ROLE_OPTIONS = [
@@ -72,14 +86,22 @@ function avatarColor(name: string) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
 
+interface ToggleConfirm {
+  user: Profile
+  activating: boolean
+}
+
 export function TeamManagement({ users, workspaces, workspaceAssignments, customRoles = [] }: TeamManagementProps) {
   const router = useRouter()
   const [createOpen, setCreateOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null)
   const [assigningRoleUserId, setAssigningRoleUserId] = useState<string | null>(null)
   const [assigningManagerUserId, setAssigningManagerUserId] = useState<string | null>(null)
+  const [togglingActiveId, setTogglingActiveId] = useState<string | null>(null)
+  const [toggleConfirm, setToggleConfirm] = useState<ToggleConfirm | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
   const [persons, setPersons] = useState<Profile[]>(users)
@@ -90,7 +112,12 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
       u.full_name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase())
     const matchesRole = roleFilter === 'all' || u.role === roleFilter
-    return matchesSearch && matchesRole
+    const isActive = u.is_active !== false // treat undefined/null as active (before migration)
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'active' && isActive) ||
+      (statusFilter === 'inactive' && !isActive)
+    return matchesSearch && matchesRole && matchesStatus
   })
 
   const getUserWorkspaces = (userId: string): Workspace[] => {
@@ -139,6 +166,22 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
     }
   }
 
+  const handleToggleActive = async (user: Profile, activate: boolean) => {
+    setTogglingActiveId(user.id)
+    setError(null)
+    const result = await toggleUserActiveAction(user.id, activate)
+    setTogglingActiveId(null)
+    if (!result.success) {
+      setError(result.error ?? 'Failed to update status')
+    } else {
+      // Optimistic update
+      setPersons((prev) => prev.map((p) => p.id === user.id ? { ...p, is_active: activate } : p))
+    }
+  }
+
+  const activeCount = persons.filter((p) => p.is_active !== false).length
+  const inactiveCount = persons.filter((p) => p.is_active === false).length
+
   return (
     <div className="space-y-4">
       {error && (
@@ -146,6 +189,20 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
+      {/* Stats row */}
+      <div className="flex gap-3">
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          <span className="text-sm font-medium text-emerald-700">{activeCount} Active</span>
+        </div>
+        {inactiveCount > 0 && (
+          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+            <XCircle className="h-4 w-4 text-red-500" />
+            <span className="text-sm font-medium text-red-600">{inactiveCount} Inactive</span>
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -158,7 +215,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
           />
         </div>
         <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="All Roles" />
           </SelectTrigger>
           <SelectContent>
@@ -166,6 +223,16 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
             {ROLE_OPTIONS.map((r) => (
               <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+          <SelectTrigger className="w-[130px]">
+            <SelectValue placeholder="All Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
         <Button onClick={() => setCreateOpen(true)}>
@@ -178,6 +245,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
           <TableHeader>
             <TableRow className="bg-muted/30">
               <TableHead className="text-xs font-semibold text-muted-foreground">User</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground">Status</TableHead>
               <TableHead className="text-xs font-semibold text-muted-foreground">Role</TableHead>
               <TableHead className="text-xs font-semibold text-muted-foreground">Reports To</TableHead>
               <TableHead className="text-xs font-semibold text-muted-foreground">Job Title</TableHead>
@@ -188,7 +256,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
           <TableBody>
             {filteredUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   No users found
                 </TableCell>
               </TableRow>
@@ -199,20 +267,30 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                 const isUpdating = updatingUserId === user.id
                 const isAssigningRole = assigningRoleUserId === user.id
                 const isAssigningManager = assigningManagerUserId === user.id
+                const isTogglingActive = togglingActiveId === user.id
                 const assignedCustomRole = customRoles.find((r) => r.id === user.custom_role_id)
                 const manager = user.manager_id ? users.find((u) => u.id === user.manager_id) : null
+                const isActive = user.is_active !== false
 
                 return (
-                  <TableRow key={user.id} className="hover:bg-muted/30/50">
+                  <TableRow
+                    key={user.id}
+                    className={cn('hover:bg-muted/30/50 transition-colors', !isActive && 'bg-red-50/30 opacity-75')}
+                  >
                     {/* User */}
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={user.avatar_url ?? undefined} />
-                          <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(user.full_name)}`}>
-                            {getInitials(user.full_name)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <div className="relative">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={user.avatar_url ?? undefined} />
+                            <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(user.full_name)}`}>
+                              {getInitials(user.full_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          {!isActive && (
+                            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-red-500 border-2 border-white" />
+                          )}
+                        </div>
                         <div>
                           <p className="text-sm font-medium leading-none">{user.full_name}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">{user.email}</p>
@@ -223,6 +301,29 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                           )}
                         </div>
                       </div>
+                    </TableCell>
+
+                    {/* Status */}
+                    <TableCell>
+                      {isTogglingActive ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (
+                        <button
+                          onClick={() => setToggleConfirm({ user, activating: !isActive })}
+                          className={cn(
+                            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition-all hover:opacity-80',
+                            isActive
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                          )}
+                        >
+                          {isActive ? (
+                            <><CheckCircle2 className="h-3 w-3" />Active</>
+                          ) : (
+                            <><XCircle className="h-3 w-3" />Inactive</>
+                          )}
+                        </button>
+                      )}
                     </TableCell>
 
                     {/* Role */}
@@ -369,6 +470,18 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {/* Activate / Deactivate */}
+                            <DropdownMenuItem
+                              onClick={() => setToggleConfirm({ user, activating: !isActive })}
+                              className={cn('gap-2 text-xs', isActive ? 'text-orange-600 focus:text-orange-600' : 'text-emerald-600 focus:text-emerald-600')}
+                            >
+                              {isActive ? (
+                                <><UserX className="h-3.5 w-3.5" />Deactivate user</>
+                              ) : (
+                                <><UserCheck className="h-3.5 w-3.5" />Activate user</>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Change Role</div>
                             <DropdownMenuSeparator />
                             {ROLE_OPTIONS.filter((r) => r.value !== user.role).map((r) => (
@@ -402,6 +515,49 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
       </div>
 
       <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} />
+
+      {/* Activate / Deactivate confirmation dialog */}
+      <AlertDialog open={!!toggleConfirm} onOpenChange={(open) => { if (!open) setToggleConfirm(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {toggleConfirm?.activating ? 'Activate user?' : 'Deactivate user?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {toggleConfirm?.activating ? (
+                <>
+                  <strong>{toggleConfirm.user.full_name}</strong> will be able to log in and access the platform again.
+                </>
+              ) : (
+                <>
+                  <strong>{toggleConfirm?.user.full_name}</strong> will be immediately signed out and blocked from logging in.
+                  Their data and task assignments will be preserved.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!toggleConfirm) return
+                await handleToggleActive(toggleConfirm.user, toggleConfirm.activating)
+                setToggleConfirm(null)
+              }}
+              className={toggleConfirm?.activating
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                : 'bg-orange-600 hover:bg-orange-700 text-white'
+              }
+            >
+              {toggleConfirm?.activating ? (
+                <><UserCheck className="mr-2 h-4 w-4" />Activate</>
+              ) : (
+                <><UserX className="mr-2 h-4 w-4" />Deactivate</>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {deleteTarget && (
         <SmartDeleteDialog

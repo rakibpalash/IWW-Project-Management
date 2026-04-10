@@ -3,7 +3,7 @@ import { unstable_cache } from 'next/cache'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 const PROFILE_SELECT =
-  'id, full_name, email, role, is_temp_password, onboarding_completed, avatar_url, organization_id, created_at, updated_at'
+  'id, full_name, email, role, is_temp_password, is_active, onboarding_completed, avatar_url, organization_id, created_at, updated_at'
 
 /**
  * getUser — deduplicated within a single React render via React cache().

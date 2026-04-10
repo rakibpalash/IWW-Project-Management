@@ -37,6 +37,7 @@ export interface Profile {
   avatar_url: string | null
   role: Role
   is_temp_password: boolean
+  is_active: boolean
   onboarding_completed: boolean
   organization_id: string | null
   created_at: string

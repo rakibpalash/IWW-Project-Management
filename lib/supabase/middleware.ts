@@ -53,7 +53,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isPublicRoute && pathname !== '/auth/callback') {
+  // /setup-org is allowed for authenticated users (they may need it to create their org)
+  if (user && isPublicRoute && pathname !== '/auth/callback' && !pathname.startsWith('/setup-org')) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)

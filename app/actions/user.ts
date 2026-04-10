@@ -217,3 +217,40 @@ export async function updateUserProfileAction(data: {
     return { success: false, error: message }
   }
 }
+
+export async function toggleUserActiveAction(
+  userId: string,
+  isActive: boolean
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = createAdminClient()
+    const { createClient: createRegularClient } = await import('@/lib/supabase/server')
+    const userClient = await createRegularClient()
+    const { data: { user: callerUser } } = await userClient.auth.getUser()
+    if (!callerUser) return { success: false, error: 'Not authenticated' }
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerUser.id).single()
+    if (!callerProfile || callerProfile.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    // Prevent deactivating yourself
+    if (userId === callerUser.id) return { success: false, error: 'Cannot deactivate your own account' }
+
+    // Update profile flag
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ is_active: isActive })
+      .eq('id', userId)
+    if (profileError) return { success: false, error: profileError.message }
+
+    // Ban/unban in Supabase Auth so the user cannot log in when deactivated
+    const { error: authError } = await supabase.auth.admin.updateUserById(userId, {
+      ban_duration: isActive ? 'none' : '876000h',
+    })
+    if (authError) return { success: false, error: authError.message }
+
+    revalidatePath('/settings')
+    revalidatePath('/team')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}

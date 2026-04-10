@@ -15,7 +15,9 @@ export default async function DashboardLayout({
   if (!profile) redirect('/login')
 
   // Super admin without an org → must set up their organization first
-  if (profile.role === 'super_admin' && !profile.organization_id) {
+  // Only redirect when organization_id is explicitly null (migration has run but org not yet created).
+  // If the column doesn't exist yet (undefined), skip the redirect to avoid loops.
+  if (profile.role === 'super_admin' && profile.organization_id === null) {
     redirect('/setup-org')
   }
 
