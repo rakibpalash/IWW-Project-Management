@@ -119,7 +119,7 @@ export function DashboardPage({
       {role === 'super_admin' && (
         <>
           {/* Stats row */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
+          <div data-tour="dashboard-stats" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
             <StatCard
               title="Total Projects"
               value={totalProjects ?? 0}
@@ -181,7 +181,7 @@ export function DashboardPage({
       {(role === 'staff' || role === 'account_manager' || role === 'project_manager') && (
         <>
           {/* Stats row */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div data-tour="dashboard-stats" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               title="My Open Tasks"
               value={myTasks?.filter((t) => t.status !== 'done' && t.status !== 'cancelled').length ?? 0}
@@ -279,7 +279,7 @@ export function DashboardPage({
       {/* ── CLIENT ── */}
       {role === 'client' && (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div data-tour="dashboard-stats" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard
               title="Total Projects"
               value={clientProjects?.length ?? 0}

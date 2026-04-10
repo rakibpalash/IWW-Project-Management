@@ -3,6 +3,7 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { Task, TimeEntry } from '@/types'
+import { notifyMany, getTaskRecipients } from '@/lib/notifications'
 
 type TaskInput = {
   project_id: string
@@ -36,23 +37,7 @@ async function logActivity(
   })
 }
 
-async function createNotification(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  recipientId: string,
-  type: 'task_assigned' | 'subtask_assigned' | 'mention' | 'comment_reply' | 'status_changed',
-  title: string,
-  message: string,
-  link?: string
-) {
-  await supabase.from('notifications').insert({
-    user_id: recipientId,
-    type,
-    title,
-    message,
-    link: link ?? null,
-    is_read: false,
-  })
-}
+// Use central notify() helper from lib/notifications.ts
 
 // ── Create task ───────────────────────────────────────────────────────────────
 
@@ -118,17 +103,12 @@ export async function createTaskAction(
     const notifyIds = data.assignee_ids.filter((id) => id !== user.id)
     const notificationType = data.parent_task_id ? 'subtask_assigned' : 'task_assigned'
 
-    await Promise.all(
-      notifyIds.map((recipientId) =>
-        createNotification(
-          supabase,
-          recipientId,
-          notificationType,
-          data.parent_task_id ? 'New subtask assigned to you' : 'New task assigned to you',
-          `You have been assigned to "${data.title}"`,
-          `/tasks/${task.id}`
-        )
-      )
+    await notifyMany(
+      notifyIds,
+      notificationType,
+      data.parent_task_id ? 'New subtask assigned to you' : 'New task assigned to you',
+      `You have been assigned to "${data.title}"`,
+      `/tasks/${task.id}`
     )
 
     revalidatePath('/tasks')
@@ -193,10 +173,31 @@ export async function updateTaskAction(
 
     // Sync assignees if provided
     if (data.assignee_ids !== undefined) {
+      // Determine newly added assignees before deleting old ones
+      const { data: oldAssignees } = await admin
+        .from('task_assignees')
+        .select('user_id')
+        .eq('task_id', id)
+      const oldIds = (oldAssignees ?? []).map((a: { user_id: string }) => a.user_id)
+      const newIds = data.assignee_ids
+      const addedIds = newIds.filter((uid) => !oldIds.includes(uid) && uid !== user.id)
+
       await admin.from('task_assignees').delete().eq('task_id', id)
-      if (data.assignee_ids.length > 0) {
+      if (newIds.length > 0) {
         await admin.from('task_assignees').insert(
-          data.assignee_ids.map((uid) => ({ task_id: id, user_id: uid }))
+          newIds.map((uid) => ({ task_id: id, user_id: uid }))
+        )
+      }
+
+      // Notify newly added assignees
+      if (addedIds.length > 0 && task) {
+        const isSubtask = !!task.parent_task_id
+        await notifyMany(
+          addedIds,
+          isSubtask ? 'subtask_assigned' : 'task_assigned',
+          isSubtask ? 'New subtask assigned to you' : 'New task assigned to you',
+          `You have been assigned to "${task.title}"`,
+          `/tasks/${id}`
         )
       }
     }
@@ -274,40 +275,20 @@ export async function updateTaskStatusAction(
     // Activity log
     await logActivity(admin, id, user.id, 'changed_status', oldStatus, status)
 
-    // Notify creator if it's not the same person who changed the status
-    if (existing && existing.created_by && existing.created_by !== user.id) {
-      await createNotification(
-        admin,
-        existing.created_by,
-        'status_changed',
-        'Task status updated',
-        `"${existing.title}" was moved to ${status.replace(/_/g, ' ')}`,
-        `/tasks/${id}`
-      )
-    }
+    // Notify creator + assignees + watchers (excluding the actor)
+    const recipients = await getTaskRecipients(
+      id,
+      user.id,
+      existing?.created_by ? [existing.created_by] : []
+    )
 
-    // Notify watchers
-    const { data: watchers } = await admin
-      .from('task_watchers')
-      .select('user_id')
-      .eq('task_id', id)
-
-    if (watchers && watchers.length > 0) {
-      await Promise.all(
-        watchers
-          .filter((w) => w.user_id !== user.id)
-          .map((w) =>
-            createNotification(
-              admin,
-              w.user_id,
-              'status_changed',
-              'Task status updated',
-              `"${existing?.title ?? 'A task'}" was moved to ${status.replace(/_/g, ' ')}`,
-              `/tasks/${id}`
-            )
-          )
-      )
-    }
+    await notifyMany(
+      recipients,
+      'status_changed',
+      'Task status updated',
+      `"${existing?.title ?? 'A task'}" was moved to ${status.replace(/_/g, ' ')}`,
+      `/tasks/${id}`
+    )
 
     revalidatePath('/tasks')
     revalidatePath(`/tasks/${id}`)
@@ -365,18 +346,13 @@ export async function deleteTaskAction(
     }
 
     // Send in-app notifications to all assignees
-    if (assigneeIds.length > 0) {
-      const notifications = assigneeIds.map((uid) => ({
-        user_id: uid,
-        type: 'task_deleted',
-        title: 'Task deleted',
-        message: `"${taskTitle}" was deleted by ${deleterName}.`,
-        link: task?.project_id ? `/projects/${task.project_id}` : '/tasks',
-        is_read: false,
-      }))
-
-      await admin.from('notifications').insert(notifications)
-    }
+    await notifyMany(
+      assigneeIds,
+      'task_deleted',
+      'Task deleted',
+      `"${taskTitle}" was deleted by ${deleterName}.`,
+      task?.project_id ? `/projects/${task.project_id}` : '/tasks'
+    )
 
     revalidatePath('/tasks')
     revalidatePath(`/projects/${task?.project_id}`)
@@ -427,10 +403,10 @@ export async function logTimeAction(data: {
       return { success: false, error: error?.message ?? 'Failed to log time' }
     }
 
-    // Fetch task title for activity log
+    // Fetch task for activity log + notifications
     const { data: task } = await supabase
       .from('tasks')
-      .select('title')
+      .select('title, created_by')
       .eq('id', data.task_id)
       .single()
 
@@ -441,6 +417,20 @@ export async function logTimeAction(data: {
       'logged_time',
       null,
       `${data.duration_minutes} minutes${data.description ? ` — ${data.description}` : ''}`
+    )
+
+    // Notify task creator + watchers (excluding the person who logged time)
+    const recipients = await getTaskRecipients(
+      data.task_id,
+      user.id,
+      task?.created_by ? [task.created_by] : []
+    )
+    await notifyMany(
+      recipients,
+      'time_logged',
+      'Time logged on task',
+      `${data.duration_minutes} min logged on "${task?.title ?? 'a task'}"${data.description ? `: ${data.description}` : ''}`,
+      `/tasks/${data.task_id}`
     )
 
     revalidatePath('/tasks')

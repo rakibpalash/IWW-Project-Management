@@ -2,17 +2,19 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { SettingsPage } from '@/components/settings/settings-page'
 import { getUser, getProfile } from '@/lib/data/auth'
-import { Profile, AttendanceSettings, WorkspaceAssignment, Workspace, CustomTaskStatus, CustomTaskPriority, CustomRole } from '@/types'
+import { Profile, AttendanceSettings, WorkspaceAssignment, Workspace, CustomTaskStatus, CustomTaskPriority, CustomRole, StaffSalary } from '@/types'
+import { listPermissionTemplatesAction } from '@/app/actions/permission-templates'
+import { getSalariesAction } from '@/app/actions/salary'
 
 export const metadata = {
   title: 'Settings',
 }
 
 const profileSelect =
-  'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+  'id, full_name, email, avatar_url, role, is_active, is_temp_password, onboarding_completed, created_at, updated_at'
 
 const staffProfileSelect =
-  'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_temp_password, onboarding_completed, created_at, updated_at'
+  'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_active, is_temp_password, onboarding_completed, created_at, updated_at'
 
 export default async function SettingsServerPage({
   searchParams,
@@ -42,6 +44,7 @@ export default async function SettingsServerPage({
   let taskStatuses: CustomTaskStatus[] = []
   let taskPriorities: CustomTaskPriority[] = []
   let customRoles: CustomRole[] = []
+  let salaries: StaffSalary[] = []
 
   if (isAdmin) {
     const staffQ = orgId
@@ -87,6 +90,13 @@ export default async function SettingsServerPage({
     customRoles = (rolesData as CustomRole[]) ?? []
   }
 
+  const permissionTemplates = isAdmin ? await listPermissionTemplatesAction() : []
+
+  if (isAdmin) {
+    const { data: salaryData } = await getSalariesAction()
+    salaries = (salaryData as StaffSalary[] | undefined) ?? []
+  }
+
   return (
     <SettingsPage
       profile={profile as Profile}
@@ -98,6 +108,8 @@ export default async function SettingsServerPage({
       taskStatuses={taskStatuses}
       taskPriorities={taskPriorities}
       customRoles={customRoles}
+      permissionTemplates={permissionTemplates}
+      salaries={salaries}
       defaultTab={tab}
     />
   )

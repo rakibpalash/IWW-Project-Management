@@ -1,7 +1,7 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { createAdminClient, createClient } from '@/lib/supabase/server'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 export async function createUserAction(data: {
   email: string
@@ -36,7 +36,28 @@ export async function createUserAction(data: {
       user_metadata: { full_name: data.full_name },
     })
 
-    if (authError) return { success: false, error: authError.message }
+    if (authError) {
+      // Supabase auth emails are globally unique across all orgs.
+      // Give a clear, org-aware error instead of the raw Supabase message.
+      const msg = authError.message.toLowerCase()
+      if (msg.includes('already been registered') || msg.includes('already registered') || msg.includes('email_exists')) {
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('organization_id, full_name')
+          .eq('email', data.email.toLowerCase().trim())
+          .maybeSingle()
+
+        if (existingProfile?.organization_id === callerProfile.organization_id) {
+          return { success: false, error: 'This person is already a member of your organization.' }
+        }
+        if (existingProfile?.organization_id) {
+          return { success: false, error: 'This email is already registered under a different organization. Each email address can only belong to one organization.' }
+        }
+        // Profile exists but has no org — this user was created outside normal flow
+        return { success: false, error: 'This email is already registered in the system. Contact your system administrator.' }
+      }
+      return { success: false, error: authError.message }
+    }
     if (!authData.user) return { success: false, error: 'Failed to create user' }
 
     // Update the profile with role, temp password, and org_id
@@ -249,6 +270,27 @@ export async function toggleUserActiveAction(
 
     revalidatePath('/settings')
     revalidatePath('/team')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function completeOnboardingAction(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const userClient = await createClient()
+    const { data: { user } } = await userClient.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from('profiles')
+      .update({ onboarding_completed: true })
+      .eq('id', user.id)
+    if (error) return { success: false, error: error.message }
+
+    revalidateTag(`profile-${user.id}`)
+    revalidatePath('/', 'layout')
     return { success: true }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }

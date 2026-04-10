@@ -19,9 +19,12 @@ type WorkspaceWithCounts = Workspace & { member_count: number; project_count: nu
 interface WorkspacesPageProps {
   workspaces: WorkspaceWithCounts[]
   staffProfiles: Profile[]
+  canCreate?: boolean
+  canEdit?: boolean
+  canDelete?: boolean
 }
 
-export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles }: WorkspacesPageProps) {
+export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles, canCreate = false, canEdit = false, canDelete = false }: WorkspacesPageProps) {
   const router = useRouter()
   const { toast } = useToast()
 
@@ -104,10 +107,12 @@ export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles }:
             {workspaces.length} workspace{workspaces.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="gap-2 sm:w-auto w-full">
-          <Plus className="h-4 w-4" />
-          New Workspace
-        </Button>
+        {canCreate && (
+          <Button onClick={() => setShowCreate(true)} className="gap-2 sm:w-auto w-full">
+            <Plus className="h-4 w-4" />
+            New Workspace
+          </Button>
+        )}
       </div>
 
       {/* Search */}
@@ -128,7 +133,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles }:
           <p className="mt-3 text-sm font-medium text-muted-foreground">
             {search ? 'No workspaces match your search' : 'No workspaces yet'}
           </p>
-          {!search && (
+          {!search && canCreate && (
             <Button variant="outline" size="sm" className="mt-4 gap-2" onClick={() => setShowCreate(true)}>
               <Plus className="h-4 w-4" />
               Create your first workspace
@@ -153,6 +158,8 @@ export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles }:
                 onRename={(ws) => setRenameTarget(ws)}
                 onClone={(ws) => handleClone(ws)}
                 onDelete={(ws) => setDeleteTarget(ws)}
+                canEdit={canEdit}
+                canDelete={canDelete}
               />
             </div>
           ))}

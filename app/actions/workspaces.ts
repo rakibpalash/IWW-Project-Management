@@ -3,6 +3,8 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { requireAuthWithOrg } from '@/lib/data/auth'
 import { revalidatePath } from 'next/cache'
+import { getMyPermissionsAction } from './permissions'
+import { can } from '@/lib/permissions'
 
 // ── Auth + admin guard ────────────────────────────────────────────────────────
 
@@ -220,6 +222,123 @@ export async function cloneWorkspaceAction(
 
     revalidatePath('/workspaces')
     return { success: true, newWorkspaceId: newWsId }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// ── Update Members ────────────────────────────────────────────────────────────
+
+export async function updateWorkspaceMembersAction(
+  workspaceId: string,
+  toAdd: string[],
+  toRemove: string[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const userClient = await createClient()
+    const { data: { user } } = await userClient.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    // Check the caller has workspace edit permission
+    const perms = await getMyPermissionsAction()
+    if (!can(perms, 'workspaces', 'edit')) return { success: false, error: 'Insufficient permissions' }
+
+    const admin = createAdminClient()
+
+    // Verify the workspace belongs to the caller's org
+    const { data: profile } = await admin.from('profiles').select('organization_id').eq('id', user.id).single()
+    const { data: workspace } = await admin.from('workspaces').select('organization_id').eq('id', workspaceId).single()
+    if (!workspace || workspace.organization_id !== profile?.organization_id) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    if (toRemove.length > 0) {
+      const { error } = await admin
+        .from('workspace_assignments')
+        .delete()
+        .eq('workspace_id', workspaceId)
+        .in('user_id', toRemove)
+      if (error) return { success: false, error: error.message }
+    }
+
+    if (toAdd.length > 0) {
+      const { error } = await admin
+        .from('workspace_assignments')
+        .upsert(
+          toAdd.map((user_id) => ({ workspace_id: workspaceId, user_id })),
+          { onConflict: 'workspace_id,user_id' }
+        )
+      if (error) return { success: false, error: error.message }
+    }
+
+    revalidatePath(`/workspaces/${workspaceId}`)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// ── List all org members for workspace assignment ─────────────────────────────
+
+export async function listOrgMembersForAssignmentAction(): Promise<{
+  success: boolean
+  members?: { id: string; full_name: string; email: string; avatar_url: string | null; role: string }[]
+  error?: string
+}> {
+  try {
+    const userClient = await createClient()
+    const { data: { user } } = await userClient.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const perms = await getMyPermissionsAction()
+    if (!can(perms, 'workspaces', 'view')) return { success: false, error: 'Insufficient permissions' }
+
+    const admin = createAdminClient()
+    const { data: profile } = await admin.from('profiles').select('organization_id').eq('id', user.id).single()
+
+    const { data, error } = await admin
+      .from('profiles')
+      .select('id, full_name, email, avatar_url, role')
+      .eq('organization_id', profile?.organization_id)
+      .in('role', ['staff', 'client', 'partner', 'project_manager'])
+      .order('full_name')
+
+    if (error) return { success: false, error: error.message }
+    return { success: true, members: data ?? [] }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// ── Get current members of a workspace (for realtime state sync) ──────────────
+
+export async function getWorkspaceMembersAction(workspaceId: string): Promise<{
+  success: boolean
+  members?: { id: string; full_name: string; email: string; avatar_url: string | null; role: string }[]
+  error?: string
+}> {
+  try {
+    const userClient = await createClient()
+    const { data: { user } } = await userClient.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const admin = createAdminClient()
+    const { data: assignments } = await admin
+      .from('workspace_assignments')
+      .select('user_id')
+      .eq('workspace_id', workspaceId)
+
+    const memberIds = (assignments ?? []).map((a: { user_id: string }) => a.user_id)
+    if (memberIds.length === 0) return { success: true, members: [] }
+
+    const { data, error } = await admin
+      .from('profiles')
+      .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at')
+      .in('id', memberIds)
+      .order('full_name')
+
+    if (error) return { success: false, error: error.message }
+    return { success: true, members: data ?? [] }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }

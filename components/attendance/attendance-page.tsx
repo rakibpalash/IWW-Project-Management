@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Profile, AttendanceRecord, FootballRule, AttendanceSettings } from '@/types'
 import { AdminAttendanceTable } from './admin-attendance-table'
 import { AttendanceSummaryPage } from './attendance-summary-page'
+import { FinesSummaryCard } from './fines-summary-card'
 
 // ── Staff props ──────────────────────────────────────────────────────────────
 interface StaffProps {
@@ -57,16 +58,23 @@ export function AttendancePage(props: Props) {
           </p>
         </div>
 
-        <AdminAttendanceTable
-          staffProfiles={adminProps.staffProfiles}
-          records={records}
-          footballRule={footballRule}
-          selectedDate={selectedDate}
-          settings={settings}
-          onDateChange={setSelectedDate}
-          onRecordsChange={setRecords}
-          onFootballRuleChange={setFootballRule}
-        />
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2">
+            <AdminAttendanceTable
+              staffProfiles={adminProps.staffProfiles}
+              records={records}
+              footballRule={footballRule}
+              selectedDate={selectedDate}
+              settings={settings}
+              onDateChange={setSelectedDate}
+              onRecordsChange={setRecords}
+              onFootballRuleChange={setFootballRule}
+            />
+          </div>
+          <div>
+            <FinesSummaryCard />
+          </div>
+        </div>
       </div>
     )
   }

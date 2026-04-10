@@ -89,6 +89,46 @@ export function computeStatusForRule(
   return 'absent'
 }
 
+// ── Salary-based fine calculation ────────────────────────────────────────────
+
+/**
+ * Returns the on_time_end threshold for a given rule.
+ * Minutes late are measured from this point.
+ */
+export function getOnTimeEnd(rule: AppliedRule, settings: AttendanceSettings): string {
+  if (rule === 'football') return settings.football_on_time_end ?? '09:45'
+  if (rule === 'friday')   return settings.friday_on_time_end   ?? '08:30'
+  return settings.on_time_end
+}
+
+/**
+ * Calculates the salary-proportional fine for a late check-in.
+ *
+ * Formula: round( minutes_late × salary / monthly_work_minutes × multiplier )
+ *   monthly_work_minutes = work_hours_per_week × 4 × 60
+ *   late_150 multiplier  = 1.5  (150% penalty)
+ *   late_250 multiplier  = 2.5  (250% penalty)
+ *
+ * Returns 0 if the person checked in on time or no salary/invalid input.
+ */
+export function computeSalaryFine(
+  checkInTime: string,         // 'HH:MM'
+  onTimeEnd: string,           // 'HH:MM'
+  monthlySalary: number,
+  workHoursPerWeek: number,    // e.g. 30
+  multiplier: 1.5 | 2.5
+): number {
+  const minutesLate = Math.max(0, toMinutes(checkInTime) - toMinutes(onTimeEnd))
+  if (minutesLate <= 0 || monthlySalary <= 0 || workHoursPerWeek <= 0) return 0
+  const monthlyWorkMinutes = workHoursPerWeek * 4 * 60  // e.g. 30 × 4 × 60 = 7200
+  return Math.round((minutesLate * monthlySalary * multiplier) / monthlyWorkMinutes)
+}
+
+/** Returns fine multiplier for a late status. */
+export function getFineMultiplier(status: 'late_150' | 'late_250'): 1.5 | 2.5 {
+  return status === 'late_150' ? 1.5 : 2.5
+}
+
 // ── Exit time ─────────────────────────────────────────────────────────────────
 
 /** Returns the expected exit time ('HH:MM') for the resolved rule. */

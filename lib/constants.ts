@@ -69,8 +69,20 @@ export const DEFAULT_ATTENDANCE_SETTINGS = {
   wfh_days: 10,
 }
 
+// Staff, Team Lead — no workspace visibility, task-focused
 const STAFF_NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
+  { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
+  { href: '/tasks', label: 'My Tasks', icon: 'CheckSquare' },
+  { href: '/timesheet', label: 'Timesheet', icon: 'Timer' },
+  { href: '/attendance', label: 'Attendance', icon: 'Clock' },
+  { href: '/leave', label: 'Leave', icon: 'CalendarDays' },
+]
+
+// Org Admin — sees workspaces for org oversight, but no Team/Settings management
+const ORG_ADMIN_NAV = [
+  { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
+  { href: '/workspaces', label: 'Workspaces', icon: 'Building2' },
   { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
   { href: '/tasks', label: 'My Tasks', icon: 'CheckSquare' },
   { href: '/timesheet', label: 'Timesheet', icon: 'Timer' },
@@ -88,11 +100,12 @@ export const NAV_ITEMS: Record<string, { href: string; label: string; icon: stri
     { href: '/attendance', label: 'Attendance', icon: 'Clock' },
     { href: '/leave', label: 'Leave', icon: 'CalendarDays' },
     { href: '/team', label: 'Team', icon: 'Users' },
+    { href: '/reports', label: 'Reports', icon: 'BarChart2' },
     { href: '/settings', label: 'Settings', icon: 'Settings' },
   ],
-  account_manager: STAFF_NAV,
-  project_manager: STAFF_NAV,
-  staff: STAFF_NAV,
+  account_manager: ORG_ADMIN_NAV,  // Org Admin sees workspaces
+  project_manager: STAFF_NAV,       // Team Lead: task-focused, no workspaces
+  staff: STAFF_NAV,                 // Staff: task-focused, no workspaces
   client: [
     { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
     { href: '/projects', label: 'Projects', icon: 'FolderKanban' },

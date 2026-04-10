@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CustomTaskStatus, CustomTaskPriority } from '@/types'
 
-// Hardcoded fallbacks — used instantly (no loading flash) and as safety net
-// if the DB tables don't exist yet.
+// Hardcoded fallbacks — rendered immediately (no loading flash).
+// Replaced by real org data as soon as the fetch resolves.
 const FALLBACK_STATUSES: CustomTaskStatus[] = [
   { id: 'todo',        name: 'To Do',       slug: 'todo',        color: '#94a3b8', sort_order: 1, is_active: true, is_default: true,  is_completed_status: false, counts_toward_progress: true,  created_by: null, created_at: '' },
   { id: 'in_progress', name: 'In Progress', slug: 'in_progress', color: '#f59e0b', sort_order: 2, is_active: true, is_default: false, is_completed_status: false, counts_toward_progress: true,  created_by: null, created_at: '' },
@@ -25,13 +25,9 @@ interface UseTaskConfigReturn {
   statuses: CustomTaskStatus[]
   priorities: CustomTaskPriority[]
   loading: boolean
-  /** Find status config for a given slug */
   getStatus: (slug: string) => CustomTaskStatus | undefined
-  /** Find priority config for a given slug */
   getPriority: (slug: string) => CustomTaskPriority | undefined
-  /** Slug of the default status */
   defaultStatus: string
-  /** Slug of the default priority */
   defaultPriority: string
 }
 
@@ -42,32 +38,58 @@ export function useTaskConfig(): UseTaskConfigReturn {
 
   useEffect(() => {
     const supabase = createClient()
-    Promise.all([
-      supabase.from('task_statuses').select('*').eq('is_active', true).order('sort_order'),
-      supabase.from('task_priorities').select('*').eq('is_active', true).order('sort_order'),
-    ])
-      .then(([{ data: s, error: se }, { data: p, error: pe }]) => {
-        if (!se && s && s.length > 0) setStatuses(s as CustomTaskStatus[])
-        if (!pe && p && p.length > 0) setPriorities(p as CustomTaskPriority[])
-      })
-      .catch(() => {
-        // Keep fallbacks on error
-      })
-      .finally(() => setLoading(false))
+
+    async function load() {
+      // Step 1: get the current user's organization_id
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', user.id)
+        .single()
+
+      const orgId: string | null = profile?.organization_id ?? null
+
+      // Step 2: fetch this org's active statuses and priorities
+      const statusQ = supabase
+        .from('task_statuses')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order')
+
+      const priorityQ = supabase
+        .from('task_priorities')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order')
+
+      // Always scope by org when available — never mix orgs
+      if (orgId) {
+        statusQ.eq('organization_id', orgId)
+        priorityQ.eq('organization_id', orgId)
+      }
+
+      const [{ data: s }, { data: p }] = await Promise.all([statusQ, priorityQ])
+
+      if (s && s.length > 0) setStatuses(s as CustomTaskStatus[])
+      if (p && p.length > 0) setPriorities(p as CustomTaskPriority[])
+
+      setLoading(false)
+    }
+
+    load().catch(() => setLoading(false))
   }, [])
 
-  const getStatus = (slug: string) => statuses.find((s) => s.slug === slug)
+  const getStatus   = (slug: string) => statuses.find((s) => s.slug === slug)
   const getPriority = (slug: string) => priorities.find((p) => p.slug === slug)
 
   const defaultStatus =
-    statuses.find((s) => s.is_default)?.slug ??
-    statuses[0]?.slug ??
-    'todo'
+    statuses.find((s) => s.is_default)?.slug ?? statuses[0]?.slug ?? 'todo'
 
   const defaultPriority =
-    priorities.find((p) => p.is_default)?.slug ??
-    priorities[0]?.slug ??
-    'medium'
+    priorities.find((p) => p.is_default)?.slug ?? priorities[0]?.slug ?? 'medium'
 
   return { statuses, priorities, loading, getStatus, getPriority, defaultStatus, defaultPriority }
 }

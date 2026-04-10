@@ -90,12 +90,12 @@ export default async function TasksServerPage() {
   const orgId = (profile as Profile).organization_id
   const { data: orgWorkspaces } = orgId
     ? await admin.from('workspaces').select('id').eq('organization_id', orgId)
-    : await admin.from('workspaces').select('id')
+    : { data: [] }
   const orgWsIds = (orgWorkspaces ?? []).map((w: { id: string }) => w.id)
 
   const { data: projectsData } = orgWsIds.length > 0
     ? await supabase.from('projects').select('id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at').in('workspace_id', orgWsIds).order('name')
-    : await supabase.from('projects').select('id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at').order('name')
+    : { data: [] }
   const allProjects: Project[] = (projectsData ?? []) as Project[]
 
   return (

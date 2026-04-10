@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { Profile, AttendanceSettings, Workspace, WorkspaceAssignment, CustomTaskStatus, CustomTaskPriority, CustomRole } from '@/types'
+import { useState } from 'react'
+import { Profile, AttendanceSettings, Workspace, WorkspaceAssignment, CustomTaskStatus, CustomTaskPriority, CustomRole, StaffSalary } from '@/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { AttendanceRulesForm } from './attendance-rules-form'
@@ -9,8 +10,11 @@ import { TeamManagement } from './team-management'
 import { TaskStatusesForm } from './task-statuses-form'
 import { TaskPrioritiesForm } from './task-priorities-form'
 import { CustomRolesTab } from './custom-roles-tab'
+import { PermissionTemplatesTab } from './permission-templates-tab'
+import { SalaryManagement } from './salary-management'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Clock, Users, User, Shield, ExternalLink, ListTodo, Flag, Tag } from 'lucide-react'
+import { Clock, Users, User, Shield, ExternalLink, ListTodo, Flag, Tag, ShieldCheck, Banknote } from 'lucide-react'
+import { PermissionTemplate } from '@/app/actions/permission-templates'
 
 interface SettingsPageProps {
   profile: Profile
@@ -22,6 +26,8 @@ interface SettingsPageProps {
   taskStatuses: CustomTaskStatus[]
   taskPriorities: CustomTaskPriority[]
   customRoles: CustomRole[]
+  permissionTemplates: PermissionTemplate[]
+  salaries: StaffSalary[]
   defaultTab?: string
 }
 
@@ -35,9 +41,18 @@ export function SettingsPage({
   taskStatuses,
   taskPriorities,
   customRoles,
+  permissionTemplates,
+  salaries,
   defaultTab,
 }: SettingsPageProps) {
   const resolvedDefault = defaultTab ?? (isAdmin ? 'attendance' : 'profile')
+  const [activeTab, setActiveTab] = useState(resolvedDefault)
+
+  function handleTabChange(tab: string) {
+    setActiveTab(tab)
+    window.history.replaceState(null, '', `/settings?tab=${tab}`)
+  }
+
   return (
     <div className="page-inner">
       <div>
@@ -47,7 +62,7 @@ export function SettingsPage({
         </p>
       </div>
 
-      <Tabs defaultValue={resolvedDefault} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="flex-wrap h-auto gap-1">
           {isAdmin && (
             <>
@@ -70,6 +85,14 @@ export function SettingsPage({
               <TabsTrigger value="roles" className="gap-2">
                 <Tag className="h-4 w-4" />
                 Job Roles
+              </TabsTrigger>
+              <TabsTrigger value="permissions" className="gap-2">
+                <ShieldCheck className="h-4 w-4" />
+                Permission Templates
+              </TabsTrigger>
+              <TabsTrigger value="salary" className="gap-2">
+                <Banknote className="h-4 w-4" />
+                Salary
               </TabsTrigger>
             </>
           )}
@@ -108,6 +131,26 @@ export function SettingsPage({
 
             <TabsContent value="roles">
               <CustomRolesTab initialRoles={customRoles} />
+            </TabsContent>
+
+            <TabsContent value="permissions">
+              <PermissionTemplatesTab initialTemplates={permissionTemplates} />
+            </TabsContent>
+
+            <TabsContent value="salary">
+              <div className="space-y-2">
+                <div>
+                  <h2 className="text-base font-semibold">Staff Salaries</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Set monthly salaries for salary-based fine calculation. This data is only visible to Super Admin.
+                  </p>
+                </div>
+                <SalaryManagement
+                  allStaff={allStaff}
+                  initialSalaries={salaries}
+                  settings={attendanceSettings}
+                />
+              </div>
             </TabsContent>
           </>
         )}

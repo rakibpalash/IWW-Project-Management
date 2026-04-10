@@ -55,7 +55,8 @@ import {
   createUserAction,
   updatePersonAction,
 } from '@/app/actions/user'
-import { addTeamMembersAction, createTeamAction, updateTeamAction, deleteTeamAction } from '@/app/actions/teams'
+import { addTeamMembersAction, removeTeamMemberAction, createTeamAction, updateTeamAction, deleteTeamAction } from '@/app/actions/teams'
+import { assignCustomRoleToUserAction, createCustomRoleAction } from '@/app/actions/custom-roles'
 import {
   Users,
   Plus,
@@ -87,6 +88,7 @@ interface TeamsHubProps {
   profile: Profile
   allProfiles: Profile[]
   teams: any[]
+  customRoles: { id: string; name: string; color: string }[]
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -413,33 +415,315 @@ function OrgChartView({ profiles, allProfiles, isAdmin }: { profiles: Profile[];
   )
 }
 
+// ── Assign Group Dialog ────────────────────────────────────────────────────────
+
+const GROUP_COLORS = ['#6366f1','#a855f7','#ec4899','#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6']
+
+function AssignGroupDialog({
+  open, person, teams, onClose, onAssigned,
+}: {
+  open: boolean
+  person: Profile | null
+  teams: any[]
+  onClose: () => void
+  onAssigned: (personId: string, team: any) => void
+}) {
+  const { toast } = useToast()
+  const [isPending, startTransition] = useTransition()
+  const [mode, setMode] = useState<'select' | 'create'>(teams.length === 0 ? 'create' : 'select')
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('')
+  const [newName, setNewName] = useState('')
+  const [newColor, setNewColor] = useState(GROUP_COLORS[0])
+
+  useEffect(() => {
+    if (open) {
+      setMode(teams.length === 0 ? 'create' : 'select')
+      setSelectedTeamId('')
+      setNewName('')
+      setNewColor(GROUP_COLORS[0])
+    }
+  }, [open, teams.length])
+
+  function handleSave() {
+    if (!person) return
+    startTransition(async () => {
+      if (mode === 'select') {
+        if (!selectedTeamId) return
+        const result = await addTeamMembersAction(selectedTeamId, [person.id])
+        if (!result.success) { toast({ title: 'Failed', description: result.error, variant: 'destructive' }); return }
+        const team = teams.find((t) => t.id === selectedTeamId)
+        onAssigned(person.id, team)
+        toast({ title: 'Group assigned', description: `${person.full_name} added to ${team?.name}` })
+      } else {
+        if (!newName.trim()) return
+        const result = await createTeamAction({ name: newName.trim(), color: newColor, team_type: 'official', memberIds: [person.id], addCreatorAsMember: false })
+        if (!result.success) { toast({ title: 'Failed', description: result.error, variant: 'destructive' }); return }
+        onAssigned(person.id, result.team)
+        toast({ title: 'Group created & assigned', description: `${person.full_name} added to ${newName}` })
+      }
+      onClose()
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-pink-50 flex items-center justify-center">
+              <Users className="h-4 w-4 text-pink-600" />
+            </div>
+            Assign Group
+          </DialogTitle>
+          {person && (
+            <p className="text-sm text-muted-foreground">For <span className="font-medium text-foreground">{person.full_name}</span></p>
+          )}
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          {teams.length > 0 && (
+            <div className="flex rounded-lg border border-border overflow-hidden text-sm">
+              <button
+                className={cn('flex-1 py-1.5 transition-colors', mode === 'select' ? 'bg-primary text-primary-foreground font-medium' : 'hover:bg-muted')}
+                onClick={() => setMode('select')}
+              >Select existing</button>
+              <button
+                className={cn('flex-1 py-1.5 transition-colors', mode === 'create' ? 'bg-primary text-primary-foreground font-medium' : 'hover:bg-muted')}
+                onClick={() => setMode('create')}
+              >Create new</button>
+            </div>
+          )}
+
+          {mode === 'select' ? (
+            <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+              {teams.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setSelectedTeamId(t.id)}
+                  className={cn(
+                    'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-sm transition-colors text-left',
+                    selectedTeamId === t.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
+                  )}
+                >
+                  <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: t.color || '#6366f1' }} />
+                  <span className="font-medium">{t.name}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{t.members?.length ?? 0} members</span>
+                  {selectedTeamId === t.id && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Group Name *</Label>
+                <Input placeholder="e.g. Design Team" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Color</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {GROUP_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setNewColor(c)}
+                      className={cn('h-7 w-7 rounded-full transition-transform', newColor === c && 'ring-2 ring-offset-2 ring-foreground scale-110')}
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
+          <Button
+            onClick={handleSave}
+            disabled={isPending || (mode === 'select' ? !selectedTeamId : !newName.trim())}
+          >
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            {mode === 'create' ? 'Create & Assign' : 'Assign'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Assign Job Title Dialog ────────────────────────────────────────────────────
+
+const JOB_TITLE_COLORS = GROUP_COLORS
+
+function AssignJobTitleDialog({
+  open, person, customRoles, onClose, onAssigned,
+}: {
+  open: boolean
+  person: Profile | null
+  customRoles: { id: string; name: string; color: string }[]
+  onClose: () => void
+  onAssigned: (personId: string, role: { id: string; name: string; color: string }) => void
+}) {
+  const { toast } = useToast()
+  const [isPending, startTransition] = useTransition()
+  const [mode, setMode] = useState<'select' | 'create'>(customRoles.length === 0 ? 'create' : 'select')
+  const [selectedRoleId, setSelectedRoleId] = useState<string>('')
+  const [newName, setNewName] = useState('')
+  const [newColor, setNewColor] = useState(JOB_TITLE_COLORS[0])
+
+  useEffect(() => {
+    if (open) {
+      setMode(customRoles.length === 0 ? 'create' : 'select')
+      setSelectedRoleId('')
+      setNewName('')
+      setNewColor(JOB_TITLE_COLORS[0])
+    }
+  }, [open, customRoles.length])
+
+  function handleSave() {
+    if (!person) return
+    startTransition(async () => {
+      if (mode === 'select') {
+        if (!selectedRoleId) return
+        const result = await assignCustomRoleToUserAction(person.id, selectedRoleId)
+        if (result.error) { toast({ title: 'Failed', description: result.error, variant: 'destructive' }); return }
+        const role = customRoles.find((r) => r.id === selectedRoleId)!
+        onAssigned(person.id, role)
+        toast({ title: 'Job title assigned', description: `${person.full_name} is now "${role.name}"` })
+      } else {
+        if (!newName.trim()) return
+        const result = await createCustomRoleAction({ name: newName.trim(), color: newColor })
+        if (result.error || !result.role) { toast({ title: 'Failed', description: result.error, variant: 'destructive' }); return }
+        await assignCustomRoleToUserAction(person.id, result.role.id)
+        onAssigned(person.id, result.role)
+        toast({ title: 'Job title created & assigned', description: `${person.full_name} is now "${newName}"` })
+      }
+      onClose()
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+              <Briefcase className="h-4 w-4 text-indigo-600" />
+            </div>
+            Assign Job Title
+          </DialogTitle>
+          {person && (
+            <p className="text-sm text-muted-foreground">For <span className="font-medium text-foreground">{person.full_name}</span></p>
+          )}
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          {customRoles.length > 0 && (
+            <div className="flex rounded-lg border border-border overflow-hidden text-sm">
+              <button
+                className={cn('flex-1 py-1.5 transition-colors', mode === 'select' ? 'bg-primary text-primary-foreground font-medium' : 'hover:bg-muted')}
+                onClick={() => setMode('select')}
+              >Select existing</button>
+              <button
+                className={cn('flex-1 py-1.5 transition-colors', mode === 'create' ? 'bg-primary text-primary-foreground font-medium' : 'hover:bg-muted')}
+                onClick={() => setMode('create')}
+              >Create new</button>
+            </div>
+          )}
+
+          {mode === 'select' ? (
+            <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+              {customRoles.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedRoleId(r.id)}
+                  className={cn(
+                    'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-sm transition-colors text-left',
+                    selectedRoleId === r.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
+                  )}
+                >
+                  <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+                  <span className="font-medium">{r.name}</span>
+                  {selectedRoleId === r.id && <Check className="h-3.5 w-3.5 text-primary ml-auto shrink-0" />}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Job Title *</Label>
+                <Input placeholder="e.g. Frontend Developer" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Color</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {JOB_TITLE_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setNewColor(c)}
+                      className={cn('h-7 w-7 rounded-full transition-transform', newColor === c && 'ring-2 ring-offset-2 ring-foreground scale-110')}
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
+          <Button
+            onClick={handleSave}
+            disabled={isPending || (mode === 'select' ? !selectedRoleId : !newName.trim())}
+          >
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            {mode === 'create' ? 'Create & Assign' : 'Assign'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── People Table ───────────────────────────────────────────────────────────────
 
 function PeopleTable({
   profiles,
   allProfiles,
   teams,
+  customRoles,
   isAdmin,
   onEdit,
   onDelete,
+  onProfileUpdate,
+  onTeamMemberRemoved,
+  onTeamMemberAdded,
 }: {
   profiles: Profile[]
   allProfiles: Profile[]
   teams: any[]
+  customRoles: { id: string; name: string; color: string }[]
   isAdmin: boolean
   onEdit: (p: Profile) => void
   onDelete: (p: Profile) => void
+  onProfileUpdate: (personId: string, patch: Partial<Profile>) => void
+  onTeamMemberRemoved: (teamId: string, personId: string) => void
+  onTeamMemberAdded: (personId: string, team: any) => void
 }) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const { toast } = useToast()
+  const [assignGroupTarget, setAssignGroupTarget] = useState<Profile | null>(null)
+  const [assignJobTitleTarget, setAssignJobTitleTarget] = useState<Profile | null>(null)
   const profileMap = Object.fromEntries(allProfiles.map((p) => [p.id, p]))
 
-  // Get team for a profile
-  function getTeamForProfile(profileId: string) {
-    for (const team of teams) {
-      if ((team.members ?? []).some((m: any) => m.user_id === profileId)) return team
-    }
-    return null
+  // Get all teams a profile belongs to
+  function getTeamsForProfile(profileId: string) {
+    return teams.filter((team) =>
+      (team.members ?? []).some((m: any) => m.user_id === profileId)
+    )
   }
 
   function handleInlineRoleChange(person: Profile, newRole: string) {
@@ -457,6 +741,7 @@ function PeopleTable({
   }
 
   return (
+    <>
     <div className="rounded-xl border border-border overflow-hidden">
       <Table>
         <TableHeader>
@@ -464,7 +749,7 @@ function PeopleTable({
             <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Person</TableHead>
             <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Role</TableHead>
             <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Reports To</TableHead>
-            <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Team</TableHead>
+            <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Group</TableHead>
             <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Job Title</TableHead>
             <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">Joined</TableHead>
             {isAdmin && <TableHead className="w-10" />}
@@ -480,7 +765,8 @@ function PeopleTable({
               const badgeClass = ROLE_BADGE[person.role] ?? ROLE_BADGE.staff
               const roleLabel = ROLE_LABELS[person.role] ?? person.role
               const manager = person.manager_id ? profileMap[person.manager_id] : null
-              const team = getTeamForProfile(person.id)
+              const personTeams = getTeamsForProfile(person.id)
+              const team = personTeams[0] ?? null  // kept for dropdown logic (remove/add)
               return (
                 <TableRow key={person.id} className="hover:bg-muted/30/60">
                   {/* Person */}
@@ -582,16 +868,45 @@ function PeopleTable({
                     )}
                   </TableCell>
 
-                  {/* Team */}
+                  {/* Group */}
                   <TableCell>
-                    {team ? (
-                      <div className="flex items-center gap-1.5">
-                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: team.color || '#ec4899' }} />
-                        <span className="text-xs text-foreground/80">{team.name}</span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground/70">—</span>
-                    )}
+                    <div className="flex flex-wrap gap-1">
+                      {personTeams.map((t) => (
+                        <span
+                          key={t.id}
+                          className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border"
+                          style={{
+                            backgroundColor: (t.color || '#6366f1') + '18',
+                            borderColor: (t.color || '#6366f1') + '40',
+                            color: t.color || '#6366f1',
+                          }}
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: t.color || '#6366f1' }} />
+                          {t.name}
+                        </span>
+                      ))}
+                      {personTeams.length === 0 && isAdmin && (
+                        <button
+                          onClick={() => setAssignGroupTarget(person)}
+                          className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 hover:underline transition-colors"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Assign group
+                        </button>
+                      )}
+                      {personTeams.length === 0 && !isAdmin && (
+                        <span className="text-xs text-muted-foreground/70">—</span>
+                      )}
+                      {personTeams.length > 0 && isAdmin && (
+                        <button
+                          onClick={() => setAssignGroupTarget(person)}
+                          className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-600 transition-colors"
+                          title="Add to another group"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
                   </TableCell>
 
                   {/* Job Title */}
@@ -608,6 +923,14 @@ function PeopleTable({
                       >
                         {person.custom_role.name}
                       </Badge>
+                    ) : isAdmin ? (
+                      <button
+                        onClick={() => setAssignJobTitleTarget(person)}
+                        className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 hover:underline transition-colors"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Assign job title
+                      </button>
                     ) : (
                       <span className="text-xs text-muted-foreground/70">—</span>
                     )}
@@ -634,12 +957,54 @@ function PeopleTable({
                             <Pencil className="h-3.5 w-3.5" />Edit
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => onDelete(person)}
-                            className="gap-2 text-red-600 focus:text-red-600"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />Delete
-                          </DropdownMenuItem>
+                          {personTeams.length > 0 ? (
+                            <>
+                              {personTeams.map((t) => (
+                                <DropdownMenuItem
+                                  key={t.id}
+                                  className="gap-2 text-orange-600 focus:text-orange-600"
+                                  onClick={() => {
+                                    startTransition(async () => {
+                                      const result = await removeTeamMemberAction(t.id, person.id)
+                                      if (!result.success) {
+                                        toast({ title: 'Failed to remove from group', description: result.error, variant: 'destructive' })
+                                        return
+                                      }
+                                      onTeamMemberRemoved(t.id, person.id)
+                                      toast({ title: 'Removed from group', description: `${person.full_name} removed from ${t.name}` })
+                                    })
+                                  }}
+                                >
+                                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: t.color || '#6366f1' }} />
+                                  Remove from {t.name}
+                                </DropdownMenuItem>
+                              ))}
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => setAssignGroupTarget(person)}
+                              >
+                                <Users className="h-3.5 w-3.5" />Add to another group
+                              </DropdownMenuItem>
+                            </>
+                          ) : (
+                            <DropdownMenuItem
+                              className="gap-2"
+                              onClick={() => setAssignGroupTarget(person)}
+                            >
+                              <Users className="h-3.5 w-3.5" />Add to group
+                            </DropdownMenuItem>
+                          )}
+                          {person.role !== 'super_admin' && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => onDelete(person)}
+                                className="gap-2 text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -651,6 +1016,29 @@ function PeopleTable({
         </TableBody>
       </Table>
     </div>
+
+      <AssignGroupDialog
+        open={!!assignGroupTarget}
+        person={assignGroupTarget}
+        teams={teams}
+        onClose={() => setAssignGroupTarget(null)}
+        onAssigned={(personId, team) => {
+          onTeamMemberAdded(personId, team)
+          setAssignGroupTarget(null)
+        }}
+      />
+
+      <AssignJobTitleDialog
+        open={!!assignJobTitleTarget}
+        person={assignJobTitleTarget}
+        customRoles={customRoles}
+        onClose={() => setAssignJobTitleTarget(null)}
+        onAssigned={(personId, role) => {
+          onProfileUpdate(personId, { custom_role: role } as any)
+          setAssignJobTitleTarget(null)
+        }}
+      />
+    </>
   )
 }
 
@@ -746,9 +1134,9 @@ const MANAGER_ROLE_FOR: Record<string, string[]> = {
 }
 
 function AddPersonDialog({
-  open, onClose, allProfiles, teams,
+  open, onClose, onPersonAdded, allProfiles, teams,
 }: {
-  open: boolean; onClose: () => void; allProfiles: Profile[]; teams: any[]
+  open: boolean; onClose: () => void; onPersonAdded: (p: Profile) => void; allProfiles: Profile[]; teams: any[]
 }) {
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
@@ -801,6 +1189,19 @@ function AddPersonDialog({
       if (teamId !== '__none') {
         await addTeamMembersAction(teamId, [userId])
       }
+      // Optimistically add new person to local state immediately
+      onPersonAdded({
+        id: userId,
+        email: email.trim(),
+        full_name: fullName.trim(),
+        role: role as Profile['role'],
+        avatar_url: null,
+        manager_id: managerId !== '__none' ? managerId : null,
+        is_temp_password: true,
+        onboarding_completed: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as Profile)
       toast({
         title: 'Person added',
         description: `${fullName} was created. Temp password: ${password}`,
@@ -920,13 +1321,14 @@ function AddPersonDialog({
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
+export function TeamsHub({ profile, allProfiles, teams, customRoles: initialCustomRoles }: TeamsHubProps) {
   const router = useRouter()
   const { toast } = useToast()
   const isAdmin = profile.role === 'super_admin'
 
   const [profiles, setProfiles] = useState<Profile[]>(allProfiles)
   const [localTeams, setLocalTeams] = useState<any[]>(teams)
+  const [localCustomRoles, setLocalCustomRoles] = useState<{ id: string; name: string; color: string }[]>(initialCustomRoles)
   const [viewMode, setViewMode] = useState<'table' | 'orgchart'>('table')
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'role' | 'team'>('all')
@@ -938,6 +1340,7 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [editGroup, setEditGroup] = useState<any | null>(null)
   const [deleteGroupId, setDeleteGroupId] = useState<string | null>(null)
+  const [showAddToGroup, setShowAddToGroup] = useState(false)
 
   // Role counts
   const roleCounts = useMemo(() => {
@@ -1185,6 +1588,15 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
               >
                 Clear
               </button>
+              {isAdmin && filterType === 'team' && filterValue && (
+                <button
+                  onClick={() => setShowAddToGroup(true)}
+                  className="ml-2 flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1 rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add member
+                </button>
+              )}
             </div>
           )}
 
@@ -1193,9 +1605,36 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
               profiles={filteredProfiles}
               allProfiles={profiles}
               teams={localTeams}
+              customRoles={localCustomRoles}
               isAdmin={isAdmin}
               onEdit={setEditTarget}
               onDelete={setDeleteTarget}
+              onProfileUpdate={(personId, patch) => {
+                setProfiles((prev) => prev.map((p) => p.id === personId ? { ...p, ...patch } : p))
+                router.refresh()
+              }}
+              onTeamMemberRemoved={(teamId, personId) => {
+                setLocalTeams((prev) => prev.map((t) =>
+                  t.id === teamId
+                    ? { ...t, members: (t.members ?? []).filter((m: any) => m.user_id !== personId) }
+                    : t
+                ))
+                router.refresh()
+              }}
+              onTeamMemberAdded={(personId, team) => {
+                setLocalTeams((prev) => {
+                  const exists = prev.find((t) => t.id === team.id)
+                  if (exists) {
+                    return prev.map((t) =>
+                      t.id === team.id
+                        ? { ...t, members: [...(t.members ?? []), { user_id: personId }] }
+                        : t
+                    )
+                  }
+                  return [...prev, { ...team, members: [{ user_id: personId }] }]
+                })
+                router.refresh()
+              }}
             />
           ) : (
             <OrgChartView profiles={filteredProfiles} allProfiles={profiles} isAdmin={isAdmin} />
@@ -1216,6 +1655,11 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
       <AddPersonDialog
         open={showAddPerson}
         onClose={() => { setShowAddPerson(false); router.refresh() }}
+        onPersonAdded={(newProfile) => {
+          setProfiles((prev) => [...prev, newProfile])
+          setShowAddPerson(false)
+          router.refresh()
+        }}
         allProfiles={profiles}
         teams={localTeams}
       />
@@ -1246,7 +1690,7 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
         open={showCreateGroup}
         onOpenChange={setShowCreateGroup}
         onSave={async (name, color) => {
-          const result = await createTeamAction({ name, color, team_type: 'public', memberIds: [] })
+          const result = await createTeamAction({ name, color, team_type: 'public', memberIds: [], addCreatorAsMember: false })
           if (!result.success) { toast({ title: 'Failed to create group', description: result.error, variant: 'destructive' }); return }
           setLocalTeams((prev) => [...prev, { ...result.team, members: [] }])
           setShowCreateGroup(false)
@@ -1297,16 +1741,141 @@ export function TeamsHub({ profile, allProfiles, teams }: TeamsHubProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add member to current group dialog */}
+      {showAddToGroup && filterType === 'team' && filterValue && (() => {
+        const currentGroup = localTeams.find((t) => t.id === filterValue)
+        if (!currentGroup) return null
+        const currentMemberIds = new Set((currentGroup.members ?? []).map((m: any) => m.user_id))
+        const nonMembers = profiles.filter((p) => !currentMemberIds.has(p.id))
+        return (
+          <AddMembersToGroupDialog
+            open={showAddToGroup}
+            onClose={() => setShowAddToGroup(false)}
+            group={currentGroup}
+            candidates={nonMembers}
+            onAdded={(addedIds) => {
+              setLocalTeams((prev) => prev.map((t) =>
+                t.id === currentGroup.id
+                  ? { ...t, members: [...(t.members ?? []), ...addedIds.map((uid) => ({ user_id: uid }))] }
+                  : t
+              ))
+              setShowAddToGroup(false)
+              router.refresh()
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }
 
-// ── Group Create/Edit Dialog ───────────────────────────────────────────────────
+// ── Add Members to Group Dialog ───────────────────────────────────────────────
 
-const GROUP_COLORS = [
-  '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
-  '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6',
-]
+function AddMembersToGroupDialog({
+  open, onClose, group, candidates, onAdded,
+}: {
+  open: boolean
+  onClose: () => void
+  group: any
+  candidates: Profile[]
+  onAdded: (addedIds: string[]) => void
+}) {
+  const { toast } = useToast()
+  const [isPending, startTransition] = useTransition()
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  const filtered = candidates.filter((p) =>
+    p.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    p.email?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function handleSave() {
+    if (selected.size === 0) return
+    startTransition(async () => {
+      const result = await addTeamMembersAction(group.id, [...selected])
+      if (!result.success) {
+        toast({ title: 'Failed to add members', description: result.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: 'Members added', description: `${selected.size} member${selected.size > 1 ? 's' : ''} added to ${group.name}` })
+      onAdded([...selected])
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: group.color || '#6366f1' }} />
+            Add members to {group.name}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search people…"
+              className="pl-8 h-8 text-sm"
+            />
+          </div>
+          {candidates.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">All members are already in this group.</p>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No people match your search.</p>
+          ) : (
+            <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+              {filtered.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggle(p.id)}
+                  className={cn(
+                    'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border text-sm transition-colors text-left',
+                    selected.has(p.id) ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
+                  )}
+                >
+                  <Avatar className="h-6 w-6 shrink-0">
+                    <AvatarImage src={p.avatar_url ?? undefined} />
+                    <AvatarFallback className={`text-[10px] font-bold text-white ${avatarColor(p.full_name)}`}>
+                      {getInitials(p.full_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">{p.full_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{p.email}</p>
+                  </div>
+                  {selected.has(p.id) && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
+          <Button onClick={handleSave} disabled={isPending || selected.size === 0}>
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Add {selected.size > 0 ? `${selected.size} ` : ''}member{selected.size !== 1 ? 's' : ''}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Group Create/Edit Dialog ───────────────────────────────────────────────────
 
 function GroupDialog({
   open, onOpenChange, onSave, initialName = '', initialColor = '#6366f1', title = 'Create Group',

@@ -31,9 +31,7 @@ import {
 import { format } from 'date-fns'
 import { cn, getInitials } from '@/lib/utils'
 import Link from 'next/link'
-
-type TaskStatus   = { slug: string; name: string; color: string }
-type TaskPriority = { slug: string; name: string; color: string; is_default: boolean }
+import { useTaskConfig } from '@/hooks/use-task-config'
 
 const AVATAR_COLORS = [
   'bg-rose-400', 'bg-pink-400', 'bg-fuchsia-400', 'bg-purple-400',
@@ -114,13 +112,13 @@ export function CreateProjectDialog({
   const supabase = createClient()
   const isSuperAdmin = profile?.role === 'super_admin'
 
-  const [loading,    setLoading]    = useState(false)
-  const [clients,    setClients]    = useState<Profile[]>([])
-  const [partners,   setPartners]   = useState<Profile[]>([])
-  const [statuses,   setStatuses]   = useState<TaskStatus[]>([])
-  const [priorities, setPriorities] = useState<TaskPriority[]>([])
-  const [startOpen,  setStartOpen]  = useState(false)
-  const [dueOpen,    setDueOpen]    = useState(false)
+  const { statuses, priorities, defaultStatus, defaultPriority } = useTaskConfig()
+
+  const [loading,   setLoading]   = useState(false)
+  const [clients,   setClients]   = useState<Profile[]>([])
+  const [partners,  setPartners]  = useState<Profile[]>([])
+  const [startOpen, setStartOpen] = useState(false)
+  const [dueOpen,   setDueOpen]   = useState(false)
 
   // All internal users (everyone except client/partner)
   const [allUsers,       setAllUsers]       = useState<Profile[]>([])
@@ -137,7 +135,8 @@ export function CreateProjectDialog({
       name: '', workspace_id: workspaces.length === 1 ? workspaces[0].id : '',
       client_id: undefined, partner_id: undefined,
       is_internal: false, billing_type: 'hourly',
-      status: '', priority: '', description: '', estimated_hours: '', fixed_price: '',
+      status: defaultStatus, priority: defaultPriority,
+      description: '', estimated_hours: '', fixed_price: '',
     },
   })
 
@@ -146,6 +145,10 @@ export function CreateProjectDialog({
 
   useEffect(() => {
     if (!open) { setSelectedStaff(new Set()); setStaffSearch(''); setPmSearch(''); setProjectManager(''); return }
+
+    // Reset status/priority to org defaults each time dialog opens
+    form.setValue('status', defaultStatus)
+    form.setValue('priority', defaultPriority)
 
     const baseSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
@@ -157,37 +160,19 @@ export function CreateProjectDialog({
     supabase.from('profiles').select(baseSelect).eq('role', 'partner').order('full_name')
       .then(({ data }) => setPartners((data as Profile[]) ?? []))
 
-    supabase.from('task_statuses').select('slug, name, color').eq('is_active', true).order('sort_order')
-      .then(({ data }) => {
-        const list = (data as TaskStatus[]) ?? []
-        setStatuses(list)
-        if (list.length > 0 && !form.getValues('status')) form.setValue('status', list[0].slug)
-      })
-
-    supabase.from('task_priorities').select('slug, name, color, is_default').eq('is_active', true).order('sort_order')
-      .then(({ data }) => {
-        const list = (data as TaskPriority[]) ?? []
-        setPriorities(list)
-        if (list.length > 0 && !form.getValues('priority')) {
-          const def = list.find(p => p.is_default) ?? list[0]
-          form.setValue('priority', def.slug)
-        }
-      })
-
-    // Try with manager_id first (needs migration), fall back to base fields
+    // Try with manager_id first, fall back to base fields
     supabase.from('profiles')
       .select(`${baseSelect}, manager_id`)
       .order('full_name')
       .then(({ data, error }) => {
         if (error || !data) {
-          // manager_id column not yet available — fetch without it
           supabase.from('profiles').select(baseSelect).order('full_name')
             .then(({ data: fallback }) => setAllUsers((fallback as Profile[]) ?? []))
         } else {
           setAllUsers((data as Profile[]) ?? [])
         }
       })
-  }, [open])
+  }, [open, defaultStatus, defaultPriority])
 
   useEffect(() => {
     if (isInternal) {

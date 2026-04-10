@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Comment, Profile } from '@/types'
+import { addCommentAction } from '@/app/actions/comments'
 import { MentionInput, MentionInputHandle } from './mention-input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -164,51 +165,22 @@ export function CommentSection({
     setSubmitting(true)
 
     try {
-      const { data: comment, error } = await supabase
-        .from('comments')
-        .insert({
-          task_id: taskId,
-          user_id: profile.id,
-          content: content.trim(),
-          is_internal: internal,
-          parent_comment_id: parentCommentId ?? null,
-        })
-        .select('*, user:profiles(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)')
-        .single()
+      const parentComment = parentCommentId
+        ? comments.find((c) => c.id === parentCommentId)
+        : undefined
 
-      if (error) throw error
+      const result = await addCommentAction({
+        taskId,
+        content,
+        isInternal: internal,
+        parentCommentId: parentCommentId ?? null,
+        mentionedUserIds,
+        parentCommentAuthorId: parentComment?.user_id ?? null,
+      })
 
-      // Send mention notifications
-      const usersToNotify = mentionedUserIds.filter((id) => id !== profile.id)
-      if (usersToNotify.length > 0) {
-        await supabase.from('notifications').insert(
-          usersToNotify.map((userId) => ({
-            user_id: userId,
-            type: 'mention',
-            title: 'You were mentioned in a comment',
-            message: `${profile.full_name} mentioned you: "${content.trim().slice(0, 80)}"`,
-            link: `/projects/${(comment as any).task?.project_id ?? ''}/tasks/${taskId}`,
-            is_read: false,
-          }))
-        )
-      }
+      if (!result.success || !result.comment) throw new Error(result.error ?? 'Failed')
 
-      // Reply notification
-      if (parentCommentId) {
-        const parentComment = comments.find((c) => c.id === parentCommentId)
-        if (parentComment && parentComment.user_id !== profile.id) {
-          await supabase.from('notifications').insert({
-            user_id: parentComment.user_id,
-            type: 'comment_reply',
-            title: 'Someone replied to your comment',
-            message: `${profile.full_name} replied: "${content.trim().slice(0, 80)}"`,
-            link: `/projects/tasks/${taskId}`,
-            is_read: false,
-          })
-        }
-      }
-
-      onCommentAdded(comment as Comment)
+      onCommentAdded(result.comment)
       setNewComment('')
       setMentionedUserIds([])
       toast({ title: 'Comment added' })
@@ -388,7 +360,6 @@ function CommentItem({
   onReplyAdded,
 }: CommentItemProps) {
   const { toast } = useToast()
-  const supabase = createClient()
 
   const [showReplyForm, setShowReplyForm] = useState(false)
   const [replyContent, setReplyContent] = useState('')
@@ -444,48 +415,18 @@ function CommentItem({
     setSubmittingReply(true)
 
     try {
-      const { data: reply, error } = await supabase
-        .from('comments')
-        .insert({
-          task_id: taskId,
-          user_id: profile.id,
-          content: replyContent.trim(),
-          is_internal: replyInternal,
-          parent_comment_id: comment.id,
-        })
-        .select('*, user:profiles(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)')
-        .single()
+      const result = await addCommentAction({
+        taskId,
+        content: replyContent,
+        isInternal: replyInternal,
+        parentCommentId: comment.id,
+        mentionedUserIds: replyMentions,
+        parentCommentAuthorId: comment.user_id,
+      })
 
-      if (error) throw error
+      if (!result.success || !result.comment) throw new Error(result.error ?? 'Failed')
 
-      // Notify mentioned users
-      const usersToNotify = replyMentions.filter((id) => id !== profile.id)
-      if (usersToNotify.length > 0) {
-        await supabase.from('notifications').insert(
-          usersToNotify.map((userId) => ({
-            user_id: userId,
-            type: 'mention',
-            title: 'You were mentioned in a comment',
-            message: `${profile.full_name} mentioned you: "${replyContent.trim().slice(0, 80)}"`,
-            link: `/projects/tasks/${taskId}`,
-            is_read: false,
-          }))
-        )
-      }
-
-      // Notify parent comment author
-      if (comment.user_id !== profile.id) {
-        await supabase.from('notifications').insert({
-          user_id: comment.user_id,
-          type: 'comment_reply',
-          title: 'Someone replied to your comment',
-          message: `${profile.full_name} replied: "${replyContent.trim().slice(0, 80)}"`,
-          link: `/projects/tasks/${taskId}`,
-          is_read: false,
-        })
-      }
-
-      onReplyAdded(reply as Comment)
+      onReplyAdded(result.comment)
       setReplyContent('')
       setShowReplyForm(false)
       toast({ title: 'Reply posted' })

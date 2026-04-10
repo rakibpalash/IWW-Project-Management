@@ -58,11 +58,21 @@ const SUPER_ADMIN_STEPS: DriveStep[] = [
     },
   },
   {
+    element: '[data-tour="nav-reports"]',
+    popover: {
+      title: 'Reports',
+      description:
+        'Deep-dive into project time, task completion, member productivity, attendance, and leave usage across your whole organisation.',
+      side: 'right',
+      align: 'start',
+    },
+  },
+  {
     element: '[data-tour="nav-settings"]',
     popover: {
       title: 'Settings',
       description:
-        'Manage team members, roles, attendance thresholds, and your own profile here.',
+        'Manage team members, roles, attendance thresholds, task statuses, priorities, and your own profile here.',
       side: 'right',
       align: 'start',
     },

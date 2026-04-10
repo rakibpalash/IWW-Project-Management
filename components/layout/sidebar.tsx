@@ -12,6 +12,7 @@ import {
   Users,
   Settings,
   Timer,
+  BarChart2,
   PanelLeftClose,
   PanelLeftOpen,
   X,
@@ -20,6 +21,7 @@ import {
 import { cn } from '@/lib/utils'
 import { NAV_ITEMS } from '@/lib/constants'
 import { Profile } from '@/types'
+import { PermissionSet, can } from '@/lib/permissions'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Tooltip,
@@ -38,6 +40,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Users,
   Settings,
   Timer,
+  BarChart2,
 }
 
 const ROLE_LABELS: Record<Profile['role'], string> = {
@@ -55,15 +58,65 @@ function getInitials(name: string) {
 
 interface SidebarProps {
   profile: Profile
+  permissions?: PermissionSet
   isOpen: boolean
   isCollapsed: boolean
   onClose: () => void
   onToggleCollapse: () => void
 }
 
-export function Sidebar({ profile, isOpen, isCollapsed, onClose, onToggleCollapse }: SidebarProps) {
+// Maps nav hrefs to driver.js data-tour attribute values used by product-tour.tsx
+const NAV_TOUR_IDS: Record<string, string> = {
+  '/dashboard':  'nav-dashboard',
+  '/workspaces': 'nav-workspaces',
+  '/projects':   'nav-projects',
+  '/tasks':      'nav-tasks',
+  '/timesheet':  'nav-time-tracking',
+  '/attendance': 'nav-attendance',
+  '/leave':      'nav-leave',
+  '/team':       'nav-team',
+  '/reports':    'nav-reports',
+  '/settings':   'nav-settings',
+}
+
+// Master nav catalogue — defines every possible item and what permission gates it.
+// Items are shown if: (a) no permissions loaded → fall back to role-default nav,
+// or (b) permissions loaded → show only items where the check passes.
+const ALL_NAV: { href: string; label: string; icon: string; check: (p: PermissionSet) => boolean }[] = [
+  { href: '/workspaces', label: 'Workspaces', icon: 'Building2',      check: (p) => can(p, 'workspaces', 'view') },
+  { href: '/projects',   label: 'Projects',   icon: 'FolderKanban',   check: (p) => can(p, 'projects',   'view') },
+  { href: '/tasks',      label: 'My Tasks',   icon: 'CheckSquare',    check: (p) => can(p, 'tasks',      'view') },
+  { href: '/timesheet',  label: 'Timesheet',  icon: 'Timer',          check: (p) => can(p, 'timesheet',  'view_own') || can(p, 'timesheet', 'view_all') },
+  { href: '/attendance', label: 'Attendance', icon: 'Clock',          check: (p) => can(p, 'attendance', 'view_own') || can(p, 'attendance', 'view_all') },
+  { href: '/leave',      label: 'Leave',      icon: 'CalendarDays',   check: (p) => can(p, 'leave',      'view_own') || can(p, 'leave', 'view_all') },
+  { href: '/team',       label: 'Team',       icon: 'Users',          check: (p) => can(p, 'team',       'view') },
+  { href: '/reports',    label: 'Reports',    icon: 'BarChart2',      check: (p) => can(p, 'settings',   'manage') },
+  { href: '/settings',   label: 'Settings',   icon: 'Settings',       check: (p) => can(p, 'settings',   'manage') },
+]
+
+export function Sidebar({ profile, permissions, isOpen, isCollapsed, onClose, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname()
-  const navItems = NAV_ITEMS[profile.role] ?? []
+  const baseNavItems = NAV_ITEMS[profile.role] ?? []
+
+  // Only apply permission-based filtering when permissions are actually loaded
+  const permsLoaded = permissions && Object.keys(permissions).length > 0
+
+  let navItems: typeof baseNavItems
+  if (!permsLoaded) {
+    // No permissions yet — use the role-default nav as-is
+    navItems = baseNavItems
+  } else {
+    // Build nav from the master catalogue filtered by actual permissions
+    const dynamicItems = ALL_NAV
+      .filter((item) => item.check(permissions!))
+      .map(({ href, label, icon }) => ({ href, label, icon }))
+
+    // Dashboard is always first
+    navItems = [
+      { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
+      ...dynamicItems,
+    ]
+  }
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -175,7 +228,7 @@ export function Sidebar({ profile, isOpen, isCollapsed, onClose, onToggleCollaps
         </div>
 
         {/* ── Nav ── */}
-        <nav className="flex-1 overflow-y-auto scrollbar-hide py-4">
+        <nav data-tour="sidebar-nav" className="flex-1 overflow-y-auto scrollbar-hide py-4">
           <ul className="space-y-1 px-3">
             {navItems.map((item) => {
               const Icon = ICON_MAP[item.icon] ?? LayoutDashboard
@@ -221,7 +274,7 @@ export function Sidebar({ profile, isOpen, isCollapsed, onClose, onToggleCollaps
               )
 
               return (
-                <li key={item.href}>
+                <li key={item.href} data-tour={NAV_TOUR_IDS[item.href]}>
                   {isCollapsed ? (
                     <Tooltip>
                       <TooltipTrigger asChild>{inner}</TooltipTrigger>

@@ -8,6 +8,7 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type AttendanceStatus = 'on_time' | 'late_150' | 'late_250' | 'absent' | 'advance_absence'
 export type AppliedRule = 'general' | 'friday' | 'football' | 'holiday'
 export type DayType = 'sunday' | 'friday' | 'general'
+export type FineStatus = 'none' | 'pending' | 'paid' | 'waived'
 export type LeaveType = 'yearly' | 'work_from_home' | 'marriage' | 'optional'
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
@@ -163,12 +164,40 @@ export interface TimeEntry {
 export interface Notification {
   id: string
   user_id: string
-  type: 'task_assigned' | 'subtask_assigned' | 'mention' | 'comment_reply' | 'status_changed'
+  type:
+    | 'task_assigned'
+    | 'subtask_assigned'
+    | 'mention'
+    | 'comment_reply'
+    | 'comment_added'
+    | 'status_changed'
+    | 'task_deleted'
+    | 'time_logged'
+    | 'project_member_added'
+    | 'leave_approved'
+    | 'leave_rejected'
+    | 'due_date_approaching'
+    | 'fine_imposed'
   title: string
   message: string
   link: string | null
   is_read: boolean
   created_at: string
+}
+
+export interface StaffSalary {
+  id: string
+  user_id: string
+  organization_id: string
+  monthly_salary: number
+  effective_from: string
+  currency: string
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  // joined
+  user?: Profile
 }
 
 export interface ActivityLog {
@@ -194,6 +223,17 @@ export interface AttendanceRecord {
   applied_rule: AppliedRule
   is_football_rule: boolean
   notes: string | null
+  // fine tracking
+  fine_amount: number
+  fine_status: FineStatus
+  fine_paid_at: string | null
+  fine_waived_by: string | null
+  fine_waived_reason: string | null
+  fine_payment_method: string | null
+  fine_bkash_txn_id: string | null
+  // staff-submitted payment report (awaiting admin verification)
+  fine_reported_txn_id: string | null
+  fine_reported_at: string | null
   created_at: string
   updated_at: string
   // joined
@@ -214,8 +254,10 @@ export interface LeaveBalance {
   year: number
   yearly_total: number
   yearly_used: number
+  yearly_additional: number
   wfh_total: number
   wfh_used: number
+  wfh_additional: number
   marriage_total: number
   marriage_used: number
   created_at: string
@@ -274,6 +316,12 @@ export interface AttendanceSettings {
   // Leave defaults
   yearly_leave_days: number
   wfh_days: number
+  // Fine amounts
+  fine_late_1: number  // fine for late_150 status (default 150)
+  fine_late_2: number  // fine for late_250 status (default 250)
+  // Payment settings
+  org_bkash_number: string | null  // org's bKash number for fine payments
+  work_hours_per_week: number      // default 30 — used in salary-based fine formula
   updated_by: string | null
   updated_at: string
 }

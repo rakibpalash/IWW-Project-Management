@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/types'
 import { OnboardingModal } from './onboarding-modal'
-import { Button } from '@/components/ui/button'
+import { completeOnboardingAction } from '@/app/actions/user'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +23,6 @@ interface OnboardingProviderProps {
 
 export function OnboardingProvider({ profile, children }: OnboardingProviderProps) {
   const router = useRouter()
-  const supabase = createClient()
 
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false)
@@ -36,22 +34,26 @@ export function OnboardingProvider({ profile, children }: OnboardingProviderProp
       return
     }
 
-    // After onboarding, soft-prompt for password change if still on temp password
+    // Soft-prompt for password change — only once per session
     if (profile.is_temp_password) {
-      setShowPasswordPrompt(true)
+      const dismissed = sessionStorage.getItem('pwd_prompt_dismissed')
+      if (!dismissed) {
+        setShowPasswordPrompt(true)
+      }
     }
   }, [profile.onboarding_completed, profile.is_temp_password])
 
   async function markOnboardingComplete() {
-    await supabase
-      .from('profiles')
-      .update({ onboarding_completed: true })
-      .eq('id', profile.id)
+    // Use server action so admin client writes the DB and busts the profile cache
+    await completeOnboardingAction()
 
     setShowOnboarding(false)
 
-    // After dismissing onboarding, show password prompt if needed
-    if (profile.is_temp_password) {
+    // Refresh server components so the new onboarding_completed=true is picked up
+    router.refresh()
+
+    // After dismissing onboarding, show password prompt if needed (only if not yet dismissed this session)
+    if (profile.is_temp_password && !sessionStorage.getItem('pwd_prompt_dismissed')) {
       setShowPasswordPrompt(true)
     }
   }
@@ -66,11 +68,13 @@ export function OnboardingProvider({ profile, children }: OnboardingProviderProp
   }
 
   function handlePasswordPromptConfirm() {
+    sessionStorage.setItem('pwd_prompt_dismissed', '1')
     setShowPasswordPrompt(false)
     router.push('/settings/profile')
   }
 
   function handlePasswordPromptDismiss() {
+    sessionStorage.setItem('pwd_prompt_dismissed', '1')
     setShowPasswordPrompt(false)
   }
 

@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Profile, AttendanceRecord, AttendanceSettings } from '@/types'
 import { CheckInCard } from './check-in-card'
+import { StaffFinePanel } from './staff-fine-panel'
 import { cn } from '@/lib/utils'
 import {
   ChevronLeft, ChevronRight, CalendarDays, List, LayoutGrid, Clock,
@@ -334,9 +335,12 @@ function ListView({ monthDates, recordByDate, settings, today }: {
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
       {/* Header */}
-      <div className="grid grid-cols-[100px_1fr_1fr_1fr_120px_100px] gap-4 px-4 py-2.5 bg-muted/30 border-b border-border/60">
-        {['Date', 'Check In', 'Check Out', 'Status', 'Rule', 'Hrs Worked'].map(h => (
-          <span key={h} className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">{h}</span>
+      <div className="grid grid-cols-[100px_1fr_1fr_1fr_90px_100px_100px] gap-3 px-4 py-2.5 bg-muted/30 border-b border-border/60">
+        {['Date', 'Check In', 'Check Out', 'Status', 'Fine', 'Rule', 'Hrs Worked'].map(h => (
+          <span key={h} className={cn(
+            'text-[11px] font-semibold uppercase tracking-wide',
+            h === 'Fine' ? 'text-amber-600/80' : 'text-muted-foreground/70'
+          )}>{h}</span>
         ))}
       </div>
       <div className="divide-y divide-gray-50 max-h-[520px] overflow-y-auto">
@@ -356,7 +360,7 @@ function ListView({ monthDates, recordByDate, settings, today }: {
             <div
               key={date}
               className={cn(
-                'grid grid-cols-[100px_1fr_1fr_1fr_120px_100px] gap-4 px-4 py-2.5 items-center',
+                'grid grid-cols-[100px_1fr_1fr_1fr_90px_100px_100px] gap-3 px-4 py-2.5 items-center',
                 isToday && 'bg-blue-50/30',
                 isFuture && 'opacity-40',
               )}
@@ -388,6 +392,28 @@ function ListView({ monthDates, recordByDate, settings, today }: {
                   </span>
                 ) : isFuture ? null : (
                   <span className="text-xs text-gray-300">No record</span>
+                )}
+              </div>
+              {/* Fine column */}
+              <div>
+                {r?.fine_amount > 0 ? (
+                  <div>
+                    <p className={cn(
+                      'text-sm font-semibold tabular-nums',
+                      r.fine_status === 'paid' ? 'text-green-600' :
+                      r.fine_status === 'waived' ? 'text-muted-foreground line-through' :
+                      r.fine_reported_txn_id ? 'text-blue-600' : 'text-amber-600'
+                    )}>
+                      ৳{r.fine_amount}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/70">
+                      {r.fine_status === 'paid' ? 'Paid' :
+                       r.fine_status === 'waived' ? 'Waived' :
+                       r.fine_reported_txn_id ? 'Verifying' : 'Due'}
+                    </p>
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground/30">—</span>
                 )}
               </div>
               <div>
@@ -557,10 +583,16 @@ export function AttendanceSummaryPage({ profile, settings, allRecords }: Props) 
   const [monthDate, setMonthDate] = useState<Date>(() => {
     const d = new Date(); d.setDate(1); return d
   })
+  // Mutable records for optimistic fine reporting updates
+  const [records, setRecords] = useState<AttendanceRecord[]>(allRecords)
+
+  function handleRecordUpdated(updated: AttendanceRecord) {
+    setRecords((prev) => prev.map((r) => r.id === updated.id ? updated : r))
+  }
 
   const recordByDate = useMemo(() =>
-    Object.fromEntries(allRecords.map(r => [r.date, r])),
-    [allRecords]
+    Object.fromEntries(records.map(r => [r.date, r])),
+    [records]
   )
 
   const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart])
@@ -569,11 +601,11 @@ export function AttendanceSummaryPage({ profile, settings, allRecords }: Props) 
   const month = monthDate.getMonth()
 
   const monthRecords = useMemo(() =>
-    allRecords.filter(r => {
+    records.filter(r => {
       const d = new Date(r.date + 'T12:00:00')
       return d.getFullYear() === year && d.getMonth() === month
     }),
-    [allRecords, year, month]
+    [records, year, month]
   )
 
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -588,6 +620,9 @@ export function AttendanceSummaryPage({ profile, settings, allRecords }: Props) 
   const nextWeek = () => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d) }
   const prevMonth = () => { const d = new Date(monthDate); d.setMonth(d.getMonth() - 1); setMonthDate(d) }
   const nextMonth = () => { const d = new Date(monthDate); d.setMonth(d.getMonth() + 1); setMonthDate(d) }
+
+  // Check if staff has any fines at all (to decide whether to show panel)
+  const hasFines = records.some((r) => r.fine_amount > 0)
 
   return (
     <div className="space-y-5">
@@ -652,6 +687,15 @@ export function AttendanceSummaryPage({ profile, settings, allRecords }: Props) 
           </div>
         </div>
       </div>
+
+      {/* ── Fine panel (full detail with bKash payment flow) ── */}
+      {hasFines && (
+        <StaffFinePanel
+          allRecords={records}
+          settings={settings}
+          onRecordUpdated={handleRecordUpdated}
+        />
+      )}
 
       {/* ── Week view ── */}
       {view === 'week' && (

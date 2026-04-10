@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { DashboardShell } from '@/components/layout/dashboard-shell'
 import { Profile } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
+import { getMyPermissionsAction } from '@/app/actions/permissions'
+import { PermissionSet } from '@/lib/permissions'
 
 export default async function DashboardLayout({
   children,
@@ -21,8 +23,10 @@ export default async function DashboardLayout({
     redirect('/setup-org')
   }
 
+  const permissions = await getMyPermissionsAction()
+
   return (
-    <DashboardShell profile={profile as Profile}>
+    <DashboardShell profile={profile as Profile} permissions={permissions}>
       {children}
     </DashboardShell>
   )

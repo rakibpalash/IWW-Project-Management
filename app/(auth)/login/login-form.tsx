@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -35,7 +34,6 @@ type LoginValues = z.infer<typeof loginSchema>
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function LoginForm() {
-  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
 
@@ -68,8 +66,10 @@ export function LoginForm() {
       return
     }
 
-    router.push('/dashboard')
-    router.refresh()
+    // Hard navigation so the new session cookies are sent to the server fresh.
+    // router.push + router.refresh together race in App Router and leave the
+    // spinner hanging forever.
+    window.location.href = '/dashboard'
   }
 
   return (

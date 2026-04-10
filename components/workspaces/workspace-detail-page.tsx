@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { getWorkspaceMembersAction } from '@/app/actions/workspaces'
 import {
   format, parseISO, isAfter, isBefore, subDays, addDays,
   startOfMonth, endOfMonth, eachDayOfInterval, getDay,
@@ -136,11 +138,12 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function WorkspaceDetailPage({
-  workspace, members, projects, tasks, activityLogs, isAdmin, profile,
+  workspace, members: initialMembers, projects, tasks, activityLogs, isAdmin, profile,
 }: WorkspaceDetailPageProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [, startTransition] = useTransition()
+  const [members, setMembers] = useState<Profile[]>(initialMembers)
   const [activeTab, setActiveTab] = useState<TabType>('summary')
   const [showAssign, setShowAssign] = useState(false)
   const [showRenameWorkspace, setShowRenameWorkspace] = useState(false)
@@ -232,6 +235,48 @@ export function WorkspaceDetailPage({
   }
 
   function refresh() { startTransition(() => router.refresh()) }
+
+  // ── Realtime sync ─────────────────────────────────────────────────────────
+  // Debounce member fetches so rapid bulk changes only fire one request
+  const memberFetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function syncMembers() {
+    if (memberFetchTimer.current) clearTimeout(memberFetchTimer.current)
+    memberFetchTimer.current = setTimeout(async () => {
+      const result = await getWorkspaceMembersAction(workspace.id)
+      if (result.success && result.members) {
+        setMembers(result.members as Profile[])
+      }
+    }, 300)
+  }
+
+  useEffect(() => {
+    const supabase = createClient()
+
+    const channel = supabase
+      .channel(`workspace:${workspace.id}`)
+      // Member assignments — update member list in-place without page refresh
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'workspace_assignments',
+        filter: `workspace_id=eq.${workspace.id}`,
+      }, () => syncMembers())
+      // Projects / tasks — still need a refresh to get full relational data
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'projects',
+        filter: `workspace_id=eq.${workspace.id}`,
+      }, () => refresh())
+      .subscribe()
+
+    return () => {
+      if (memberFetchTimer.current) clearTimeout(memberFetchTimer.current)
+      supabase.removeChannel(channel)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.id])
 
   // Guard: tasks require a project — redirect to project creation if none exist
   function openCreateTask() {

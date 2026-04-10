@@ -7,10 +7,17 @@ import { CustomTaskPriority } from '@/types'
 export async function getTaskPrioritiesAction(): Promise<{ data?: CustomTaskPriority[]; error?: string }> {
   try {
     const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('task_priorities')
-      .select('*')
-      .order('sort_order')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'Not authenticated' }
+
+    const admin = createAdminClient()
+    const { data: profile } = await admin.from('profiles').select('organization_id').eq('id', user.id).single()
+    const orgId = profile?.organization_id
+
+    const query = admin.from('task_priorities').select('*').order('sort_order')
+    if (orgId) query.eq('organization_id', orgId)
+
+    const { data, error } = await query
     if (error) return { error: error.message }
     return { data: data as CustomTaskPriority[] }
   } catch (err) {
@@ -28,15 +35,16 @@ export async function createTaskPriorityAction(input: {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: top } = await supabase
+    const admin = createAdminClient()
+    const { data: callerProfile } = await admin.from('profiles').select('organization_id').eq('id', user.id).single()
+
+    const topQuery = admin
       .from('task_priorities')
       .select('sort_order')
       .order('sort_order', { ascending: false })
       .limit(1)
-      .single()
-
-    const admin = createAdminClient()
-    const { data: callerProfile } = await admin.from('profiles').select('organization_id').eq('id', user.id).single()
+    if (callerProfile?.organization_id) topQuery.eq('organization_id', callerProfile.organization_id)
+    const { data: top } = await topQuery.single()
 
     const { data, error } = await admin
       .from('task_priorities')
@@ -73,7 +81,12 @@ export async function updateTaskPriorityConfigAction(
     const admin = createAdminClient()
 
     if (updates.is_default === true) {
-      await admin.from('task_priorities').update({ is_default: false }).neq('id', id)
+      // Unset default only within the same org — never touch other orgs
+      const { data: target } = await admin.from('task_priorities').select('organization_id').eq('id', id).single()
+      const orgId = target?.organization_id
+      const unsetQuery = admin.from('task_priorities').update({ is_default: false }).neq('id', id)
+      if (orgId) unsetQuery.eq('organization_id', orgId)
+      await unsetQuery
     }
 
     const { error } = await admin.from('task_priorities').update(updates).eq('id', id)
@@ -133,6 +146,53 @@ export async function reorderTaskPrioritiesAction(
     )
     revalidatePath('/settings')
     return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function seedDefaultPrioritiesAction(): Promise<{
+  success: boolean
+  priorities?: CustomTaskPriority[]
+  error?: string
+}> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const admin = createAdminClient()
+    const { data: profile } = await admin.from('profiles').select('role, organization_id').eq('id', user.id).single()
+    if (!profile || profile.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    const orgId = profile.organization_id
+    if (!orgId) return { success: false, error: 'No organization found' }
+
+    // Only seed if truly empty
+    const { count } = await admin
+      .from('task_priorities')
+      .select('*', { count: 'exact', head: true })
+      .eq('organization_id', orgId)
+    if (count && count > 0) {
+      const { data } = await admin.from('task_priorities').select('*').eq('organization_id', orgId).order('sort_order')
+      return { success: true, priorities: (data as CustomTaskPriority[]) ?? [] }
+    }
+
+    const defaults = [
+      { name: 'Low',    slug: 'low',    color: '#3b82f6', sort_order: 1, is_default: false },
+      { name: 'Medium', slug: 'medium', color: '#f59e0b', sort_order: 2, is_default: true  },
+      { name: 'High',   slug: 'high',   color: '#f97316', sort_order: 3, is_default: false },
+      { name: 'Urgent', slug: 'urgent', color: '#ef4444', sort_order: 4, is_default: false },
+    ]
+
+    const { data, error } = await admin
+      .from('task_priorities')
+      .insert(defaults.map(d => ({ ...d, organization_id: orgId, is_active: true, created_by: user.id })))
+      .select('*')
+
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/settings')
+    return { success: true, priorities: (data as CustomTaskPriority[]) ?? [] }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }

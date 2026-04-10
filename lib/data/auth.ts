@@ -56,7 +56,7 @@ const _fetchProfile = (userId: string): Promise<Profile | null> =>
   unstable_cache(
     () => fetchProfileFromDb(userId),
     ['profile', userId],
-    { revalidate: 120 }
+    { revalidate: 120, tags: [`profile-${userId}`] }
   )()
 
 /**

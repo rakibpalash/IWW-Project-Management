@@ -41,10 +41,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CreateUserDialog } from './create-user-dialog'
+import { UserPermissionsDialog } from './user-permissions-dialog'
 import { SmartDeleteDialog } from '@/components/ui/smart-delete-dialog'
+import { Switch } from '@/components/ui/switch'
 import {
   Plus, Search, MoreVertical, UserCog, Loader2, Tag, Crown, Shield,
-  Briefcase, User, Trash2, UserCheck, UserX, CheckCircle2, XCircle,
+  Briefcase, User, Trash2, UserCheck, UserX, CheckCircle2, XCircle, ShieldCheck,
 } from 'lucide-react'
 import { updateUserRoleAction, updatePersonAction, deleteUserAction, toggleUserActiveAction } from '@/app/actions/user'
 import { getStaffDeleteImpact } from '@/app/actions/delete-impact'
@@ -104,6 +106,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
   const [toggleConfirm, setToggleConfirm] = useState<ToggleConfirm | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
+  const [permissionsTarget, setPermissionsTarget] = useState<Profile | null>(null)
   const [persons, setPersons] = useState<Profile[]>(users)
 
   const filteredUsers = persons.filter((u) => {
@@ -305,32 +308,38 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
 
                     {/* Status */}
                     <TableCell>
-                      {isTogglingActive ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      ) : (
-                        <button
-                          onClick={() => setToggleConfirm({ user, activating: !isActive })}
-                          className={cn(
-                            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition-all hover:opacity-80',
-                            isActive
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                              : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
-                          )}
-                        >
-                          {isActive ? (
-                            <><CheckCircle2 className="h-3 w-3" />Active</>
-                          ) : (
-                            <><XCircle className="h-3 w-3" />Inactive</>
-                          )}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {isTogglingActive ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        ) : (
+                          <Switch
+                            checked={isActive}
+                            onCheckedChange={() => setToggleConfirm({ user, activating: !isActive })}
+                            className={isActive ? 'data-[state=checked]:bg-emerald-500' : ''}
+                          />
+                        )}
+                        <span className={cn('text-xs font-medium', isActive ? 'text-emerald-600' : 'text-muted-foreground')}>
+                          {isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
                     </TableCell>
 
                     {/* Role */}
                     <TableCell>
-                      <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border', rc.badgeClass)}>
-                        {rc.label}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border w-fit', rc.badgeClass)}>
+                          {rc.label}
+                        </span>
+                        {user.role !== 'super_admin' && (
+                          <button
+                            onClick={() => setPermissionsTarget(user)}
+                            className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:underline w-fit"
+                          >
+                            <ShieldCheck className="h-3 w-3" />
+                            Permissions
+                          </button>
+                        )}
+                      </div>
                     </TableCell>
 
                     {/* Reports To */}
@@ -470,18 +479,19 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {/* Activate / Deactivate */}
-                            <DropdownMenuItem
-                              onClick={() => setToggleConfirm({ user, activating: !isActive })}
-                              className={cn('gap-2 text-xs', isActive ? 'text-orange-600 focus:text-orange-600' : 'text-emerald-600 focus:text-emerald-600')}
-                            >
-                              {isActive ? (
-                                <><UserX className="h-3.5 w-3.5" />Deactivate user</>
-                              ) : (
-                                <><UserCheck className="h-3.5 w-3.5" />Activate user</>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
+                            {/* Permissions */}
+                            {user.role !== 'super_admin' && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => setPermissionsTarget(user)}
+                                  className="gap-2 text-xs"
+                                >
+                                  <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
+                                  Edit Permissions
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
                             <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Change Role</div>
                             <DropdownMenuSeparator />
                             {ROLE_OPTIONS.filter((r) => r.value !== user.role).map((r) => (
@@ -495,13 +505,15 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                               </DropdownMenuItem>
                             ))}
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => setDeleteTarget(user)}
-                              className="gap-2 text-xs text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Remove user
-                            </DropdownMenuItem>
+                            {user.role !== 'super_admin' && (
+                              <DropdownMenuItem
+                                onClick={() => setDeleteTarget(user)}
+                                className="gap-2 text-xs text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Remove user
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
@@ -515,6 +527,14 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
       </div>
 
       <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} />
+
+      {permissionsTarget && (
+        <UserPermissionsDialog
+          open={!!permissionsTarget}
+          onClose={() => setPermissionsTarget(null)}
+          user={permissionsTarget}
+        />
+      )}
 
       {/* Activate / Deactivate confirmation dialog */}
       <AlertDialog open={!!toggleConfirm} onOpenChange={(open) => { if (!open) setToggleConfirm(null) }}>

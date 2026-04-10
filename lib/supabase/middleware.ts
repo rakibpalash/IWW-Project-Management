@@ -10,6 +10,15 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: {
+        fetch: (url, options) => {
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 5000)
+          return fetch(url, { ...options, signal: controller.signal }).finally(() =>
+            clearTimeout(timeout)
+          )
+        },
+      },
       cookies: {
         getAll() {
           return request.cookies.getAll()
@@ -33,7 +42,7 @@ export async function updateSession(request: NextRequest) {
   // IMPORTANT: Do not add logic between createServerClient and supabase.auth.getUser()
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
 
   const { pathname } = request.nextUrl
 

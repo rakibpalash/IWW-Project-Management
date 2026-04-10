@@ -2,23 +2,7 @@
 
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-
-async function notifyUser(
-  userId: string,
-  title: string,
-  message: string,
-  link?: string
-) {
-  const admin = createAdminClient()
-  await admin.from('notifications').insert({
-    user_id: userId,
-    type: 'status_changed',
-    title,
-    message,
-    link: link ?? null,
-    is_read: false,
-  })
-}
+import { notify } from '@/lib/notifications'
 
 export async function approveLeaveAction(
   requestId: string,
@@ -100,12 +84,13 @@ export async function approveLeaveAction(
       : request.leave_type === 'work_from_home' ? 'Work From Home'
       : 'Marriage Leave'
 
-    await notifyUser(
-      request.user_id,
-      'Leave Request Approved ✓',
-      `Your ${leaveTypeLabel} request (${request.total_days} day${request.total_days !== 1 ? 's' : ''}) has been approved.${notes ? ` Note: ${notes}` : ''}`,
-      '/leave'
-    )
+    await notify({
+      userId: request.user_id,
+      type: 'leave_approved',
+      title: 'Leave Request Approved',
+      message: `Your ${leaveTypeLabel} request (${request.total_days} day${request.total_days !== 1 ? 's' : ''}) has been approved.${notes ? ` Note: ${notes}` : ''}`,
+      link: '/leave',
+    })
 
     revalidatePath('/leave')
     return { success: true }
@@ -157,12 +142,13 @@ export async function rejectLeaveAction(
         : request.leave_type === 'work_from_home' ? 'Work From Home'
         : 'Marriage Leave'
 
-      await notifyUser(
-        request.user_id,
-        'Leave Request Rejected',
-        `Your ${leaveTypeLabel} request (${request.total_days} day${request.total_days !== 1 ? 's' : ''}) has been rejected.${notes ? ` Reason: ${notes}` : ''}`,
-        '/leave'
-      )
+      await notify({
+        userId: request.user_id,
+        type: 'leave_rejected',
+        title: 'Leave Request Rejected',
+        message: `Your ${leaveTypeLabel} request (${request.total_days} day${request.total_days !== 1 ? 's' : ''}) has been rejected.${notes ? ` Reason: ${notes}` : ''}`,
+        link: '/leave',
+      })
     }
 
     revalidatePath('/leave')
@@ -371,8 +357,13 @@ export async function createOptionalLeaveAction(data: {
     })
     if (error) return { success: false, error: error.message }
 
-    await notifyUser(data.userId, 'Optional Leave Granted',
-      `You've been granted ${data.totalDays} day${data.totalDays !== 1 ? 's' : ''} of "${data.name}" leave.`, '/leave')
+    await notify({
+      userId: data.userId,
+      type: 'leave_approved',
+      title: 'Optional Leave Granted',
+      message: `You've been granted ${data.totalDays} day${data.totalDays !== 1 ? 's' : ''} of "${data.name}" leave.`,
+      link: '/leave',
+    })
 
     revalidatePath('/leave')
     return { success: true }
@@ -448,8 +439,13 @@ export async function approveOptionalLeaveAction(
       }
     }
 
-    await notifyUser(request.user_id, 'Optional Leave Approved',
-      'Your optional leave request has been approved.', '/leave')
+    await notify({
+      userId: request.user_id,
+      type: 'leave_approved',
+      title: 'Optional Leave Approved',
+      message: 'Your optional leave request has been approved.',
+      link: '/leave',
+    })
 
     revalidatePath('/leave')
     return { success: true }
@@ -595,6 +591,75 @@ export async function deleteOptionalLeaveAction(id: string): Promise<{ success: 
     const admin = createAdminClient()
     const { error } = await admin.from('optional_leaves').delete().eq('id', id)
     if (error) return { success: false, error: error.message }
+    revalidatePath('/leave')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// ─── Update leave balance additional days (admin only) ─────────────────────────
+// Matches Excel "Additional" column: extra days granted on top of the standard allocation.
+// yearly_total and wfh_total are recalculated as (total - old_additional + new_additional).
+
+export async function updateLeaveAdditionalDaysAction(data: {
+  userId: string
+  year: number
+  yearlyAdditional: number
+  wfhAdditional: number
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+    const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!caller || caller.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    const admin = createAdminClient()
+
+    // Fetch current balance record
+    const { data: bal } = await admin
+      .from('leave_balances')
+      .select('*')
+      .eq('user_id', data.userId)
+      .eq('year', data.year)
+      .single()
+
+    if (bal) {
+      // Recalculate totals: remove old additional, add new additional
+      const oldYearlyAdditional = bal.yearly_additional ?? 0
+      const oldWfhAdditional = bal.wfh_additional ?? 0
+      const newYearlyTotal = (bal.yearly_total - oldYearlyAdditional) + data.yearlyAdditional
+      const newWfhTotal = (bal.wfh_total - oldWfhAdditional) + data.wfhAdditional
+
+      const { error } = await admin
+        .from('leave_balances')
+        .update({
+          yearly_additional: data.yearlyAdditional,
+          yearly_total: Math.max(newYearlyTotal, bal.yearly_used ?? 0),
+          wfh_additional: data.wfhAdditional,
+          wfh_total: Math.max(newWfhTotal, bal.wfh_used ?? 0),
+        })
+        .eq('id', bal.id)
+
+      if (error) return { success: false, error: error.message }
+    } else {
+      // No balance record yet — create one with the additional days
+      const { error } = await admin.from('leave_balances').insert({
+        user_id: data.userId,
+        year: data.year,
+        yearly_total: 18 + data.yearlyAdditional,
+        yearly_used: 0,
+        yearly_additional: data.yearlyAdditional,
+        wfh_total: 10 + data.wfhAdditional,
+        wfh_used: 0,
+        wfh_additional: data.wfhAdditional,
+        marriage_total: 0,
+        marriage_used: 0,
+      })
+      if (error) return { success: false, error: error.message }
+    }
+
     revalidatePath('/leave')
     return { success: true }
   } catch (err) {

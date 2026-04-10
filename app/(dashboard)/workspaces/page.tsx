@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { WorkspacesPage } from '@/components/workspaces/workspaces-page'
 import { Workspace, Profile } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
+import { getMyPermissionsAction } from '@/app/actions/permissions'
+import { can } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,27 +24,35 @@ export default async function WorkspacesRoute() {
     profile = null
   }
 
-  if (!profile || profile.role !== 'super_admin') redirect('/dashboard')
+  if (!profile) redirect('/login')
+
+  const perms = await getMyPermissionsAction()
+
+  if (!can(perms, 'workspaces', 'view')) redirect('/dashboard')
+
+  const canCreate = can(perms, 'workspaces', 'create')
+  const canEdit   = can(perms, 'workspaces', 'edit')
+  const canDelete = can(perms, 'workspaces', 'delete')
 
   const orgId = profile.organization_id
 
   try {
     const admin = createAdminClient()
 
-    const workspacesQuery = orgId
-      ? admin.from('workspaces').select('*').eq('organization_id', orgId).order('created_at', { ascending: false })
-      : admin.from('workspaces').select('*').order('created_at', { ascending: false })
-
-    const staffQuery = orgId
-      ? admin.from('profiles').select('id, full_name, email, avatar_url, role').eq('role', 'staff').eq('organization_id', orgId).order('full_name')
-      : admin.from('profiles').select('id, full_name, email, avatar_url, role').eq('role', 'staff').order('full_name')
+    if (!orgId) return <WorkspacesPage workspaces={[]} staffProfiles={[]} canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} />
 
     const [{ data: workspaces, error: wsErr }, { data: assignments }, { data: projects }, { data: staffProfiles }] =
       await Promise.all([
-        workspacesQuery,
-        admin.from('workspace_assignments').select('workspace_id'),
-        admin.from('projects').select('workspace_id'),
-        staffQuery,
+        admin.from('workspaces').select('*').eq('organization_id', orgId).order('created_at', { ascending: false }),
+        admin.from('workspace_assignments').select('workspace_id, user_id').in(
+          'workspace_id',
+          (await admin.from('workspaces').select('id').eq('organization_id', orgId)).data?.map((w) => w.id) ?? []
+        ),
+        admin.from('projects').select('workspace_id').in(
+          'workspace_id',
+          (await admin.from('workspaces').select('id').eq('organization_id', orgId)).data?.map((w) => w.id) ?? []
+        ),
+        admin.from('profiles').select('id, full_name, email, avatar_url, role').eq('organization_id', orgId).order('full_name'),
       ])
 
     if (wsErr) {
@@ -59,10 +69,18 @@ export default async function WorkspacesRoute() {
       ).length,
     }))
 
-    return <WorkspacesPage workspaces={workspacesWithCounts} staffProfiles={(staffProfiles as Profile[]) ?? []} />
+    return (
+      <WorkspacesPage
+        workspaces={workspacesWithCounts}
+        staffProfiles={(staffProfiles as Profile[]) ?? []}
+        canCreate={canCreate}
+        canEdit={canEdit}
+        canDelete={canDelete}
+      />
+    )
   } catch (err) {
     if (err && typeof err === 'object' && 'digest' in err) throw err
     console.error('[WorkspacesRoute] Unexpected error:', err)
-    return <WorkspacesPage workspaces={[]} staffProfiles={[]} />
+    return <WorkspacesPage workspaces={[]} staffProfiles={[]} canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} />
   }
 }

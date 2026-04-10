@@ -2,18 +2,21 @@
 
 import { useState, useEffect } from 'react'
 import { Profile } from '@/types'
+import { PermissionSet } from '@/lib/permissions'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
 import { TempPasswordBanner } from './temp-password-banner'
 import { CommandPalette } from '@/components/search/command-palette'
 import { OnboardingProvider } from '@/components/onboarding/onboarding-provider'
+import { TourAutoStart } from '@/components/onboarding/tour-auto-start'
 
 interface DashboardShellProps {
   profile: Profile
+  permissions?: PermissionSet
   children: React.ReactNode
 }
 
-export function DashboardShell({ profile, children }: DashboardShellProps) {
+export function DashboardShell({ profile, permissions, children }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -38,6 +41,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
       <div className="flex h-screen overflow-hidden bg-background">
         <Sidebar
           profile={profile}
+          permissions={permissions}
           isOpen={sidebarOpen}
           isCollapsed={sidebarCollapsed}
           onClose={() => setSidebarOpen(false)}
@@ -59,6 +63,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
         </div>
 
         <CommandPalette />
+        <TourAutoStart profile={profile} />
       </div>
     </OnboardingProvider>
   )

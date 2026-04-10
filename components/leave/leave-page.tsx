@@ -16,18 +16,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+
+import { Plus, Search, Users, FileText, Clock, CalendarPlus, Download, ChevronDown, Pencil, Check, X } from 'lucide-react'
+import { format } from 'date-fns'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Plus, Search, Users, FileText, Clock, CalendarPlus } from 'lucide-react'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { updateLeaveAdditionalDaysAction } from '@/app/actions/leave'
 
 export interface LeaveTemplate {
   id: string
@@ -161,6 +162,81 @@ function AdminView({
     return matchesSearch && matchesType && matchesStatus
   })
 
+  const dateSlug = format(new Date(), 'yyyy-MM-dd')
+
+  const leaveTypeLabel = (t: string) =>
+    t === 'yearly' ? 'Annual Leave' : t === 'work_from_home' ? 'WFH' : t === 'marriage' ? 'Marriage' : t
+
+  function buildLeaveTableHtml(rows: typeof filteredRequests) {
+    const headers = ['Employee', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Status', 'Notes']
+    const body = rows.map((r) => `<tr>
+      <td>${r.user?.full_name ?? '-'}</td>
+      <td>${leaveTypeLabel(r.leave_type)}</td>
+      <td>${format(new Date(r.start_date + 'T00:00:00'), 'MMM d, yyyy')}</td>
+      <td>${format(new Date(r.end_date + 'T00:00:00'), 'MMM d, yyyy')}</td>
+      <td>${r.total_days}</td>
+      <td>${r.status}</td>
+      <td>${r.review_notes ?? ''}</td>
+    </tr>`).join('')
+    return `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`
+  }
+
+  function exportCsv() {
+    const headers = ['Employee', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Status', 'Notes']
+    const rows = filteredRequests.map((r) => [
+      `"${(r.user?.full_name ?? '').replace(/"/g, '""')}"`,
+      leaveTypeLabel(r.leave_type),
+      r.start_date,
+      r.end_date,
+      r.total_days,
+      r.status,
+      `"${(r.review_notes ?? '').replace(/"/g, '""')}"`,
+    ])
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `leave-requests-${dateSlug}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function exportPdf() {
+    const html = `<!DOCTYPE html><html><head><title>Leave Requests ${dateSlug}</title><style>
+      body{font-family:Arial,sans-serif;font-size:12px;margin:24px}
+      h2{margin-bottom:12px;color:#111}
+      table{width:100%;border-collapse:collapse}
+      th{background:#f3f4f6;padding:8px 10px;text-align:left;border:1px solid #d1d5db;font-size:11px}
+      td{padding:6px 10px;border:1px solid #e5e7eb;vertical-align:top}
+      tr:nth-child(even) td{background:#f9fafb}
+    </style></head><body>
+      <h2>Leave Requests — ${dateSlug}</h2>
+      ${buildLeaveTableHtml(filteredRequests)}
+    </body></html>`
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(html); win.document.close(); win.focus(); win.print()
+  }
+
+  function exportDoc() {
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"><title>Leave Requests ${dateSlug}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:12pt}
+        h2{margin-bottom:12pt}
+        table{width:100%;border-collapse:collapse}
+        th{background:#f3f4f6;padding:6pt 8pt;border:1pt solid #d1d5db;font-size:10pt}
+        td{padding:5pt 8pt;border:1pt solid #e5e7eb}
+      </style></head>
+      <body><h2>Leave Requests — ${dateSlug}</h2>${buildLeaveTableHtml(filteredRequests)}</body></html>`
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `leave-requests-${dateSlug}.doc`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -170,11 +246,27 @@ function AdminView({
             Manage team leave requests and balances
           </p>
         </div>
-        <Button size="sm" onClick={() => setOptionalOpen(true)}
-          className="bg-violet-600 hover:bg-violet-700 text-white">
-          <CalendarPlus className="mr-2 h-4 w-4" />
-          Create Optional Leave
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs">
+                <Download className="h-3.5 w-3.5" />
+                Export
+                <ChevronDown className="h-3 w-3 text-muted-foreground/70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportCsv}>Export as CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportPdf}>Export as PDF</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportDoc}>Export as DOC</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="sm" onClick={() => setOptionalOpen(true)}
+            className="bg-violet-600 hover:bg-violet-700 text-white">
+            <CalendarPlus className="mr-2 h-4 w-4" />
+            Create Optional Leave
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -306,75 +398,7 @@ function AdminView({
 
         {/* Balances Tab */}
         <TabsContent value="balances" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Leave balances for {new Date().getFullYear()}
-            </p>
-          </div>
-          <div className="rounded-md border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30">
-                  <TableHead>Employee</TableHead>
-                  <TableHead className="text-center">Annual (Used/Total)</TableHead>
-                  <TableHead className="text-center">WFH (Used/Total)</TableHead>
-                  <TableHead className="text-center">Marriage (Used/Total)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allBalances.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                      No balance records found for this year
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  allBalances.map((bal) => (
-                    <TableRow key={bal.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-7 w-7">
-                            <AvatarImage src={bal.user?.avatar_url ?? undefined} />
-                            <AvatarFallback className="text-xs">
-                              {getInitials(bal.user?.full_name ?? 'U')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-sm font-medium">{bal.user?.full_name ?? 'Unknown'}</p>
-                            <p className="text-xs text-muted-foreground">{bal.user?.email}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className={`font-medium ${bal.yearly_used >= bal.yearly_total ? 'text-red-600' : 'text-foreground'}`}>
-                          {bal.yearly_used}
-                        </span>
-                        <span className="text-muted-foreground">/{bal.yearly_total}</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className={`font-medium ${bal.wfh_used >= bal.wfh_total ? 'text-red-600' : 'text-foreground'}`}>
-                          {bal.wfh_used}
-                        </span>
-                        <span className="text-muted-foreground">/{bal.wfh_total}</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {bal.marriage_total > 0 ? (
-                          <>
-                            <span className={`font-medium ${bal.marriage_used >= bal.marriage_total ? 'text-red-600' : 'text-foreground'}`}>
-                              {bal.marriage_used}
-                            </span>
-                            <span className="text-muted-foreground">/{bal.marriage_total}</span>
-                          </>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">Not granted</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <LeaveBalancesTable allBalances={allBalances} />
         </TabsContent>
       </Tabs>
 
@@ -384,6 +408,240 @@ function AdminView({
         staffProfiles={staffProfiles}
         leaveTemplates={leaveTemplates}
       />
+    </div>
+  )
+}
+
+// ─── Leave Balances Table (Excel-style) ──────────────────────────────────────
+// Columns: Employee | Annual (Allowed | +Additional | Taken | Remaining) | WFH (Allowed | +Additional | Taken | Remaining)
+
+function LeaveBalancesTable({
+  allBalances,
+}: {
+  allBalances: (LeaveBalance & { user?: Profile })[]
+}) {
+  const currentYear = new Date().getFullYear()
+  // editingId tracks which row is in edit mode
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editYearly, setEditYearly] = useState(0)
+  const [editWfh, setEditWfh] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const [localBalances, setLocalBalances] = useState(allBalances)
+
+  function startEdit(bal: LeaveBalance & { user?: Profile }) {
+    setEditingId(bal.id)
+    setEditYearly(bal.yearly_additional ?? 0)
+    setEditWfh(bal.wfh_additional ?? 0)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+  }
+
+  async function saveEdit(bal: LeaveBalance & { user?: Profile }) {
+    setSaving(true)
+    const res = await updateLeaveAdditionalDaysAction({
+      userId: bal.user_id,
+      year: currentYear,
+      yearlyAdditional: editYearly,
+      wfhAdditional: editWfh,
+    })
+    setSaving(false)
+    if (res.success) {
+      // Optimistically update local state so the user sees the change immediately
+      const oldYearlyAdditional = bal.yearly_additional ?? 0
+      const oldWfhAdditional = bal.wfh_additional ?? 0
+      setLocalBalances(prev => prev.map(b => {
+        if (b.id !== bal.id) return b
+        const newYearlyTotal = (b.yearly_total - oldYearlyAdditional) + editYearly
+        const newWfhTotal = (b.wfh_total - oldWfhAdditional) + editWfh
+        return {
+          ...b,
+          yearly_additional: editYearly,
+          yearly_total: Math.max(newYearlyTotal, b.yearly_used ?? 0),
+          wfh_additional: editWfh,
+          wfh_total: Math.max(newWfhTotal, b.wfh_used ?? 0),
+        }
+      }))
+      setEditingId(null)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Leave balances for {currentYear} — click <Pencil className="inline h-3 w-3" /> to grant additional days
+        </p>
+      </div>
+      <div className="rounded-md border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30">
+              <tr>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground" rowSpan={2}>Employee</th>
+                <th className="text-center px-2 py-1.5 font-medium text-muted-foreground border-l text-xs" colSpan={4}>Annual Leave</th>
+                <th className="text-center px-2 py-1.5 font-medium text-muted-foreground border-l text-xs" colSpan={4}>WFH</th>
+                <th className="text-center px-2 py-1.5 font-medium text-muted-foreground border-l text-xs" colSpan={2}>Marriage</th>
+                <th className="px-2 py-1.5 border-l" rowSpan={2}></th>
+              </tr>
+              <tr className="border-t">
+                <th className="text-center px-3 py-1.5 text-xs font-medium text-muted-foreground border-l">Allowed</th>
+                <th className="text-center px-3 py-1.5 text-xs font-medium text-muted-foreground">+Additional</th>
+                <th className="text-center px-3 py-1.5 text-xs font-medium text-muted-foreground">Taken</th>
+                <th className="text-center px-3 py-1.5 text-xs font-medium text-muted-foreground">Remaining</th>
+                <th className="text-center px-3 py-1.5 text-xs font-medium text-muted-foreground border-l">Allowed</th>
+                <th className="text-center px-3 py-1.5 text-xs font-medium text-muted-foreground">+Additional</th>
+                <th className="text-center px-3 py-1.5 text-xs font-medium text-muted-foreground">Taken</th>
+                <th className="text-center px-3 py-1.5 text-xs font-medium text-muted-foreground">Remaining</th>
+                <th className="text-center px-3 py-1.5 text-xs font-medium text-muted-foreground border-l">Total</th>
+                <th className="text-center px-3 py-1.5 text-xs font-medium text-muted-foreground">Taken</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {localBalances.length === 0 ? (
+                <tr>
+                  <td colSpan={12} className="text-center text-muted-foreground py-8">
+                    No balance records found for this year
+                  </td>
+                </tr>
+              ) : (
+                localBalances.map((bal) => {
+                  const yearlyAdditional = bal.yearly_additional ?? 0
+                  const wfhAdditional = bal.wfh_additional ?? 0
+                  const yearlyBase = bal.yearly_total - yearlyAdditional
+                  const wfhBase = bal.wfh_total - wfhAdditional
+                  const yearlyRemaining = bal.yearly_total - (bal.yearly_used ?? 0)
+                  const wfhRemaining = bal.wfh_total - (bal.wfh_used ?? 0)
+                  const isEditing = editingId === bal.id
+
+                  return (
+                    <tr key={bal.id} className="hover:bg-muted/20 transition-colors">
+                      {/* Employee */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-7 w-7 shrink-0">
+                            <AvatarImage src={bal.user?.avatar_url ?? undefined} />
+                            <AvatarFallback className="text-xs">
+                              {getInitials(bal.user?.full_name ?? 'U')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{bal.user?.full_name ?? 'Unknown'}</p>
+                            <p className="text-xs text-muted-foreground truncate">{bal.user?.email}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Annual: Allowed (base) */}
+                      <td className="px-3 py-3 text-center text-muted-foreground border-l">{yearlyBase}</td>
+
+                      {/* Annual: +Additional (editable) */}
+                      <td className="px-3 py-3 text-center">
+                        {isEditing ? (
+                          <input
+                            type="number" min={0} max={30}
+                            value={editYearly}
+                            onChange={e => setEditYearly(Math.max(0, Number(e.target.value)))}
+                            className="w-14 text-center h-7 rounded border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        ) : (
+                          <span className={yearlyAdditional > 0 ? 'font-medium text-violet-600' : 'text-muted-foreground'}>
+                            {yearlyAdditional > 0 ? `+${yearlyAdditional}` : '—'}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Annual: Taken */}
+                      <td className="px-3 py-3 text-center font-medium">{bal.yearly_used ?? 0}</td>
+
+                      {/* Annual: Remaining */}
+                      <td className="px-3 py-3 text-center">
+                        <span className={yearlyRemaining <= 0 ? 'text-red-600 font-semibold' : yearlyRemaining <= 3 ? 'text-amber-600 font-medium' : 'text-emerald-600 font-medium'}>
+                          {yearlyRemaining}
+                        </span>
+                      </td>
+
+                      {/* WFH: Allowed (base) */}
+                      <td className="px-3 py-3 text-center text-muted-foreground border-l">{wfhBase}</td>
+
+                      {/* WFH: +Additional (editable) */}
+                      <td className="px-3 py-3 text-center">
+                        {isEditing ? (
+                          <input
+                            type="number" min={0} max={30}
+                            value={editWfh}
+                            onChange={e => setEditWfh(Math.max(0, Number(e.target.value)))}
+                            className="w-14 text-center h-7 rounded border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        ) : (
+                          <span className={wfhAdditional > 0 ? 'font-medium text-violet-600' : 'text-muted-foreground'}>
+                            {wfhAdditional > 0 ? `+${wfhAdditional}` : '—'}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* WFH: Taken */}
+                      <td className="px-3 py-3 text-center font-medium">{bal.wfh_used ?? 0}</td>
+
+                      {/* WFH: Remaining */}
+                      <td className="px-3 py-3 text-center">
+                        <span className={wfhRemaining <= 0 ? 'text-red-600 font-semibold' : wfhRemaining <= 2 ? 'text-amber-600 font-medium' : 'text-emerald-600 font-medium'}>
+                          {wfhRemaining}
+                        </span>
+                      </td>
+
+                      {/* Marriage: Total */}
+                      <td className="px-3 py-3 text-center text-muted-foreground border-l">
+                        {bal.marriage_total > 0 ? bal.marriage_total : <span className="text-xs">—</span>}
+                      </td>
+
+                      {/* Marriage: Taken */}
+                      <td className="px-3 py-3 text-center">
+                        {bal.marriage_total > 0 ? (
+                          <span className={bal.marriage_used >= bal.marriage_total ? 'text-red-600 font-medium' : 'font-medium'}>
+                            {bal.marriage_used}
+                          </span>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-3 py-3 text-center border-l">
+                        {isEditing ? (
+                          <div className="flex items-center gap-1 justify-center">
+                            <button
+                              onClick={() => saveEdit(bal)}
+                              disabled={saving}
+                              className="inline-flex items-center justify-center rounded-md h-7 w-7 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              disabled={saving}
+                              className="inline-flex items-center justify-center rounded-md h-7 w-7 border hover:bg-muted/50 disabled:opacity-50"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => startEdit(bal)}
+                            className="inline-flex items-center justify-center rounded-md h-7 w-7 border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                            title="Grant additional days"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Clock, Calendar, CheckCircle2 } from 'lucide-react'
+import { Loader2, Clock, Calendar, CheckCircle2, Banknote, Smartphone } from 'lucide-react'
 import { AttendanceSettings } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 
@@ -45,6 +45,13 @@ const formSchema = z.object({
   // Leave
   yearly_leave_days: z.coerce.number().int().min(1).max(365),
   wfh_days: z.coerce.number().int().min(0).max(365),
+  // Fine amounts (fallback when no salary configured)
+  fine_late_1: z.coerce.number().int().min(0),
+  fine_late_2: z.coerce.number().int().min(0),
+  // Salary fine calculation
+  work_hours_per_week: z.coerce.number().int().min(1).max(80),
+  // Payment
+  org_bkash_number: z.string().max(20).optional().or(z.literal('')),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -80,6 +87,13 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
       // Leave
       yearly_leave_days: settings?.yearly_leave_days ?? 18,
       wfh_days: settings?.wfh_days ?? 10,
+      // Fines
+      fine_late_1: settings?.fine_late_1 ?? 150,
+      fine_late_2: settings?.fine_late_2 ?? 250,
+      // Work schedule
+      work_hours_per_week: settings?.work_hours_per_week ?? 30,
+      // Payment
+      org_bkash_number: settings?.org_bkash_number ?? '',
     },
   })
 
@@ -325,6 +339,109 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
                 </FormItem>
               )} />
             </div>
+          </CardContent>
+        </Card>
+
+        <Separator />
+
+        {/* Late Fine Amounts */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Banknote className="h-4 w-4" />
+              Late Fine System
+            </CardTitle>
+            <CardDescription>
+              Fines are calculated automatically at check-in.
+              Staff with a salary set use <strong>per-minute deduction</strong> (Level 1 = 1.5×, Level 2 = 2.5×).
+              Fixed amounts below are used as fallback when no salary is configured.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Work schedule — drives per-minute rate */}
+            <div>
+              <FormField control={form.control} name="work_hours_per_week" render={({ field }) => (
+                <FormItem className="max-w-xs">
+                  <FormLabel>Work Hours per Week</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={1} max={80} {...field} />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    Used to calculate salary per minute.{' '}
+                    Monthly work minutes = hours × 4 × 60.
+                    Default: 30 hrs/week → 7 200 min/month.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
+            {/* Fixed fallback fines */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                Fixed Fallback Amounts (no salary configured)
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField control={form.control} name="fine_late_1" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Level 1 Fine <span className="text-xs text-amber-600 font-normal">(1.5× threshold)</span></FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">৳</span>
+                        <Input type="number" min={0} {...field} className="pl-7" />
+                      </div>
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      Checked in after on-time but before Level 2 threshold
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="fine_late_2" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Level 2 Fine <span className="text-xs text-red-600 font-normal">(2.5× threshold)</span></FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">৳</span>
+                        <Input type="number" min={0} {...field} className="pl-7" />
+                      </div>
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      Checked in after Level 2 threshold
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* bKash Payment Number */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Smartphone className="h-4 w-4" />
+              bKash Payment Number
+            </CardTitle>
+            <CardDescription>
+              Your organisation&apos;s bKash number shown to staff when a fine is imposed.
+              Staff will be instructed to send the fine amount here and share the TxnID.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FormField control={form.control} name="org_bkash_number" render={({ field }) => (
+              <FormItem className="max-w-xs">
+                <FormLabel>bKash Number</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g. 01700000000" {...field} />
+                </FormControl>
+                <FormDescription className="text-xs">
+                  Leave blank to hide payment instructions from notifications.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )} />
           </CardContent>
         </Card>
 

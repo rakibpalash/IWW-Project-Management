@@ -1,13 +1,15 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { WorkspaceDetailPage } from '@/components/workspaces/workspace-detail-page'
 import { Workspace, Profile, Project, Task, ActivityLog } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
+import { getMyPermissionsAction } from '@/app/actions/permissions'
+import { can } from '@/lib/permissions'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: workspace } = await supabase.from('workspaces').select('name').eq('id', id).single()
+  const admin = createAdminClient()
+  const { data: workspace } = await admin.from('workspaces').select('name').eq('id', id).single()
   return { title: workspace ? `${workspace.name} — IWW PM` : 'Workspace — IWW PM' }
 }
 
@@ -24,21 +26,29 @@ export default async function WorkspaceDetailRoute({
   if (!user) redirect('/login')
 
   const profile = await getProfile(user.id)
-  if (!profile || profile.role !== 'super_admin') redirect('/dashboard')
+  if (!profile) redirect('/login')
 
-  const supabase = await createClient()
+  const perms = await getMyPermissionsAction()
 
-  // Fetch workspace
-  const { data: workspace, error: wsError } = await supabase
+  if (!can(perms, 'workspaces', 'view')) redirect('/dashboard')
+
+  const isAdmin = can(perms, 'workspaces', 'edit') || can(perms, 'workspaces', 'delete')
+
+  // Use admin client so RLS doesn't block users whose permission was granted manually
+  const admin = createAdminClient()
+
+  // Fetch workspace (scoped to org for safety)
+  const { data: workspace, error: wsError } = await admin
     .from('workspaces')
     .select('*')
     .eq('id', id)
+    .eq('organization_id', profile.organization_id)
     .single()
 
   if (wsError || !workspace) notFound()
 
   // Fetch members
-  const { data: assignments } = await supabase
+  const { data: assignments } = await admin
     .from('workspace_assignments')
     .select('user_id')
     .eq('workspace_id', id)
@@ -46,7 +56,7 @@ export default async function WorkspaceDetailRoute({
   const memberIds = (assignments ?? []).map((a: { user_id: string }) => a.user_id)
   let members: Profile[] = []
   if (memberIds.length > 0) {
-    const { data: memberProfiles } = await supabase
+    const { data: memberProfiles } = await admin
       .from('profiles')
       .select(profileSelect)
       .in('id', memberIds)
@@ -55,7 +65,7 @@ export default async function WorkspaceDetailRoute({
   }
 
   // Fetch projects
-  const { data: projects } = await supabase
+  const { data: projects } = await admin
     .from('projects')
     .select('*')
     .eq('workspace_id', id)
@@ -67,7 +77,7 @@ export default async function WorkspaceDetailRoute({
   // Fetch all tasks across workspace projects
   let tasks: Task[] = []
   if (projectIds.length > 0) {
-    const { data: tasksRaw } = await supabase
+    const { data: tasksRaw } = await admin
       .from('tasks')
       .select(`
         *,
@@ -87,10 +97,9 @@ export default async function WorkspaceDetailRoute({
   // Fetch recent activity logs
   let activityLogs: ActivityLog[] = []
   if (projectIds.length > 0) {
-    // Get task ids in this workspace
     const taskIds = tasks.map((t) => t.id)
     if (taskIds.length > 0) {
-      const { data: logsRaw } = await supabase
+      const { data: logsRaw } = await admin
         .from('activity_logs')
         .select(`*, user:profiles(${profileSelect}), task:tasks(id, title)`)
         .in('task_id', taskIds)
@@ -100,7 +109,7 @@ export default async function WorkspaceDetailRoute({
     }
   }
 
-  const { data: profileData } = await supabase
+  const { data: profileData } = await admin
     .from('profiles')
     .select(profileSelect)
     .eq('id', user.id)
@@ -113,7 +122,7 @@ export default async function WorkspaceDetailRoute({
       projects={projectList}
       tasks={tasks}
       activityLogs={activityLogs}
-      isAdmin={true}
+      isAdmin={isAdmin}
       profile={profileData as any}
     />
   )

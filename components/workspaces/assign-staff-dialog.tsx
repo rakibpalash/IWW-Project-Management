@@ -15,11 +15,11 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useToast } from '@/components/ui/use-toast'
-import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/types'
 import { Search, Users } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { listOrgMembersForAssignmentAction, updateWorkspaceMembersAction } from '@/app/actions/workspaces'
 
 type RoleTab = 'staff' | 'client' | 'partner'
 
@@ -71,14 +71,9 @@ export function AssignStaffDialog({
     async function load() {
       setIsLoading(true)
       try {
-        const supabase = createClient()
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, full_name, email, avatar_url, role')
-          .in('role', ['staff', 'client', 'partner'])
-          .order('full_name')
-        if (error) throw error
-        setAllMembers((data as Profile[]) ?? [])
+        const result = await listOrgMembersForAssignmentAction()
+        if (!result.success) throw new Error(result.error)
+        setAllMembers((result.members ?? []) as Profile[])
       } catch {
         toast({ title: 'Failed to load members', variant: 'destructive' })
       } finally {
@@ -101,26 +96,11 @@ export function AssignStaffDialog({
   async function handleSave() {
     setIsSaving(true)
     try {
-      const supabase = createClient()
       const toAdd = [...selected].filter((id) => !currentMemberIds.includes(id))
       const toRemove = currentMemberIds.filter((id) => !selected.has(id))
 
-      if (toRemove.length > 0) {
-        const { error } = await supabase
-          .from('workspace_assignments')
-          .delete()
-          .eq('workspace_id', workspaceId)
-          .in('user_id', toRemove)
-        if (error) throw error
-      }
-
-      if (toAdd.length > 0) {
-        const { error } = await supabase.from('workspace_assignments').upsert(
-          toAdd.map((user_id) => ({ workspace_id: workspaceId, user_id })),
-          { onConflict: 'workspace_id,user_id' }
-        )
-        if (error) throw error
-      }
+      const result = await updateWorkspaceMembersAction(workspaceId, toAdd, toRemove)
+      if (!result.success) throw new Error(result.error)
 
       toast({ title: 'Workspace members updated' })
       onOpenChange(false)

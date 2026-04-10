@@ -22,9 +22,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Search, X, CheckSquare } from 'lucide-react'
+import { Plus, Search, X, CheckSquare, Download, ChevronDown } from 'lucide-react'
 import { TASK_STATUSES, PRIORITIES } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import { format } from 'date-fns'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface MyTasksPageProps {
   initialTasks: Task[]
@@ -123,6 +130,74 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
     setProjectFilter('all')
   }
 
+  const dateSlug = format(new Date(), 'yyyy-MM-dd')
+
+  function buildTaskTableHtml() {
+    const headers = ['Title', 'Project', 'Status', 'Priority', 'Due Date']
+    const rows = filteredTasks.map((t) => `<tr>
+      <td>${t.title}</td>
+      <td>${projects.find((p) => p.id === t.project_id)?.name ?? '-'}</td>
+      <td>${t.status.replace(/_/g, ' ')}</td>
+      <td>${t.priority}</td>
+      <td>${t.due_date ? format(new Date(t.due_date + 'T00:00:00'), 'MMM d, yyyy') : '-'}</td>
+    </tr>`).join('')
+    return `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
+  }
+
+  function exportCsv() {
+    const headers = ['Title', 'Project', 'Status', 'Priority', 'Due Date']
+    const rows = filteredTasks.map((t) => [
+      `"${t.title.replace(/"/g, '""')}"`,
+      `"${(projects.find((p) => p.id === t.project_id)?.name ?? '').replace(/"/g, '""')}"`,
+      t.status.replace(/_/g, ' '),
+      t.priority,
+      t.due_date ? format(new Date(t.due_date + 'T00:00:00'), 'MMM d, yyyy') : '',
+    ])
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `tasks-${dateSlug}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function exportPdf() {
+    const html = `<!DOCTYPE html><html><head><title>My Tasks ${dateSlug}</title><style>
+      body{font-family:Arial,sans-serif;font-size:12px;margin:24px}
+      h2{margin-bottom:12px;color:#111}
+      table{width:100%;border-collapse:collapse}
+      th{background:#f3f4f6;padding:8px 10px;text-align:left;border:1px solid #d1d5db;font-size:11px}
+      td{padding:6px 10px;border:1px solid #e5e7eb;vertical-align:top}
+      tr:nth-child(even) td{background:#f9fafb}
+    </style></head><body>
+      <h2>My Tasks — ${dateSlug}</h2>
+      ${buildTaskTableHtml()}
+    </body></html>`
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(html); win.document.close(); win.focus(); win.print()
+  }
+
+  function exportDoc() {
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"><title>My Tasks ${dateSlug}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:12pt}
+        h2{margin-bottom:12pt}
+        table{width:100%;border-collapse:collapse}
+        th{background:#f3f4f6;padding:6pt 8pt;border:1pt solid #d1d5db;font-size:10pt}
+        td{padding:5pt 8pt;border:1pt solid #e5e7eb}
+      </style></head>
+      <body><h2>My Tasks — ${dateSlug}</h2>${buildTaskTableHtml()}</body></html>`
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `tasks-${dateSlug}.doc`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   function handleTaskCreated(newTask: Task) {
     setTasks((prev) => [newTask, ...prev])
     setShowCreateDialog(false)
@@ -149,12 +224,28 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
             {doneCount}/{totalCount} completed
           </p>
         </div>
-        {canCreate && (
-          <Button onClick={() => setShowCreateDialog(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            New Task
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+                <Download className="h-3.5 w-3.5" />
+                Export
+                <ChevronDown className="h-3 w-3 text-muted-foreground/70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportCsv}>Export as CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportPdf}>Export as PDF</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportDoc}>Export as DOC</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {canCreate && (
+            <Button onClick={() => setShowCreateDialog(true)} size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              New Task
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filter bar */}

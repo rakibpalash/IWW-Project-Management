@@ -21,6 +21,8 @@ interface WorkspaceCardProps {
   onRename: (workspace: Workspace) => void
   onClone: (workspace: Workspace) => void
   onDelete: (workspace: Workspace) => void
+  canEdit?: boolean
+  canDelete?: boolean
 }
 
 export function WorkspaceCard({
@@ -29,6 +31,8 @@ export function WorkspaceCard({
   onRename,
   onClone,
   onDelete,
+  canEdit = false,
+  canDelete = false,
 }: WorkspaceCardProps) {
   return (
     <div className="group relative w-full rounded-xl border border-border bg-card shadow-sm text-left transition-all hover:border-blue-200 hover:shadow-md">
@@ -69,54 +73,62 @@ export function WorkspaceCard({
         </div>
       </button>
 
-      {/* 3-dot menu — absolutely positioned top-right */}
-      <div className="absolute right-3 top-3">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground/70 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation()
-                onRename(workspace)
-              }}
-              className="gap-2"
-            >
-              <Pencil className="h-4 w-4" />
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation()
-                onClone(workspace)
-              }}
-              className="gap-2"
-            >
-              <Copy className="h-4 w-4" />
-              Clone
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete(workspace)
-              }}
-              className="gap-2 text-red-600 focus:text-red-600 focus:bg-red-50"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {/* 3-dot menu — shown only when at least one action is permitted */}
+      {(canEdit || canDelete) && (
+        <div className="absolute right-3 top-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground/70 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {canEdit && (
+                <>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onRename(workspace)
+                    }}
+                    className="gap-2"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onClone(workspace)
+                    }}
+                    className="gap-2"
+                  >
+                    <Copy className="h-4 w-4" />
+                    Clone
+                  </DropdownMenuItem>
+                </>
+              )}
+              {canEdit && canDelete && <DropdownMenuSeparator />}
+              {canDelete && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDelete(workspace)
+                  }}
+                  className="gap-2 text-red-600 focus:text-red-600 focus:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </div>
   )
 }

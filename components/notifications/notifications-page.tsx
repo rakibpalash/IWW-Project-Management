@@ -16,6 +16,14 @@ import {
   RefreshCw,
   ArrowUpRight,
   GitBranch,
+  Trash2,
+  Timer,
+  FolderKanban,
+  CalendarCheck,
+  CalendarX,
+  CalendarClock,
+  Reply,
+  Banknote,
 } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import {
@@ -35,35 +43,39 @@ type NotificationGroup = {
 
 function getNotificationIcon(type: Notification['type']) {
   switch (type) {
-    case 'task_assigned':
-      return <UserPlus className="h-4 w-4" />
-    case 'subtask_assigned':
-      return <GitBranch className="h-4 w-4" />
-    case 'mention':
-      return <AtSign className="h-4 w-4" />
-    case 'comment_reply':
-      return <MessageSquare className="h-4 w-4" />
-    case 'status_changed':
-      return <RefreshCw className="h-4 w-4" />
-    default:
-      return <Bell className="h-4 w-4" />
+    case 'task_assigned':       return <UserPlus className="h-4 w-4" />
+    case 'subtask_assigned':    return <GitBranch className="h-4 w-4" />
+    case 'mention':             return <AtSign className="h-4 w-4" />
+    case 'comment_reply':       return <Reply className="h-4 w-4" />
+    case 'comment_added':       return <MessageSquare className="h-4 w-4" />
+    case 'status_changed':      return <RefreshCw className="h-4 w-4" />
+    case 'task_deleted':        return <Trash2 className="h-4 w-4" />
+    case 'time_logged':         return <Timer className="h-4 w-4" />
+    case 'project_member_added':return <FolderKanban className="h-4 w-4" />
+    case 'leave_approved':      return <CalendarCheck className="h-4 w-4" />
+    case 'leave_rejected':      return <CalendarX className="h-4 w-4" />
+    case 'due_date_approaching':return <CalendarClock className="h-4 w-4" />
+    case 'fine_imposed':        return <Banknote className="h-4 w-4" />
+    default:                    return <Bell className="h-4 w-4" />
   }
 }
 
 function getNotificationIconColor(type: Notification['type']): string {
   switch (type) {
-    case 'task_assigned':
-      return 'bg-blue-100 text-blue-600'
-    case 'subtask_assigned':
-      return 'bg-purple-100 text-purple-600'
-    case 'mention':
-      return 'bg-orange-100 text-orange-600'
-    case 'comment_reply':
-      return 'bg-green-100 text-green-600'
-    case 'status_changed':
-      return 'bg-yellow-100 text-yellow-600'
-    default:
-      return 'bg-muted text-muted-foreground'
+    case 'task_assigned':       return 'bg-blue-100 text-blue-600'
+    case 'subtask_assigned':    return 'bg-purple-100 text-purple-600'
+    case 'mention':             return 'bg-orange-100 text-orange-600'
+    case 'comment_reply':       return 'bg-green-100 text-green-600'
+    case 'comment_added':       return 'bg-teal-100 text-teal-600'
+    case 'status_changed':      return 'bg-yellow-100 text-yellow-600'
+    case 'task_deleted':        return 'bg-red-100 text-red-600'
+    case 'time_logged':         return 'bg-sky-100 text-sky-600'
+    case 'project_member_added':return 'bg-indigo-100 text-indigo-600'
+    case 'leave_approved':      return 'bg-emerald-100 text-emerald-600'
+    case 'leave_rejected':      return 'bg-rose-100 text-rose-600'
+    case 'due_date_approaching':return 'bg-amber-100 text-amber-600'
+    case 'fine_imposed':        return 'bg-red-100 text-red-600'
+    default:                    return 'bg-muted text-muted-foreground'
   }
 }
 

@@ -17,6 +17,7 @@ export async function createTeamAction(data: {
   team_type: 'official' | 'private' | 'public'
   color: string
   memberIds: string[]
+  addCreatorAsMember?: boolean  // default true for normal creation, false for assign-only flow
 }) {
   const caller = await getCallerProfile()
   if (!caller) return { success: false, error: 'Not authenticated' }
@@ -29,13 +30,16 @@ export async function createTeamAction(data: {
     .single()
   if (error) return { success: false, error: error.message }
 
-  const memberRows: { team_id: string; user_id: string; role: 'lead' | 'member' }[] = [
-    { team_id: team.id, user_id: caller.userId, role: 'lead' },
-  ]
+  const addCreator = data.addCreatorAsMember !== false  // true unless explicitly false
+  const memberRows: { team_id: string; user_id: string; role: 'lead' | 'member' }[] = []
+  if (addCreator) {
+    memberRows.push({ team_id: team.id, user_id: caller.userId, role: 'lead' })
+  }
   for (const uid of data.memberIds) {
     if (uid !== caller.userId) memberRows.push({ team_id: team.id, user_id: uid, role: 'member' })
+    else if (!addCreator) memberRows.push({ team_id: team.id, user_id: uid, role: 'member' })
   }
-  await admin.from('team_members').insert(memberRows)
+  if (memberRows.length > 0) await admin.from('team_members').insert(memberRows)
 
   revalidatePath('/team')
   return { success: true, team }

@@ -51,8 +51,23 @@ import {
   Pencil,
   Check,
   X,
+  Download,
+  ChevronDown,
+  Banknote,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react'
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import { updateFineStatusAction, adminSaveAttendanceRecordAction } from '@/app/actions/attendance'
 import { format } from 'date-fns'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 const PAGE_SIZE = 15
 
@@ -91,6 +106,13 @@ export function AdminAttendanceTable({
   const [editState, setEditState] = useState<EditState | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [page, setPage] = useState(0)
+  // Fine management
+  const [fineActionId, setFineActionId] = useState<string | null>(null)
+  const [fineActionType, setFineActionType] = useState<'paid' | 'waived' | null>(null)
+  const [waiveReason, setWaiveReason] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [bkashTxnId, setBkashTxnId] = useState('')
+  const [savingFine, setSavingFine] = useState(false)
   const { toast } = useToast()
 
   // Build record map: userId -> record
@@ -206,7 +228,6 @@ export function AdminAttendanceTable({
     if (!editState) return
     setSavingEdit(true)
     try {
-      const supabase = createClient()
       const isFootball = footballUserIds.has(editState.userId)
       const targetDate = new Date(selectedDate + 'T00:00:00')
       const dayType = getDayType(targetDate)
@@ -218,58 +239,163 @@ export function AdminAttendanceTable({
         computedStatus = computeStatusForRule(editState.checkIn, appliedRule, settings)
       }
 
-      const payload = {
-        check_in_time: editState.checkIn || null,
-        check_out_time: editState.checkOut || null,
+      const result = await adminSaveAttendanceRecordAction({
+        id: editState.id,
+        userId: editState.userId,
+        date: selectedDate,
+        checkIn: editState.checkIn || null,
+        checkOut: editState.checkOut || null,
         status: computedStatus,
-        applied_rule: appliedRule,
-        is_football_rule: isFootball,
-        updated_at: new Date().toISOString(),
+        appliedRule,
+        isFootball,
+      })
+
+      if (!result.success || !result.record) {
+        throw new Error(result.error ?? 'Save failed')
       }
 
-      let updatedRecord: AttendanceRecord
-
       if (editState.id) {
-        // Update existing
-        const { data, error } = await supabase
-          .from('attendance_records')
-          .update(payload)
-          .eq('id', editState.id)
-          .select(
-            '*, user:profiles(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)'
-          )
-          .single()
-        if (error) throw error
-        updatedRecord = data as unknown as AttendanceRecord
-        onRecordsChange(
-          records.map((r) => (r.id === editState.id ? updatedRecord : r))
-        )
+        onRecordsChange(records.map((r) => (r.id === editState.id ? result.record! : r)))
       } else {
-        // Insert new
-        const { data, error } = await supabase
-          .from('attendance_records')
-          .insert({
-            user_id: editState.userId,
-            date: selectedDate,
-            ...payload,
-          })
-          .select(
-            '*, user:profiles(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)'
-          )
-          .single()
-        if (error) throw error
-        updatedRecord = data as unknown as AttendanceRecord
-        onRecordsChange([...records, updatedRecord])
+        onRecordsChange([...records, result.record])
       }
 
       setEditState(null)
       toast({ title: 'Record saved' })
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Unknown error'
+      const msg = err instanceof Error ? err.message : (err as { message?: string })?.message ?? 'Unknown error'
       toast({ title: 'Save failed', description: msg, variant: 'destructive' })
     } finally {
       setSavingEdit(false)
     }
+  }
+
+  // ── Fine actions ─────────────────────────────────────────────────────────────
+  const openFineAction = (recordId: string, type: 'paid' | 'waived') => {
+    setFineActionId(recordId)
+    setFineActionType(type)
+    setWaiveReason('')
+    // Pre-fill bKash if staff already reported a TxnID
+    const record = records.find((r) => r.id === recordId)
+    if (type === 'paid' && record?.fine_reported_txn_id) {
+      setPaymentMethod('bkash')
+      setBkashTxnId(record.fine_reported_txn_id)
+    } else {
+      setPaymentMethod('cash')
+      setBkashTxnId('')
+    }
+  }
+
+  const confirmFineAction = async () => {
+    if (!fineActionId || !fineActionType) return
+    setSavingFine(true)
+    const result = await updateFineStatusAction(
+      fineActionId,
+      fineActionType,
+      waiveReason,
+      fineActionType === 'paid' ? paymentMethod : undefined,
+      fineActionType === 'paid' && paymentMethod === 'bkash' ? bkashTxnId : undefined
+    )
+    if (result.success) {
+      onRecordsChange(records.map((r) =>
+        r.id === fineActionId
+          ? {
+              ...r,
+              fine_status: fineActionType,
+              fine_paid_at: fineActionType === 'paid' ? new Date().toISOString() : null,
+              fine_payment_method: fineActionType === 'paid' ? paymentMethod : null,
+              fine_bkash_txn_id: fineActionType === 'paid' && paymentMethod === 'bkash' ? bkashTxnId : null,
+            }
+          : r
+      ))
+      toast({ title: fineActionType === 'paid' ? 'Fine marked as paid' : 'Fine waived' })
+      setFineActionId(null); setFineActionType(null)
+    } else {
+      toast({ title: 'Failed', description: result.error, variant: 'destructive' })
+    }
+    setSavingFine(false)
+  }
+
+  function getStatusLabel(status: string) {
+    if (status === 'on_time') return 'On Time'
+    if (status === 'late_150') return 'Late (1.5x)'
+    if (status === 'late_250') return 'Late (2.5x)'
+    if (status === 'absent') return 'Absent'
+    if (status === 'advance_absence') return 'Advance Absence'
+    return status
+  }
+
+  function buildAttendanceRows() {
+    return staffProfiles.map((staff) => {
+      const r = recordMap[staff.id]
+      return {
+        name: staff.full_name,
+        email: staff.email,
+        checkIn: r?.check_in_time ?? '',
+        checkOut: r?.check_out_time ?? '',
+        status: r ? getStatusLabel(r.status) : 'No Record',
+        rule: r?.applied_rule ?? '',
+      }
+    })
+  }
+
+  function buildAttendanceTableHtml() {
+    const headers = ['Name', 'Email', 'Check In', 'Check Out', 'Status', 'Rule']
+    const rows = buildAttendanceRows().map((r) => `<tr>
+      <td>${r.name}</td><td>${r.email}</td><td>${r.checkIn || '-'}</td>
+      <td>${r.checkOut || '-'}</td><td>${r.status}</td><td>${r.rule}</td>
+    </tr>`).join('')
+    return `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`
+  }
+
+  function exportCsv() {
+    const headers = ['Name', 'Email', 'Check In', 'Check Out', 'Status', 'Rule']
+    const rows = buildAttendanceRows().map((r) => [
+      `"${r.name}"`, `"${r.email}"`, r.checkIn || '-', r.checkOut || '-', r.status, r.rule,
+    ])
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `attendance-${selectedDate}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function exportPdf() {
+    const html = `<!DOCTYPE html><html><head><title>Attendance ${selectedDate}</title><style>
+      body{font-family:Arial,sans-serif;font-size:12px;margin:24px}
+      h2{margin-bottom:12px;color:#111}
+      table{width:100%;border-collapse:collapse}
+      th{background:#f3f4f6;padding:8px 10px;text-align:left;border:1px solid #d1d5db;font-size:11px}
+      td{padding:6px 10px;border:1px solid #e5e7eb;vertical-align:top}
+      tr:nth-child(even) td{background:#f9fafb}
+    </style></head><body>
+      <h2>Attendance — ${selectedDate}</h2>
+      ${buildAttendanceTableHtml()}
+    </body></html>`
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(html); win.document.close(); win.focus(); win.print()
+  }
+
+  function exportDoc() {
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"><title>Attendance ${selectedDate}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:12pt}
+        h2{margin-bottom:12pt}
+        table{width:100%;border-collapse:collapse}
+        th{background:#f3f4f6;padding:6pt 8pt;border:1pt solid #d1d5db;font-size:10pt}
+        td{padding:5pt 8pt;border:1pt solid #e5e7eb}
+      </style></head>
+      <body><h2>Attendance — ${selectedDate}</h2>${buildAttendanceTableHtml()}</body></html>`
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `attendance-${selectedDate}.doc`; a.click()
+    URL.revokeObjectURL(url)
   }
 
   const presentCount = records.filter((r) => r.check_in_time).length
@@ -320,14 +446,30 @@ export function AdminAttendanceTable({
           {format(new Date(selectedDate + 'T00:00:00'), 'EEEE, MMMM d, yyyy')}
         </span>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 h-9"
-          onClick={() => setFootballDialogOpen(true)}
-        >
-          <span>⚽</span> Football Rule
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs">
+                <Download className="h-3.5 w-3.5" />
+                Export
+                <ChevronDown className="h-3 w-3 text-muted-foreground/70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportCsv}>Export as CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportPdf}>Export as PDF</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportDoc}>Export as DOC</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 h-9"
+            onClick={() => setFootballDialogOpen(true)}
+          >
+            <span>⚽</span> Football Rule
+          </Button>
+        </div>
       </div>
 
       {/* ── Stat cards ── */}
@@ -363,6 +505,7 @@ export function AdminAttendanceTable({
                   <TableHead className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Check In</TableHead>
                   <TableHead className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Check Out</TableHead>
                   <TableHead className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Status</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-amber-600/80 uppercase tracking-wide">Fine</TableHead>
                   <TableHead className="w-28 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Rule</TableHead>
                   <TableHead className="text-right pr-4 w-36 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wide">Actions</TableHead>
                 </TableRow>
@@ -475,6 +618,63 @@ export function AdminAttendanceTable({
                         )}
                       </TableCell>
 
+                      {/* Fine */}
+                      <TableCell>
+                        {record && record.fine_amount > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className={cn(
+                                'text-xs font-semibold tabular-nums',
+                                record.fine_status === 'pending' ? 'text-amber-600' :
+                                record.fine_status === 'paid'    ? 'text-green-600' : 'text-muted-foreground line-through'
+                              )}>
+                                ৳{record.fine_amount}
+                              </span>
+                              {record.fine_status === 'pending' && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-5 w-5 text-amber-500 hover:text-amber-700">
+                                      <Banknote className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start">
+                                    <DropdownMenuItem onClick={() => openFineAction(record.id, 'paid')} className="gap-2 text-green-700">
+                                      <CheckCircle2 className="h-3.5 w-3.5" /> Mark as Paid
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openFineAction(record.id, 'waived')} className="gap-2 text-muted-foreground">
+                                      <XCircle className="h-3.5 w-3.5" /> Waive Fine
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                              {record.fine_status === 'paid' && (
+                                <Badge className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 border-green-200">Paid</Badge>
+                              )}
+                              {record.fine_status === 'waived' && (
+                                <Badge className="text-[10px] px-1.5 py-0 bg-muted text-muted-foreground">Waived</Badge>
+                              )}
+                            </div>
+                            {/* Staff-reported TxnID (awaiting admin verification) */}
+                            {record.fine_status === 'pending' && record.fine_reported_txn_id && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-1 cursor-default">
+                                    <span className="inline-flex items-center gap-1 text-[10px] bg-blue-100 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 font-medium">
+                                      ⚡ TxnID: <span className="font-mono">{record.fine_reported_txn_id}</span>
+                                    </span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">
+                                  Staff reported bKash payment. Verify and mark as Paid.
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/40">—</span>
+                        )}
+                      </TableCell>
+
                       {/* Rule indicator */}
                       <TableCell>
                         {isFootball ? (
@@ -561,7 +761,7 @@ export function AdminAttendanceTable({
 
                 {staffProfiles.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
                       No staff profiles found.
                     </TableCell>
                   </TableRow>
@@ -610,6 +810,97 @@ export function AdminAttendanceTable({
         currentRule={footballRule}
         onSaved={(rule) => onFootballRuleChange(rule)}
       />
+
+      {/* Fine Action Dialog (Pay / Waive) */}
+      <Dialog
+        open={!!fineActionId}
+        onOpenChange={(o) => { if (!o) { setFineActionId(null); setFineActionType(null) } }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {fineActionType === 'paid' ? (
+                <><CheckCircle2 className="h-4 w-4 text-green-600" /> Mark Fine as Paid</>
+              ) : (
+                <><XCircle className="h-4 w-4 text-muted-foreground" /> Waive Fine</>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {fineActionType === 'waived' && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Reason <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <Input
+                placeholder="e.g. Medical emergency, approved by CEO"
+                value={waiveReason}
+                onChange={(e) => setWaiveReason(e.target.value)}
+              />
+            </div>
+          )}
+          {fineActionType === 'paid' && (() => {
+            const rec = records.find((r) => r.id === fineActionId)
+            return rec?.fine_reported_txn_id ? (
+              <div className="flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2.5">
+                <span className="text-blue-600 text-sm">⚡</span>
+                <p className="text-xs text-blue-700">
+                  Staff reported bKash TxnID: <span className="font-semibold font-mono">{rec.fine_reported_txn_id}</span>. TxnID has been pre-filled below.
+                </p>
+              </div>
+            ) : null
+          })()}
+          {fineActionType === 'paid' && (
+            <div className="space-y-3">
+              {/* Payment method */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Payment Method</label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="bkash">bKash</SelectItem>
+                    <SelectItem value="bank">Bank Transfer</SelectItem>
+                    <SelectItem value="salary_deduction">Salary Deduction</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* bKash TxnID */}
+              {paymentMethod === 'bkash' && (
+                <div className="space-y-1.5">
+                  {settings?.org_bkash_number && (
+                    <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
+                      Payment number: <span className="font-semibold">{settings.org_bkash_number}</span>
+                    </p>
+                  )}
+                  <label className="text-sm font-medium">
+                    bKash TxnID <span className="text-muted-foreground font-normal">(optional)</span>
+                  </label>
+                  <Input
+                    placeholder="e.g. 8N7K3S9L"
+                    value={bkashTxnId}
+                    onChange={(e) => setBkashTxnId(e.target.value)}
+                    className="font-mono"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setFineActionId(null); setFineActionType(null) }} disabled={savingFine}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmFineAction}
+              disabled={savingFine}
+              className={fineActionType === 'paid' ? 'bg-green-600 hover:bg-green-700' : ''}
+            >
+              {savingFine && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {fineActionType === 'paid' ? 'Confirm Paid' : 'Waive Fine'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

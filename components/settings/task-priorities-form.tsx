@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CustomTaskPriority } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +22,7 @@ import {
   updateTaskPriorityConfigAction,
   deleteTaskPriorityAction,
   reorderTaskPrioritiesAction,
+  seedDefaultPrioritiesAction,
 } from '@/app/actions/task-priorities'
 
 const PRESET_COLORS = [
@@ -59,6 +60,15 @@ export function TaskPrioritiesForm({ initialPriorities }: Props) {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [reordering, setReordering] = useState(false)
+  const [seeding, setSeeding] = useState(false)
+
+  // Auto-seed defaults silently when this org has no priorities yet
+  useEffect(() => {
+    if (initialPriorities.length === 0) {
+      handleSeedDefaults()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function openAdd() {
     setEditingId(null)
@@ -135,6 +145,15 @@ export function TaskPrioritiesForm({ initialPriorities }: Props) {
     setDeleting(false)
   }
 
+  async function handleSeedDefaults() {
+    setSeeding(true)
+    const result = await seedDefaultPrioritiesAction()
+    if (result.success && result.priorities) {
+      setPriorities(result.priorities)
+    }
+    setSeeding(false)
+  }
+
   async function handleReorder(index: number, direction: 'up' | 'down') {
     const newList = [...priorities]
     const swapIndex = direction === 'up' ? index - 1 : index + 1
@@ -165,7 +184,14 @@ export function TaskPrioritiesForm({ initialPriorities }: Props) {
 
       <CardContent className="space-y-2">
         {priorities.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">No priorities configured yet.</p>
+          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+            <p className="text-sm text-muted-foreground">No priorities configured yet.</p>
+            <Button variant="outline" size="sm" onClick={handleSeedDefaults} disabled={seeding}>
+              {seeding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+              Load Defaults
+            </Button>
+            <p className="text-xs text-muted-foreground">Adds Low, Medium, High, Urgent</p>
+          </div>
         )}
 
         {priorities.map((p, index) => (

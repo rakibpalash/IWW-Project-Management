@@ -14,8 +14,10 @@ import {
   Sun,
   Moon,
   ChevronRight,
+  Map,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { startTour } from '@/components/onboarding/product-tour'
 import { Profile } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -121,6 +123,18 @@ export function Topbar({ profile, onMobileMenuToggle }: TopbarProps) {
 
       {/* Right actions */}
       <div className="flex items-center gap-0.5">
+        {/* Product Tour */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          aria-label="Take a tour"
+          title="Take a tour"
+          onClick={() => startTour(profile.role)}
+        >
+          <Map className="h-4 w-4" />
+        </Button>
+
         {/* Search */}
         <Button
           variant="ghost"

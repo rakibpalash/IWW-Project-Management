@@ -15,6 +15,7 @@ import {
   RULE_EMOJI,
 } from '@/lib/attendance-rules'
 import { cn } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 
 interface Props {
   userId: string
@@ -41,6 +42,12 @@ function formatElapsed(totalSeconds: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+function formatMinutesDisplay(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`
+}
+
 function formatTime12(t: string | null | undefined): string {
   if (!t) return '—'
   const [h, m] = t.split(':').map(Number)
@@ -50,9 +57,8 @@ function formatTime12(t: string | null | undefined): string {
 }
 
 export function CheckInCard({ userId, settings: initialSettings, isAdmin = false }: Props) {
-  const [currentTime, setCurrentTime] = useState('')
-  const [currentDate, setCurrentDate] = useState('')
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [todayLoggedMinutes, setTodayLoggedMinutes] = useState<number>(0)
 
   const {
     todayRecord,
@@ -68,20 +74,12 @@ export function CheckInCard({ userId, settings: initialSettings, isAdmin = false
 
   const activeSettings = settings ?? initialSettings
 
-  // Live clock + elapsed timer
+  // Elapsed work timer (while checked in)
   useEffect(() => {
+    if (!hasCheckedIn || hasCheckedOut) return
     const update = () => {
-      const now = new Date()
-      setCurrentTime(
-        now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      )
-      setCurrentDate(
-        now.toLocaleDateString('en-US', {
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-        })
-      )
-      // Elapsed since check-in
-      if (todayRecord?.check_in_time && !hasCheckedOut) {
+      if (todayRecord?.check_in_time) {
+        const now = new Date()
         const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()
         const ciSec = timeToSeconds(todayRecord.check_in_time)
         setElapsedSeconds(Math.max(0, nowSec - ciSec))
@@ -90,7 +88,43 @@ export function CheckInCard({ userId, settings: initialSettings, isAdmin = false
     update()
     const interval = setInterval(update, 1000)
     return () => clearInterval(interval)
-  }, [todayRecord?.check_in_time, hasCheckedOut])
+  }, [todayRecord?.check_in_time, hasCheckedIn, hasCheckedOut])
+
+  // Today's total time logged from time_entries
+  useEffect(() => {
+    const supabase = createClient()
+
+    async function fetchTodayLog() {
+      // Use LOCAL date (not UTC) so users in non-UTC timezones see the right day
+      const now = new Date()
+      const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+      const { data } = await supabase
+        .from('time_entries')
+        .select('duration_minutes, is_running, started_at')
+        .eq('user_id', userId)
+        .gte('started_at', `${localToday}T00:00:00`)
+        .lte('started_at', `${localToday}T23:59:59`)
+
+      let total = 0
+      for (const e of data ?? []) {
+        if (e.is_running) {
+          // Running timer: add elapsed time since started_at
+          const started = new Date(e.started_at)
+          const elapsedMins = Math.floor((now.getTime() - started.getTime()) / 60000)
+          total += Math.max(0, elapsedMins)
+        } else {
+          total += e.duration_minutes ?? 0
+        }
+      }
+      setTodayLoggedMinutes(total)
+    }
+
+    fetchTodayLog()
+    // Refresh every minute so running timers stay current
+    const interval = setInterval(fetchTodayLog, 60_000)
+    return () => clearInterval(interval)
+  }, [userId])
 
   const isHoliday = dayType === 'sunday'
   const ruleLabel = RULE_LABELS[appliedRule]
@@ -108,7 +142,7 @@ export function CheckInCard({ userId, settings: initialSettings, isAdmin = false
       </CardHeader>
       <CardContent className="space-y-4">
 
-        {/* Timer (elapsed) when checked in, else live clock */}
+        {/* Elapsed work timer (checked in) · Today's time log (otherwise) */}
         <div className="text-center py-1">
           {hasCheckedIn && !hasCheckedOut ? (
             <>
@@ -125,10 +159,16 @@ export function CheckInCard({ userId, settings: initialSettings, isAdmin = false
             </>
           ) : (
             <>
-              <div className="text-4xl font-mono font-bold tabular-nums tracking-tight">
-                {currentTime}
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <Timer className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Today&apos;s Time Logged</span>
               </div>
-              <div className="text-sm text-muted-foreground mt-1">{currentDate}</div>
+              <div className="text-4xl font-mono font-bold tabular-nums tracking-tight">
+                {formatMinutesDisplay(todayLoggedMinutes)}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {todayLoggedMinutes === 0 ? 'No time entries yet today' : `${todayLoggedMinutes} min total`}
+              </div>
             </>
           )}
         </div>
