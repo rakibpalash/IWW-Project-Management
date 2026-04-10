@@ -1,6 +1,7 @@
 import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import type { Profile } from '@/types'
 
 // Full select — includes columns added by migrations (organization_id, is_active)
 const PROFILE_SELECT =
@@ -12,15 +13,11 @@ const PROFILE_SELECT_BASE =
 
 /**
  * getUser — deduplicated within a single React render via React cache().
- * Layout and page calling this in the same request only hit Supabase once.
  */
 export const getUser = cache(async () => {
   try {
     const supabase = await createClient()
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser()
+    const { data: { user }, error } = await supabase.auth.getUser()
     if (error || !user) return null
     return user
   } catch {
@@ -30,33 +27,34 @@ export const getUser = cache(async () => {
 
 /**
  * _fetchProfile — cross-request cached via unstable_cache (2 min TTL).
- * Tries the full select first; if it fails (columns not yet migrated),
- * falls back to the base select so the app never returns null just because
- * a migration hasn't run yet.
+ * Tries the full select first; if columns are missing (migration not run yet),
+ * falls back to base columns so the app never crashes with a null profile.
  */
-const _fetchProfile = (userId: string) =>
+async function fetchProfileFromDb(userId: string): Promise<Profile | null> {
+  const admin = createAdminClient()
+
+  // Try full select (with organization_id, is_active)
+  const { data, error } = await admin
+    .from('profiles')
+    .select(PROFILE_SELECT)
+    .eq('id', userId)
+    .single()
+
+  if (!error && data) return data as Profile
+
+  // Fall back to base columns (migration not yet applied)
+  const { data: baseData } = await admin
+    .from('profiles')
+    .select(PROFILE_SELECT_BASE)
+    .eq('id', userId)
+    .single()
+
+  return (baseData ?? null) as Profile | null
+}
+
+const _fetchProfile = (userId: string): Promise<Profile | null> =>
   unstable_cache(
-    async () => {
-      const admin = createAdminClient()
-
-      // Try full select (with organization_id, is_active)
-      const { data, error } = await admin
-        .from('profiles')
-        .select(PROFILE_SELECT)
-        .eq('id', userId)
-        .single()
-
-      if (!error) return data
-
-      // Fall back to base columns (migration not yet applied)
-      const { data: baseData } = await admin
-        .from('profiles')
-        .select(PROFILE_SELECT_BASE)
-        .eq('id', userId)
-        .single()
-
-      return baseData
-    },
+    () => fetchProfileFromDb(userId),
     ['profile', userId],
     { revalidate: 120 }
   )()
@@ -64,7 +62,7 @@ const _fetchProfile = (userId: string) =>
 /**
  * getProfile — React-cache deduplication on top of unstable_cache.
  */
-export const getProfile = cache(async (userId: string) => {
+export const getProfile = cache(async (userId: string): Promise<Profile | null> => {
   try {
     return await _fetchProfile(userId)
   } catch {
@@ -74,7 +72,6 @@ export const getProfile = cache(async (userId: string) => {
 
 /**
  * requireAuthWithOrg — used by server actions to get caller + their org_id.
- * Throws if not authenticated or org not set up.
  */
 export async function requireAuthWithOrg() {
   const supabase = await createClient()
@@ -91,13 +88,6 @@ export async function requireAuthWithOrg() {
     .single()
 
   if (profileError) {
-    // Column may not exist — fetch without it
-    const { data: baseProfile } = await admin
-      .from('profiles')
-      .select('id, role')
-      .eq('id', user.id)
-      .single()
-    if (!baseProfile) throw new Error('Profile not found')
     throw new Error('Organization not set up')
   }
 
