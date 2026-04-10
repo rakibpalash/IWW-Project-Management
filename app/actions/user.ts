@@ -10,48 +10,52 @@ export async function createUserAction(data: {
   password: string
 }): Promise<{ success: boolean; userId?: string; tempPassword?: string; error?: string }> {
   try {
+    const { createClient: createRegularClient } = await import('@/lib/supabase/server')
+    const userClient = await createRegularClient()
+    const { data: { user: callerUser } } = await userClient.auth.getUser()
+    if (!callerUser) return { success: false, error: 'Not authenticated' }
+
     const supabase = createAdminClient()
+
+    // Get caller's org_id
+    const { data: callerProfile } = await supabase
+      .from('profiles')
+      .select('role, organization_id')
+      .eq('id', callerUser.id)
+      .single()
+
+    if (!callerProfile || callerProfile.role !== 'super_admin') {
+      return { success: false, error: 'Unauthorized' }
+    }
 
     // Create auth user via admin API
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: data.email,
       password: data.password,
       email_confirm: true,
-      user_metadata: {
-        full_name: data.full_name,
-      },
+      user_metadata: { full_name: data.full_name },
     })
 
-    if (authError) {
-      return { success: false, error: authError.message }
-    }
+    if (authError) return { success: false, error: authError.message }
+    if (!authData.user) return { success: false, error: 'Failed to create user' }
 
-    if (!authData.user) {
-      return { success: false, error: 'Failed to create user' }
-    }
-
-    // Update the profile with role and temp password flag
+    // Update the profile with role, temp password, and org_id
     const { error: profileError } = await supabase
       .from('profiles')
       .update({
         full_name: data.full_name,
         role: data.role,
         is_temp_password: true,
+        organization_id: callerProfile.organization_id,
       })
       .eq('id', authData.user.id)
 
-    if (profileError) {
-      return { success: false, error: profileError.message }
-    }
+    if (profileError) return { success: false, error: profileError.message }
 
     revalidatePath('/settings')
     revalidatePath('/team')
 
-    return {
-      success: true,
-      userId: authData.user.id,
-      tempPassword: data.password,
-    }
+    return { success: true, userId: authData.user.id, tempPassword: data.password }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return { success: false, error: message }

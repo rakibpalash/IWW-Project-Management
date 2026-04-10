@@ -11,7 +11,6 @@ export const metadata = {
 const profileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
 async function fetchTimeEntriesWithMeta(admin: ReturnType<typeof createAdminClient>, userIds?: string[], limit = 8) {
-  // Two-step: time_entries + task+project join (works), then profiles separately (FK is to auth.users)
   const query = admin
     .from('time_entries')
     .select('id, task_id, user_id, duration_minutes, is_running, started_at, task:tasks(id, title, project:projects(id, name))')
@@ -22,7 +21,6 @@ async function fetchTimeEntriesWithMeta(admin: ReturnType<typeof createAdminClie
 
   if (!entries || entries.length === 0) return []
 
-  // Fetch profiles for user_ids
   const userIdSet = [...new Set(entries.map((e: any) => e.user_id))]
   const { data: profilesData } = await admin.from('profiles').select('id, full_name, avatar_url').in('id', userIdSet)
   const profilesById = Object.fromEntries((profilesData ?? []).map((p: any) => [p.id, p]))
@@ -50,12 +48,30 @@ export default async function DashboardRoute() {
 
   const admin = createAdminClient()
   const supabase = await createClient()
+  const orgId = (profile as Profile).organization_id
 
   const role = (profile as Profile).role
 
   // ── Super Admin ─────────────────────────────────────────────────────────────
   if (role === 'super_admin') {
     const today = new Date().toISOString().slice(0, 10)
+
+    // Get all user IDs in this org to scope non-directly-org-filtered tables
+    const { data: orgUsers } = orgId
+      ? await admin.from('profiles').select('id').eq('organization_id', orgId)
+      : await admin.from('profiles').select('id')
+    const orgUserIds = (orgUsers ?? []).map((u) => u.id)
+
+    // Get workspace IDs for this org to scope projects
+    const { data: orgWorkspaces } = orgId
+      ? await admin.from('workspaces').select('id').eq('organization_id', orgId)
+      : await admin.from('workspaces').select('id')
+    const orgWorkspaceIds = (orgWorkspaces ?? []).map((w) => w.id)
+
+    // Build org-scoped project IDs
+    const projectsQuery = orgWorkspaceIds.length > 0
+      ? admin.from('projects').select('id, status').in('workspace_id', orgWorkspaceIds)
+      : admin.from('projects').select('id, status')
 
     const [
       { data: projects },
@@ -67,14 +83,25 @@ export default async function DashboardRoute() {
       { data: recentProjects },
       recentTeamTimeEntries,
     ] = await Promise.all([
-      admin.from('projects').select('id, status'),
+      projectsQuery,
+      // Tasks filtered via workspaces→projects (complex join; use user-scoped approach)
       admin.from('tasks').select('id').lt('due_date', new Date().toISOString()).not('status', 'in', '("done","cancelled")'),
-      admin.from('leave_requests').select('id').eq('status', 'pending'),
-      admin.from('attendance_records').select('id').eq('date', today).not('check_in_time', 'is', null),
-      admin.from('profiles').select('id').eq('role', 'staff'),
-      admin.from('activity_logs').select('*, user:profiles(id, full_name, avatar_url)').order('created_at', { ascending: false }).limit(5),
-      admin.from('projects').select('id, name, status, priority, progress, due_date, created_at').order('created_at', { ascending: false }).limit(5),
-      fetchTimeEntriesWithMeta(admin, undefined, 10),
+      orgUserIds.length > 0
+        ? admin.from('leave_requests').select('id').eq('status', 'pending').in('user_id', orgUserIds)
+        : admin.from('leave_requests').select('id').eq('status', 'pending'),
+      orgUserIds.length > 0
+        ? admin.from('attendance_records').select('id').eq('date', today).not('check_in_time', 'is', null).in('user_id', orgUserIds)
+        : admin.from('attendance_records').select('id').eq('date', today).not('check_in_time', 'is', null),
+      orgId
+        ? admin.from('profiles').select('id').eq('role', 'staff').eq('organization_id', orgId)
+        : admin.from('profiles').select('id').eq('role', 'staff'),
+      orgUserIds.length > 0
+        ? admin.from('activity_logs').select('*, user:profiles(id, full_name, avatar_url)').in('user_id', orgUserIds).order('created_at', { ascending: false }).limit(5)
+        : admin.from('activity_logs').select('*, user:profiles(id, full_name, avatar_url)').order('created_at', { ascending: false }).limit(5),
+      orgWorkspaceIds.length > 0
+        ? admin.from('projects').select('id, name, status, priority, progress, due_date, created_at').in('workspace_id', orgWorkspaceIds).order('created_at', { ascending: false }).limit(5)
+        : admin.from('projects').select('id, name, status, priority, progress, due_date, created_at').order('created_at', { ascending: false }).limit(5),
+      fetchTimeEntriesWithMeta(admin, orgUserIds.length > 0 ? orgUserIds : undefined, 10),
     ])
 
     return (

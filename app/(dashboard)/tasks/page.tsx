@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { MyTasksPage } from '@/components/tasks/my-tasks-page'
 import { Task, Profile, Project } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
@@ -85,11 +85,17 @@ export default async function TasksServerPage() {
     })) as Task[]
   }
 
-  // Fetch all accessible projects for the create task dropdown
-  const { data: projectsData } = await supabase
-    .from('projects')
-    .select('id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at')
-    .order('name')
+  // Fetch all accessible projects for the create task dropdown (scoped to org via workspaces)
+  const admin = createAdminClient()
+  const orgId = (profile as Profile).organization_id
+  const { data: orgWorkspaces } = orgId
+    ? await admin.from('workspaces').select('id').eq('organization_id', orgId)
+    : await admin.from('workspaces').select('id')
+  const orgWsIds = (orgWorkspaces ?? []).map((w: { id: string }) => w.id)
+
+  const { data: projectsData } = orgWsIds.length > 0
+    ? await supabase.from('projects').select('id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at').in('workspace_id', orgWsIds).order('name')
+    : await supabase.from('projects').select('id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at').order('name')
   const allProjects: Project[] = (projectsData ?? []) as Project[]
 
   return (

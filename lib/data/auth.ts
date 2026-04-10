@@ -3,7 +3,7 @@ import { unstable_cache } from 'next/cache'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 const PROFILE_SELECT =
-  'id, full_name, email, role, is_temp_password, onboarding_completed, avatar_url, created_at, updated_at'
+  'id, full_name, email, role, is_temp_password, onboarding_completed, avatar_url, organization_id, created_at, updated_at'
 
 /**
  * getUser — deduplicated within a single React render via React cache().
@@ -52,3 +52,25 @@ export const getProfile = cache(async (userId: string) => {
     return null
   }
 })
+
+/**
+ * requireAuthWithOrg — used by server actions to get caller + their org_id.
+ * Throws if not authenticated or org not set up.
+ */
+export async function requireAuthWithOrg() {
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) throw new Error('Not authenticated')
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('id, role, organization_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile) throw new Error('Profile not found')
+  if (!profile.organization_id) throw new Error('Organization not set up')
+
+  return { user, profile, orgId: profile.organization_id as string }
+}

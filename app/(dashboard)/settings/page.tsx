@@ -11,7 +11,6 @@ export const metadata = {
 const profileSelect =
   'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
-// Includes custom_role_id + manager_id — only used after relevant migrations are run
 const staffProfileSelect =
   'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_temp_password, onboarding_completed, created_at, updated_at'
 
@@ -28,15 +27,14 @@ export default async function SettingsServerPage({
   if (!profile) redirect('/login')
 
   const supabase = await createClient()
-
+  const orgId = (profile as Profile).organization_id
   const isAdmin = profile.role === 'super_admin'
 
-  // Fetch attendance settings (singleton)
-  const { data: attendanceSettings } = await supabase
-    .from('attendance_settings')
-    .select('*')
-    .limit(1)
-    .single()
+  // Fetch attendance settings scoped to this org
+  const settingsQuery = orgId
+    ? supabase.from('attendance_settings').select('*').eq('organization_id', orgId).limit(1).single()
+    : supabase.from('attendance_settings').select('*').limit(1).single()
+  const { data: attendanceSettings } = await settingsQuery
 
   let allStaff: Profile[] = []
   let workspaceAssignments: (WorkspaceAssignment & { workspace?: Workspace })[] = []
@@ -46,18 +44,33 @@ export default async function SettingsServerPage({
   let customRoles: CustomRole[] = []
 
   if (isAdmin) {
+    const staffQ = orgId
+      ? supabase.from('profiles').select(staffProfileSelect).eq('organization_id', orgId).order('full_name')
+      : supabase.from('profiles').select(staffProfileSelect).order('full_name')
+    const wsQ = orgId
+      ? supabase.from('workspaces').select('*').eq('organization_id', orgId).order('name')
+      : supabase.from('workspaces').select('*').order('name')
+    const statusQ = orgId
+      ? supabase.from('task_statuses').select('*').eq('organization_id', orgId).order('sort_order')
+      : supabase.from('task_statuses').select('*').order('sort_order')
+    const priorityQ = orgId
+      ? supabase.from('task_priorities').select('*').eq('organization_id', orgId).order('sort_order')
+      : supabase.from('task_priorities').select('*').order('sort_order')
+
     const [staffData, workspacesData, assignmentsData, statusesData, prioritiesData] =
       await Promise.all([
-        supabase.from('profiles').select(staffProfileSelect).order('full_name'),
-        supabase.from('workspaces').select('*').order('name'),
+        staffQ,
+        wsQ,
         supabase.from('workspace_assignments').select('*, workspace:workspaces(*)'),
-        supabase.from('task_statuses').select('*').order('sort_order'),
-        supabase.from('task_priorities').select('*').order('sort_order'),
+        statusQ,
+        priorityQ,
       ])
 
-    // Fall back to profileSelect if staffProfileSelect fails (migration not run yet)
     if (staffData.error) {
-      const { data: fallbackStaff } = await supabase.from('profiles').select(profileSelect).order('full_name')
+      const fallbackQ = orgId
+        ? supabase.from('profiles').select(profileSelect).eq('organization_id', orgId).order('full_name')
+        : supabase.from('profiles').select(profileSelect).order('full_name')
+      const { data: fallbackStaff } = await fallbackQ
       allStaff = (fallbackStaff as Profile[]) ?? []
     } else {
       allStaff = (staffData.data as Profile[]) ?? []
@@ -67,8 +80,10 @@ export default async function SettingsServerPage({
     taskStatuses = (statusesData.data as CustomTaskStatus[]) ?? []
     taskPriorities = (prioritiesData.data as CustomTaskPriority[]) ?? []
 
-    // custom_roles table only exists after migration — ignore error if table missing
-    const { data: rolesData } = await supabase.from('custom_roles').select('*').order('name')
+    const rolesQ = orgId
+      ? supabase.from('custom_roles').select('*').eq('organization_id', orgId).order('name')
+      : supabase.from('custom_roles').select('*').order('name')
+    const { data: rolesData } = await rolesQ
     customRoles = (rolesData as CustomRole[]) ?? []
   }
 

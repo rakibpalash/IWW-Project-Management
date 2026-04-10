@@ -30,6 +30,11 @@ export async function createTaskStatusAction(input: {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
+    const admin = createAdminClient()
+
+    // Get caller's org_id
+    const { data: callerProfile } = await admin.from('profiles').select('organization_id').eq('id', user.id).single()
+
     const { data: top } = await supabase
       .from('task_statuses')
       .select('sort_order')
@@ -37,7 +42,6 @@ export async function createTaskStatusAction(input: {
       .limit(1)
       .single()
 
-    const admin = createAdminClient()
     const { data, error } = await admin
       .from('task_statuses')
       .insert({
@@ -50,6 +54,7 @@ export async function createTaskStatusAction(input: {
         is_completed_status: input.is_completed_status,
         counts_toward_progress: input.counts_toward_progress,
         created_by: user.id,
+        organization_id: callerProfile?.organization_id ?? null,
       })
       .select('*')
       .single()

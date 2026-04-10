@@ -36,6 +36,8 @@ export async function createTaskPriorityAction(input: {
       .single()
 
     const admin = createAdminClient()
+    const { data: callerProfile } = await admin.from('profiles').select('organization_id').eq('id', user.id).single()
+
     const { data, error } = await admin
       .from('task_priorities')
       .insert({
@@ -46,6 +48,7 @@ export async function createTaskPriorityAction(input: {
         is_active: true,
         is_default: false,
         created_by: user.id,
+        organization_id: callerProfile?.organization_id ?? null,
       })
       .select('*')
       .single()

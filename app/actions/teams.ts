@@ -7,7 +7,7 @@ async function getCallerProfile() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const admin = createAdminClient()
-  const { data: profile } = await admin.from('profiles').select('id, role').eq('id', user.id).single()
+  const { data: profile } = await admin.from('profiles').select('id, role, organization_id').eq('id', user.id).single()
   return profile ? { ...profile, userId: user.id } : null
 }
 
@@ -24,7 +24,7 @@ export async function createTeamAction(data: {
   const admin = createAdminClient()
   const { data: team, error } = await admin
     .from('teams')
-    .insert({ name: data.name, description: data.description, team_type: data.team_type, color: data.color, created_by: caller.userId })
+    .insert({ name: data.name, description: data.description, team_type: data.team_type, color: data.color, created_by: caller.userId, organization_id: caller.organization_id })
     .select('*')
     .single()
   if (error) return { success: false, error: error.message }

@@ -14,6 +14,11 @@ export default async function DashboardLayout({
   const profile = await getProfile(user.id)
   if (!profile) redirect('/login')
 
+  // Super admin without an org → must set up their organization first
+  if (profile.role === 'super_admin' && !profile.organization_id) {
+    redirect('/setup-org')
+  }
+
   return (
     <DashboardShell profile={profile as Profile}>
       {children}

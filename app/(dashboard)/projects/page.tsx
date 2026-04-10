@@ -16,6 +16,7 @@ export default async function ProjectsServerPage() {
   if (!profile) redirect('/login')
 
   const supabase = await createClient()
+  const orgId = (profile as Profile).organization_id
 
   let projects: Project[] = []
 
@@ -27,11 +28,15 @@ export default async function ProjectsServerPage() {
   `
 
   if (profile.role === 'super_admin') {
-    // Super admin: fetch ALL projects with workspace + client + partner joins
-    const { data } = await supabase
-      .from('projects')
-      .select(PROJECT_SELECT)
-      .order('created_at', { ascending: false })
+    // Get org workspace IDs to scope projects
+    const { data: orgWorkspaces } = orgId
+      ? await supabase.from('workspaces').select('id').eq('organization_id', orgId)
+      : await supabase.from('workspaces').select('id')
+    const orgWorkspaceIds = (orgWorkspaces ?? []).map((w: any) => w.id)
+
+    const { data } = orgWorkspaceIds.length > 0
+      ? await supabase.from('projects').select(PROJECT_SELECT).in('workspace_id', orgWorkspaceIds).order('created_at', { ascending: false })
+      : await supabase.from('projects').select(PROJECT_SELECT).order('created_at', { ascending: false })
 
     projects = (data ?? []) as Project[]
   } else if (profile.role === 'staff') {
@@ -53,7 +58,6 @@ export default async function ProjectsServerPage() {
       projects = (data ?? []) as Project[]
     }
   } else if (profile.role === 'client') {
-    // Client: fetch projects where client_id = user.id
     const { data } = await supabase
       .from('projects')
       .select(PROJECT_SELECT)
@@ -81,7 +85,6 @@ export default async function ProjectsServerPage() {
           actualHoursMap[projectId] = (actualHoursMap[projectId] ?? 0) + (entry.duration_minutes ?? 0)
         }
       }
-      // convert minutes to hours
       Object.keys(actualHoursMap).forEach((pid) => {
         actualHoursMap[pid] = actualHoursMap[pid] / 60
       })
@@ -93,10 +96,13 @@ export default async function ProjectsServerPage() {
     actual_hours: actualHoursMap[p.id] ?? 0,
   }))
 
-  // Fetch workspaces for filter (admins/staff)
+  // Fetch workspaces for filter
   let workspaces: Workspace[] = []
   if (profile.role === 'super_admin') {
-    const { data } = await supabase.from('workspaces').select('*').order('name')
+    const wsQuery = orgId
+      ? supabase.from('workspaces').select('*').eq('organization_id', orgId).order('name')
+      : supabase.from('workspaces').select('*').order('name')
+    const { data } = await wsQuery
     workspaces = data ?? []
   } else if (profile.role === 'staff') {
     const { data: assignments } = await supabase

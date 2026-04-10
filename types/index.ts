@@ -20,6 +20,16 @@ export interface CustomRole {
   created_at: string
 }
 
+export interface Organization {
+  id: string
+  name: string
+  slug: string
+  logo_url: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Profile {
   id: string
   email: string
@@ -28,6 +38,7 @@ export interface Profile {
   role: Role
   is_temp_password: boolean
   onboarding_completed: boolean
+  organization_id: string | null
   created_at: string
   updated_at: string
   custom_role_id?: string | null

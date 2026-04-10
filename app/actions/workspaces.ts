@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { requireAuthWithOrg } from '@/lib/data/auth'
 import { revalidatePath } from 'next/cache'
 
 // ── Auth + admin guard ────────────────────────────────────────────────────────
@@ -14,15 +15,53 @@ async function requireAdmin() {
 
   if (error || !user) throw new Error('Not authenticated')
 
-  const { data: profile } = await supabase
+  const admin = createAdminClient()
+  const { data: profile } = await admin
     .from('profiles')
-    .select('role')
+    .select('role, organization_id')
     .eq('id', user.id)
     .single()
 
   if (!profile || profile.role !== 'super_admin') throw new Error('Insufficient permissions')
 
-  return { supabase, userId: user.id }
+  return { supabase, userId: user.id, orgId: profile.organization_id as string | null }
+}
+
+// ── Create ────────────────────────────────────────────────────────────────────
+
+export async function createWorkspaceAction(data: {
+  name: string
+  description?: string
+  memberIds?: string[]
+}): Promise<{ success: boolean; workspace?: any; error?: string }> {
+  try {
+    const { user, orgId } = await requireAuthWithOrg()
+    const admin = createAdminClient()
+
+    const { data: workspace, error: wsError } = await admin
+      .from('workspaces')
+      .insert({
+        name: data.name.trim(),
+        description: data.description?.trim() || null,
+        created_by: user.id,
+        organization_id: orgId,
+      })
+      .select('id, name, description, created_by, created_at, updated_at')
+      .single()
+
+    if (wsError || !workspace) return { success: false, error: wsError?.message ?? 'Failed to create workspace' }
+
+    if (data.memberIds && data.memberIds.length > 0) {
+      await admin.from('workspace_assignments').insert(
+        data.memberIds.map((user_id) => ({ workspace_id: workspace.id, user_id }))
+      )
+    }
+
+    revalidatePath('/workspaces')
+    return { success: true, workspace }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
 }
 
 // ── Rename ────────────────────────────────────────────────────────────────────
@@ -123,7 +162,7 @@ export async function cloneWorkspaceAction(
   workspaceId: string
 ): Promise<{ success: boolean; newWorkspaceId?: string; error?: string }> {
   try {
-    const { supabase, userId } = await requireAdmin()
+    const { supabase, userId, orgId } = await requireAdmin()
 
     // 1. Fetch source workspace
     const { data: source, error: srcErr } = await supabase
@@ -134,13 +173,14 @@ export async function cloneWorkspaceAction(
 
     if (srcErr || !source) return { success: false, error: 'Workspace not found' }
 
-    // 2. Create new workspace
+    // 2. Create new workspace (stamp org_id)
     const { data: newWs, error: wsErr } = await supabase
       .from('workspaces')
       .insert({
         name: `${source.name} (Copy)`,
         description: source.description,
         created_by: userId,
+        organization_id: orgId,
       })
       .select('id')
       .single()

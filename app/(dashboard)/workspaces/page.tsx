@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/server'
 import { WorkspacesPage } from '@/components/workspaces/workspaces-page'
-import { Workspace } from '@/types'
+import { Workspace, Profile } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 
 export const dynamic = 'force-dynamic'
@@ -11,7 +11,6 @@ export const metadata = {
 }
 
 export default async function WorkspacesRoute() {
-  // Auth checks must happen outside try-catch so redirects work correctly
   const user = await getUser()
   if (!user) redirect('/login')
 
@@ -25,13 +24,25 @@ export default async function WorkspacesRoute() {
 
   if (!profile || profile.role !== 'super_admin') redirect('/dashboard')
 
+  const orgId = profile.organization_id
+
   try {
     const admin = createAdminClient()
-    const [{ data: workspaces, error: wsErr }, { data: assignments }, { data: projects }] =
+
+    const workspacesQuery = orgId
+      ? admin.from('workspaces').select('*').eq('organization_id', orgId).order('created_at', { ascending: false })
+      : admin.from('workspaces').select('*').order('created_at', { ascending: false })
+
+    const staffQuery = orgId
+      ? admin.from('profiles').select('id, full_name, email, avatar_url, role').eq('role', 'staff').eq('organization_id', orgId).order('full_name')
+      : admin.from('profiles').select('id, full_name, email, avatar_url, role').eq('role', 'staff').order('full_name')
+
+    const [{ data: workspaces, error: wsErr }, { data: assignments }, { data: projects }, { data: staffProfiles }] =
       await Promise.all([
-        admin.from('workspaces').select('*').order('created_at', { ascending: false }),
+        workspacesQuery,
         admin.from('workspace_assignments').select('workspace_id'),
         admin.from('projects').select('workspace_id'),
+        staffQuery,
       ])
 
     if (wsErr) {
@@ -48,12 +59,10 @@ export default async function WorkspacesRoute() {
       ).length,
     }))
 
-    return <WorkspacesPage workspaces={workspacesWithCounts} />
+    return <WorkspacesPage workspaces={workspacesWithCounts} staffProfiles={(staffProfiles as Profile[]) ?? []} />
   } catch (err) {
-    // Re-throw Next.js redirect/notFound signals
     if (err && typeof err === 'object' && 'digest' in err) throw err
     console.error('[WorkspacesRoute] Unexpected error:', err)
-    // Show empty state instead of crashing into error boundary
-    return <WorkspacesPage workspaces={[]} />
+    return <WorkspacesPage workspaces={[]} staffProfiles={[]} />
   }
 }

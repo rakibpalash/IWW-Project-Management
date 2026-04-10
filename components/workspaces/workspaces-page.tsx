@@ -12,15 +12,16 @@ import { SmartDeleteDialog } from '@/components/ui/smart-delete-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { deleteWorkspaceAction, cloneWorkspaceAction } from '@/app/actions/workspaces'
 import { getWorkspaceDeleteImpact } from '@/app/actions/delete-impact'
-import { Workspace } from '@/types'
+import { Workspace, Profile } from '@/types'
 
 type WorkspaceWithCounts = Workspace & { member_count: number; project_count: number }
 
 interface WorkspacesPageProps {
   workspaces: WorkspaceWithCounts[]
+  staffProfiles: Profile[]
 }
 
-export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPageProps) {
+export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles }: WorkspacesPageProps) {
   const router = useRouter()
   const { toast } = useToast()
 
@@ -162,6 +163,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces }: WorkspacesPage
         open={showCreate}
         onOpenChange={setShowCreate}
         onSuccess={handleCreateSuccess}
+        staffProfiles={staffProfiles}
       />
 
       <RenameWorkspaceDialog

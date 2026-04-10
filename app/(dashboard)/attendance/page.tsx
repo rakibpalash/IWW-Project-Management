@@ -22,13 +22,15 @@ export default async function AttendanceRoute() {
 
   const profile = profileData as Profile
   const supabase = await createClient()
+  const orgId = profile.organization_id
 
   if (profile.role === 'client') redirect('/dashboard')
 
-  const { data: settingsData } = await supabase
-    .from('attendance_settings')
-    .select('*')
-    .single()
+  // Fetch attendance settings scoped to this org
+  const settingsQuery = orgId
+    ? supabase.from('attendance_settings').select('*').eq('organization_id', orgId).single()
+    : supabase.from('attendance_settings').select('*').single()
+  const { data: settingsData } = await settingsQuery
 
   const settings = settingsData as AttendanceSettings | null
 
@@ -36,26 +38,45 @@ export default async function AttendanceRoute() {
   if (profile.role === 'super_admin') {
     const today = new Date().toISOString().slice(0, 10)
 
+    const staffQuery = orgId
+      ? supabase
+          .from('profiles')
+          .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at')
+          .eq('role', 'staff')
+          .eq('organization_id', orgId)
+          .order('full_name', { ascending: true })
+      : supabase
+          .from('profiles')
+          .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at')
+          .eq('role', 'staff')
+          .order('full_name', { ascending: true })
+
+    // Get org user IDs to scope attendance records
+    const { data: orgUsers } = orgId
+      ? await supabase.from('profiles').select('id').eq('organization_id', orgId)
+      : await supabase.from('profiles').select('id')
+    const orgUserIds = (orgUsers ?? []).map((u: any) => u.id)
+
+    const todayRecordsQuery = orgUserIds.length > 0
+      ? supabase
+          .from('attendance_records')
+          .select('*, user:profiles(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)')
+          .eq('date', today)
+          .in('user_id', orgUserIds)
+      : supabase
+          .from('attendance_records')
+          .select('*, user:profiles(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)')
+          .eq('date', today)
+
+    const footballQuery = orgId
+      ? supabase.from('football_rules').select('*').eq('date', today).eq('organization_id', orgId).maybeSingle()
+      : supabase.from('football_rules').select('*').eq('date', today).maybeSingle()
+
     const [
       { data: staffProfiles },
       { data: todayRecords },
       { data: todayFootballRule },
-    ] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at')
-        .eq('role', 'staff')
-        .order('full_name', { ascending: true }),
-      supabase
-        .from('attendance_records')
-        .select('*, user:profiles(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)')
-        .eq('date', today),
-      supabase
-        .from('football_rules')
-        .select('*')
-        .eq('date', today)
-        .maybeSingle(),
-    ])
+    ] = await Promise.all([staffQuery, todayRecordsQuery, footballQuery])
 
     return (
       <AttendancePage

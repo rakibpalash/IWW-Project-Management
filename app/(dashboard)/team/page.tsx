@@ -14,22 +14,34 @@ export default async function TeamServerPage() {
   if (!profile) redirect('/login')
 
   const admin = createAdminClient()
+  const orgId = profile.organization_id
 
   // Fetch profiles — try with optional columns first, fall back to minimal
   const fullSelect = 'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_temp_password, onboarding_completed, created_at, updated_at'
   const minSelect  = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
-  const { data: allProfilesRaw, error: profilesError } = await admin
-    .from('profiles')
-    .select(fullSelect)
-    .order('full_name')
+  const profilesBaseQuery = orgId
+    ? admin.from('profiles').select(fullSelect).eq('organization_id', orgId).order('full_name')
+    : admin.from('profiles').select(fullSelect).order('full_name')
 
-  const allProfilesData: any[] = profilesError
-    ? ((await admin.from('profiles').select(minSelect).order('full_name')).data ?? [])
-    : (allProfilesRaw ?? [])
+  const { data: allProfilesRaw, error: profilesError } = await profilesBaseQuery
+
+  let allProfilesData: any[]
+  if (profilesError) {
+    const fallbackQuery = orgId
+      ? admin.from('profiles').select(minSelect).eq('organization_id', orgId).order('full_name')
+      : admin.from('profiles').select(minSelect).order('full_name')
+    const { data } = await fallbackQuery
+    allProfilesData = data ?? []
+  } else {
+    allProfilesData = allProfilesRaw ?? []
+  }
 
   // Fetch custom roles separately and merge by custom_role_id
-  const { data: customRolesData } = await admin.from('custom_roles').select('id, name, color')
+  const customRolesQuery = orgId
+    ? admin.from('custom_roles').select('id, name, color').eq('organization_id', orgId)
+    : admin.from('custom_roles').select('id, name, color')
+  const { data: customRolesData } = await customRolesQuery
   const customRolesById: Record<string, any> = {}
   for (const cr of customRolesData ?? []) customRolesById[cr.id] = cr
 
@@ -38,12 +50,11 @@ export default async function TeamServerPage() {
     return { ...p, custom_role: customRole }
   }
 
-  // Fetch teams
-  const { data: teamsData } = await admin
-    .from('teams')
-    .select('*')
-    .eq('is_archived', false)
-    .order('created_at', { ascending: false })
+  // Fetch teams (scoped to org)
+  const teamsQuery = orgId
+    ? admin.from('teams').select('*').eq('organization_id', orgId).eq('is_archived', false).order('created_at', { ascending: false })
+    : admin.from('teams').select('*').eq('is_archived', false).order('created_at', { ascending: false })
+  const { data: teamsData } = await teamsQuery
 
   // Fetch team_members
   const teamIds = (teamsData ?? []).map((t) => t.id)

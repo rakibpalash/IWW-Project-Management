@@ -487,15 +487,16 @@ export async function createOptionalLeaveTemplateAction(data: {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated' }
-    const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    const admin = createAdminClient()
+    const { data: caller } = await admin.from('profiles').select('role, organization_id').eq('id', user.id).single()
     if (!caller || caller.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
 
-    const admin = createAdminClient()
     const { data: row, error } = await admin.from('optional_leave_templates').insert({
       name: data.name.trim(),
       default_days: data.default_days,
       is_builtin: false,
       created_by: user.id,
+      organization_id: caller.organization_id,
     }).select('id').single()
     if (error) return { success: false, error: error.message }
     return { success: true, id: row.id }

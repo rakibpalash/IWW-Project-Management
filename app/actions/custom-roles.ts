@@ -4,20 +4,28 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
 
+async function getCallerWithOrg() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const admin = createAdminClient()
+  const { data: profile } = await admin.from('profiles').select('id, role, organization_id').eq('id', user.id).single()
+  return profile ? { user, profile } : null
+}
+
 // ── Create ────────────────────────────────────────────────────────────────────
 export async function createCustomRoleAction(data: {
   name: string
   color: string
   description?: string
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
+  const caller = await getCallerWithOrg()
+  if (!caller) return { error: 'Unauthorized' }
 
   const admin = createAdminClient()
   const { data: role, error } = await admin
     .from('custom_roles')
-    .insert({ ...data, created_by: user.id })
+    .insert({ ...data, created_by: caller.user.id, organization_id: caller.profile.organization_id })
     .select()
     .single()
 
