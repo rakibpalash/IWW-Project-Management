@@ -267,6 +267,101 @@ function WorkspaceFilter({
   )
 }
 
+function ProjectFilter({
+  projects,
+  selected,
+  onChange,
+}: {
+  projects: { id: string; name: string; workspace_id: string }[]
+  selected: string[]
+  onChange: (ids: string[]) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const filtered = projects.filter((p) =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const allSelected = selected.length === 0
+  const label = allSelected
+    ? 'All Projects'
+    : selected.length === 1
+    ? (projects.find((p) => p.id === selected[0])?.name ?? '1 Project')
+    : `${selected.length} Projects`
+
+  const toggle = (id: string) => {
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="gap-2 h-9 text-sm font-medium min-w-[130px] justify-between">
+          <span className="truncate">{label}</span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="start">
+        <div className="flex items-center justify-between px-3 pt-3 pb-2">
+          <span className="text-sm font-semibold text-foreground">Projects</span>
+          <Button size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
+            Done
+          </Button>
+        </div>
+        <div className="px-2 pb-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
+            <Input
+              placeholder="Search projects"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 text-sm"
+            />
+          </div>
+        </div>
+        <div className="max-h-52 overflow-y-auto pb-2">
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/30 transition-colors"
+          >
+            <div className={cn(
+              'h-4 w-4 rounded border-2 flex items-center justify-center',
+              allSelected ? 'bg-blue-600 border-blue-600' : 'border-border',
+            )}>
+              {allSelected && <Check className="h-2.5 w-2.5 text-white" />}
+            </div>
+            <span className="text-foreground/80">All Projects</span>
+          </button>
+          {filtered.map((p) => {
+            const checked = selected.includes(p.id)
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => toggle(p.id)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/30 transition-colors"
+              >
+                <div className={cn(
+                  'h-4 w-4 rounded border-2 flex items-center justify-center shrink-0',
+                  checked ? 'bg-blue-600 border-blue-600' : 'border-border',
+                )}>
+                  {checked && <Check className="h-2.5 w-2.5 text-white" />}
+                </div>
+                <span className="text-foreground/80 truncate">{p.name}</span>
+              </button>
+            )
+          })}
+          {filtered.length === 0 && (
+            <p className="text-xs text-muted-foreground/70 text-center py-3">No projects found</p>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function PeopleFilter({
   profiles,
   selected,
@@ -376,6 +471,7 @@ interface TimesheetPageProps {
   initialDateFrom: string
   initialDateTo: string
   allWorkspaces: { id: string; name: string }[]
+  allProjects: { id: string; name: string; workspace_id: string }[]
   projectWorkspaceMap: Record<string, string>
   allProfiles: { id: string; full_name: string; avatar_url: string | null; role: string }[]
 }
@@ -386,6 +482,7 @@ export function TimesheetPage({
   initialDateFrom,
   initialDateTo,
   allWorkspaces,
+  allProjects,
   projectWorkspaceMap,
   allProfiles,
 }: TimesheetPageProps) {
@@ -399,6 +496,7 @@ export function TimesheetPage({
 
   // Filters
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([])
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([])
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
   const [datePreset, setDatePreset] = useState<DatePreset>('month')
   const [customFrom, setCustomFrom] = useState(initialDateFrom.slice(0, 10))
@@ -476,14 +574,17 @@ export function TimesheetPage({
     fetchEntries(dateFrom, dateTo, userIds)
   }
 
-  // ── Client-side workspace filter (fast, no refetch) ──
+  // ── Client-side workspace + project filter (fast, no refetch) ──
   const filteredEntries = useMemo(() => {
-    if (selectedWorkspaceIds.length === 0) return entries
-    return entries.filter((e) => {
-      const wsId = projectWorkspaceMap[e.project_id]
-      return selectedWorkspaceIds.includes(wsId)
-    })
-  }, [entries, selectedWorkspaceIds, projectWorkspaceMap])
+    let result = entries
+    if (selectedWorkspaceIds.length > 0) {
+      result = result.filter((e) => selectedWorkspaceIds.includes(projectWorkspaceMap[e.project_id]))
+    }
+    if (selectedProjectIds.length > 0) {
+      result = result.filter((e) => selectedProjectIds.includes(e.project_id))
+    }
+    return result
+  }, [entries, selectedWorkspaceIds, selectedProjectIds, projectWorkspaceMap])
 
   // ── Group by date ──
   const groupedByDate = useMemo(() => {
@@ -679,6 +780,13 @@ export function TimesheetPage({
               workspaces={allWorkspaces}
               selected={selectedWorkspaceIds}
               onChange={setSelectedWorkspaceIds}
+            />
+
+            {/* Project filter */}
+            <ProjectFilter
+              projects={allProjects}
+              selected={selectedProjectIds}
+              onChange={setSelectedProjectIds}
             />
 
             {/* Date preset */}

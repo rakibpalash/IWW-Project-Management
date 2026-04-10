@@ -33,11 +33,13 @@ export default async function TimesheetServerPage() {
   // Fetch project→workspace mapping so the client can filter entries by workspace
   const { data: projectsRaw } = await admin
     .from('projects')
-    .select('id, workspace_id')
+    .select('id, name, workspace_id')
+    .order('name')
   const projectWorkspaceMap: Record<string, string> = {}
   for (const p of projectsRaw ?? []) {
     projectWorkspaceMap[p.id] = p.workspace_id
   }
+  const allProjects = (projectsRaw ?? []).map((p) => ({ id: p.id, name: p.name, workspace_id: p.workspace_id }))
 
   // For admin: fetch all profiles for people filter
   let allProfiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url' | 'role'>[] = []
@@ -57,6 +59,7 @@ export default async function TimesheetServerPage() {
       initialDateFrom={dateFrom}
       initialDateTo={dateTo}
       allWorkspaces={(workspaces ?? []) as { id: string; name: string }[]}
+      allProjects={allProjects}
       projectWorkspaceMap={projectWorkspaceMap}
       allProfiles={allProfiles}
     />
