@@ -23,7 +23,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useToast } from '@/components/ui/use-toast'
 import {
   X, Check, ChevronDown, AlertCircle,
@@ -60,6 +60,7 @@ export function CreateTaskDialog({
   const { toast } = useToast()
   const supabase = createClient()
   const titleRef = useRef<HTMLInputElement>(null)
+  const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const { statuses, priorities, defaultStatus, defaultPriority } = useTaskConfig()
 
   const [title, setTitle] = useState('')
@@ -77,6 +78,8 @@ export function CreateTaskDialog({
   const [submitting, setSubmitting] = useState(false)
   const [createAnother, setCreateAnother] = useState(false)
   const [assigneeOpen, setAssigneeOpen] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [mentionOpen, setMentionOpen] = useState(false)
 
   const isSubtask = !!parentTaskId
   const depth = isSubtask ? (parentTaskDepth ?? 0) + 1 : 0
@@ -118,6 +121,49 @@ export function CreateTaskDialog({
     fetchMembers()
   }, [selectedProjectId, defaultProjectId, projects])
 
+  function handleDescriptionChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const val = e.target.value
+    setDescription(val)
+    const cursor = e.target.selectionStart ?? val.length
+    const textBefore = val.slice(0, cursor)
+    const match = textBefore.match(/@([^\s@]*)$/)
+    if (match) {
+      setMentionQuery(match[1])
+      setMentionOpen(true)
+    } else {
+      setMentionOpen(false)
+      setMentionQuery(null)
+    }
+  }
+
+  function handleDescriptionKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Escape' && mentionOpen) {
+      e.preventDefault()
+      setMentionOpen(false)
+      setMentionQuery(null)
+    }
+  }
+
+  function insertMention(member: Profile) {
+    const textarea = descriptionRef.current
+    if (!textarea) return
+    const cursor = textarea.selectionStart ?? description.length
+    const textBefore = description.slice(0, cursor)
+    const match = textBefore.match(/@([^\s@]*)$/)
+    if (match) {
+      const start = cursor - match[0].length
+      const newText = description.slice(0, start) + `@${member.full_name} ` + description.slice(cursor)
+      setDescription(newText)
+    }
+    setMentionOpen(false)
+    setMentionQuery(null)
+    setTimeout(() => textarea.focus(), 0)
+  }
+
+  const mentionMembers = members.filter((m) =>
+    !mentionQuery || m.full_name.toLowerCase().includes(mentionQuery.toLowerCase())
+  )
+
   function toggleAssignee(userId: string) {
     setSelectedAssigneeIds((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
@@ -142,6 +188,8 @@ export function CreateTaskDialog({
     setStatus(defaultStatus)
     setSelectedAssigneeIds([])
     setAssigneeOpen(false)
+    setMentionOpen(false)
+    setMentionQuery(null)
   }
 
   async function handleSubmit() {
@@ -388,26 +436,55 @@ export function CreateTaskDialog({
           {/* Description */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-foreground">Description</Label>
-            <div className="rounded-md border overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0">
-              {/* Toolbar */}
-              <div className="flex items-center gap-0.5 border-b bg-muted/30 px-2 py-1.5">
-                <ToolbarBtn icon={<AlignLeft className="h-3.5 w-3.5" />} title="Paragraph" />
-                <div className="w-px h-4 bg-border mx-1" />
-                <ToolbarBtn icon={<Bold className="h-3.5 w-3.5" />} title="Bold" />
-                <ToolbarBtn icon={<List className="h-3.5 w-3.5" />} title="Bullet list" />
-                <ToolbarBtn icon={<Code2 className="h-3.5 w-3.5" />} title="Code" />
-                <ToolbarBtn icon={<Link2 className="h-3.5 w-3.5" />} title="Link" />
-                <div className="w-px h-4 bg-border mx-1" />
-                <ToolbarBtn icon={<Minus className="h-3.5 w-3.5" />} title="Divider" />
+            <Popover open={mentionOpen && mentionMembers.length > 0}>
+              <div className="rounded-md border overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0">
+                {/* Toolbar */}
+                <div className="flex items-center gap-0.5 border-b bg-muted/30 px-2 py-1.5">
+                  <ToolbarBtn icon={<AlignLeft className="h-3.5 w-3.5" />} title="Paragraph" />
+                  <div className="w-px h-4 bg-border mx-1" />
+                  <ToolbarBtn icon={<Bold className="h-3.5 w-3.5" />} title="Bold" />
+                  <ToolbarBtn icon={<List className="h-3.5 w-3.5" />} title="Bullet list" />
+                  <ToolbarBtn icon={<Code2 className="h-3.5 w-3.5" />} title="Code" />
+                  <ToolbarBtn icon={<Link2 className="h-3.5 w-3.5" />} title="Link" />
+                  <div className="w-px h-4 bg-border mx-1" />
+                  <ToolbarBtn icon={<Minus className="h-3.5 w-3.5" />} title="Divider" />
+                </div>
+                <PopoverAnchor asChild>
+                  <Textarea
+                    ref={descriptionRef}
+                    value={description}
+                    onChange={handleDescriptionChange}
+                    onKeyDown={handleDescriptionKeyDown}
+                    placeholder="Add a description… Use @ to mention someone"
+                    rows={4}
+                    className="resize-none border-0 rounded-none focus-visible:ring-0 text-sm"
+                  />
+                </PopoverAnchor>
               </div>
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Add a description… Use @ to mention someone"
-                rows={4}
-                className="resize-none border-0 rounded-none focus-visible:ring-0 text-sm"
-              />
-            </div>
+              <PopoverContent
+                className="w-56 p-0"
+                align="start"
+                onOpenAutoFocus={(e) => e.preventDefault()}
+                onInteractOutside={() => { setMentionOpen(false); setMentionQuery(null) }}
+              >
+                <div className="max-h-44 overflow-y-auto py-1">
+                  {mentionMembers.map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); insertMention(member) }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                    >
+                      <Avatar className="h-6 w-6 shrink-0">
+                        <AvatarImage src={member.avatar_url ?? undefined} />
+                        <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
+                      </Avatar>
+                      <span className="truncate">{member.full_name}</span>
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Assignee */}
