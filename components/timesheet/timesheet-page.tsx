@@ -171,28 +171,28 @@ function StatCard({ icon: Icon, label, value, color }: {
   )
 }
 
-function BoardFilter({
-  projects,
+function WorkspaceFilter({
+  workspaces,
   selected,
   onChange,
 }: {
-  projects: { id: string; name: string }[]
+  workspaces: { id: string; name: string }[]
   selected: string[]
   onChange: (ids: string[]) => void
 }) {
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
 
-  const filtered = projects.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
+  const filtered = workspaces.filter((w) =>
+    w.name.toLowerCase().includes(search.toLowerCase())
   )
 
   const allSelected = selected.length === 0
   const label = allSelected
-    ? 'All Boards'
+    ? 'All Workspaces'
     : selected.length === 1
-    ? (projects.find((p) => p.id === selected[0])?.name ?? '1 Board')
-    : `${selected.length} Boards`
+    ? (workspaces.find((w) => w.id === selected[0])?.name ?? '1 Workspace')
+    : `${selected.length} Workspaces`
 
   const toggle = (id: string) => {
     onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
@@ -201,14 +201,14 @@ function BoardFilter({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="gap-2 h-9 text-sm font-medium min-w-[130px] justify-between">
+        <Button variant="outline" className="gap-2 h-9 text-sm font-medium min-w-[140px] justify-between">
           <span className="truncate">{label}</span>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <div className="flex items-center justify-between px-3 pt-3 pb-2">
-          <span className="text-sm font-semibold text-foreground">Boards</span>
+          <span className="text-sm font-semibold text-foreground">Workspaces</span>
           <Button size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
             Done
           </Button>
@@ -217,7 +217,7 @@ function BoardFilter({
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
             <Input
-              placeholder="Search for Boards"
+              placeholder="Search workspaces"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm"
@@ -225,7 +225,7 @@ function BoardFilter({
           </div>
         </div>
         <div className="max-h-52 overflow-y-auto pb-2">
-          {/* All Boards option */}
+          {/* All Workspaces option */}
           <button
             type="button"
             onClick={() => onChange([])}
@@ -237,15 +237,15 @@ function BoardFilter({
             )}>
               {allSelected && <Check className="h-2.5 w-2.5 text-white" />}
             </div>
-            <span className="text-foreground/80">All Boards</span>
+            <span className="text-foreground/80">All Workspaces</span>
           </button>
-          {filtered.map((p) => {
-            const checked = selected.includes(p.id)
+          {filtered.map((w) => {
+            const checked = selected.includes(w.id)
             return (
               <button
-                key={p.id}
+                key={w.id}
                 type="button"
-                onClick={() => toggle(p.id)}
+                onClick={() => toggle(w.id)}
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/30 transition-colors"
               >
                 <div className={cn(
@@ -254,12 +254,12 @@ function BoardFilter({
                 )}>
                   {checked && <Check className="h-2.5 w-2.5 text-white" />}
                 </div>
-                <span className="text-foreground/80 truncate">{p.name}</span>
+                <span className="text-foreground/80 truncate">{w.name}</span>
               </button>
             )
           })}
           {filtered.length === 0 && (
-            <p className="text-xs text-muted-foreground/70 text-center py-3">No boards found</p>
+            <p className="text-xs text-muted-foreground/70 text-center py-3">No workspaces found</p>
           )}
         </div>
       </PopoverContent>
@@ -375,7 +375,8 @@ interface TimesheetPageProps {
   initialEntries: TimesheetRow[]
   initialDateFrom: string
   initialDateTo: string
-  allProjects: { id: string; name: string }[]
+  allWorkspaces: { id: string; name: string }[]
+  projectWorkspaceMap: Record<string, string>
   allProfiles: { id: string; full_name: string; avatar_url: string | null; role: string }[]
 }
 
@@ -384,7 +385,8 @@ export function TimesheetPage({
   initialEntries,
   initialDateFrom,
   initialDateTo,
-  allProjects,
+  allWorkspaces,
+  projectWorkspaceMap,
   allProfiles,
 }: TimesheetPageProps) {
   const { toast } = useToast()
@@ -396,7 +398,7 @@ export function TimesheetPage({
   const [entries, setEntries] = useState<TimesheetRow[]>(initialEntries)
 
   // Filters
-  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([])
+  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([])
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
   const [datePreset, setDatePreset] = useState<DatePreset>('month')
   const [customFrom, setCustomFrom] = useState(initialDateFrom.slice(0, 10))
@@ -474,11 +476,14 @@ export function TimesheetPage({
     fetchEntries(dateFrom, dateTo, userIds)
   }
 
-  // ── Client-side project filter (fast, no refetch) ──
+  // ── Client-side workspace filter (fast, no refetch) ──
   const filteredEntries = useMemo(() => {
-    if (selectedProjectIds.length === 0) return entries
-    return entries.filter((e) => selectedProjectIds.includes(e.project_id))
-  }, [entries, selectedProjectIds])
+    if (selectedWorkspaceIds.length === 0) return entries
+    return entries.filter((e) => {
+      const wsId = projectWorkspaceMap[e.project_id]
+      return selectedWorkspaceIds.includes(wsId)
+    })
+  }, [entries, selectedWorkspaceIds, projectWorkspaceMap])
 
   // ── Group by date ──
   const groupedByDate = useMemo(() => {
@@ -509,6 +514,25 @@ export function TimesheetPage({
     [filteredEntries, tick]
   )
 
+  const dateSlug = new Date().toISOString().slice(0, 10)
+
+  function buildTableHtml() {
+    const rows = filteredEntries.map((e) => `
+      <tr>
+        <td>${new Date(e.started_at).toLocaleDateString()}</td>
+        <td>${e.task_title.replace(/</g, '&lt;')}</td>
+        <td>${e.project_name.replace(/</g, '&lt;')}</td>
+        <td>${e.user_full_name.replace(/</g, '&lt;')}</td>
+        <td>${e.is_running ? formatRunningDuration(e.started_at, tick) : formatDuration(e.duration_minutes)}</td>
+        <td>${(e.description ?? '').replace(/</g, '&lt;')}</td>
+      </tr>`).join('')
+    return `
+      <table>
+        <thead><tr><th>Date</th><th>Task</th><th>Project</th><th>Added By</th><th>Duration</th><th>Description</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`
+  }
+
   // ── Export CSV ──
   const exportCsv = () => {
     const headers = ['Date', 'Task', 'Project', 'Added By', 'Duration', 'Description']
@@ -517,18 +541,56 @@ export function TimesheetPage({
       `"${e.task_title.replace(/"/g, '""')}"`,
       `"${e.project_name.replace(/"/g, '""')}"`,
       `"${e.user_full_name.replace(/"/g, '""')}"`,
-      e.is_running
-        ? formatRunningDuration(e.started_at, tick)
-        : formatDuration(e.duration_minutes),
+      e.is_running ? formatRunningDuration(e.started_at, tick) : formatDuration(e.duration_minutes),
       `"${(e.description ?? '').replace(/"/g, '""')}"`,
     ])
     const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url
-    a.download = `timesheet-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
+    a.href = url; a.download = `timesheet-${dateSlug}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // ── Export PDF ──
+  const exportPdf = () => {
+    const html = `<!DOCTYPE html><html><head><title>Timesheet ${dateSlug}</title><style>
+      body{font-family:Arial,sans-serif;font-size:12px;margin:24px}
+      h2{margin-bottom:12px;color:#111}
+      table{width:100%;border-collapse:collapse}
+      th{background:#f3f4f6;padding:8px 10px;text-align:left;border:1px solid #d1d5db;font-size:11px}
+      td{padding:6px 10px;border:1px solid #e5e7eb;vertical-align:top}
+      tr:nth-child(even) td{background:#f9fafb}
+    </style></head><body>
+      <h2>Timesheet Export — ${dateSlug}</h2>
+      ${buildTableHtml()}
+    </body></html>`
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    win.print()
+  }
+
+  // ── Export DOC ──
+  const exportDoc = () => {
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"><title>Timesheet ${dateSlug}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:12pt}
+        h2{margin-bottom:12pt}
+        table{width:100%;border-collapse:collapse}
+        th{background:#f3f4f6;padding:6pt 8pt;border:1pt solid #d1d5db;font-size:10pt}
+        td{padding:5pt 8pt;border:1pt solid #e5e7eb}
+      </style></head>
+      <body><h2>Timesheet Export — ${dateSlug}</h2>${buildTableHtml()}</body></html>`
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `timesheet-${dateSlug}.doc`; a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -555,13 +617,13 @@ export function TimesheetPage({
     custom: 'Custom Range',
   }
 
-  // Board label for breadcrumb
+  // Workspace label for breadcrumb
   const boardLabel =
-    selectedProjectIds.length === 0
-      ? 'All Boards'
-      : selectedProjectIds.length === 1
-      ? (allProjects.find((p) => p.id === selectedProjectIds[0])?.name ?? 'Board')
-      : `${selectedProjectIds.length} Boards`
+    selectedWorkspaceIds.length === 0
+      ? 'All Workspaces'
+      : selectedWorkspaceIds.length === 1
+      ? (allWorkspaces.find((w) => w.id === selectedWorkspaceIds[0])?.name ?? 'Workspace')
+      : `${selectedWorkspaceIds.length} Workspaces`
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -574,15 +636,20 @@ export function TimesheetPage({
             <span className="text-muted-foreground/70">/</span>
             <span className="text-muted-foreground text-sm font-medium">{boardLabel}</span>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportCsv}
-            className="gap-1.5 h-8 text-xs"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export CSV
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+                <Download className="h-3.5 w-3.5" />
+                Export
+                <ChevronDown className="h-3 w-3 text-muted-foreground/70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportCsv}>Export as CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportPdf}>Export as PDF</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportDoc}>Export as DOC</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -607,11 +674,11 @@ export function TimesheetPage({
 
           {/* ─── Filters ─── */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Board filter */}
-            <BoardFilter
-              projects={allProjects}
-              selected={selectedProjectIds}
-              onChange={setSelectedProjectIds}
+            {/* Workspace filter */}
+            <WorkspaceFilter
+              workspaces={allWorkspaces}
+              selected={selectedWorkspaceIds}
+              onChange={setSelectedWorkspaceIds}
             />
 
             {/* Date preset */}

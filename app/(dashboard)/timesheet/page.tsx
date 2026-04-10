@@ -24,11 +24,20 @@ export default async function TimesheetServerPage() {
   const result = await getTimesheetEntriesAction({ dateFrom, dateTo })
   const entries = result.entries ?? []
 
-  // Fetch all projects for board filter
-  const { data: projects } = await admin
-    .from('projects')
+  // Fetch all workspaces for workspace filter
+  const { data: workspaces } = await admin
+    .from('workspaces')
     .select('id, name')
     .order('name')
+
+  // Fetch project→workspace mapping so the client can filter entries by workspace
+  const { data: projectsRaw } = await admin
+    .from('projects')
+    .select('id, workspace_id')
+  const projectWorkspaceMap: Record<string, string> = {}
+  for (const p of projectsRaw ?? []) {
+    projectWorkspaceMap[p.id] = p.workspace_id
+  }
 
   // For admin: fetch all profiles for people filter
   let allProfiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url' | 'role'>[] = []
@@ -47,7 +56,8 @@ export default async function TimesheetServerPage() {
       initialEntries={entries}
       initialDateFrom={dateFrom}
       initialDateTo={dateTo}
-      allProjects={(projects ?? []) as { id: string; name: string }[]}
+      allWorkspaces={(workspaces ?? []) as { id: string; name: string }[]}
+      projectWorkspaceMap={projectWorkspaceMap}
       allProfiles={allProfiles}
     />
   )
