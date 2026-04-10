@@ -546,7 +546,7 @@ function generatePassword() {
 const MANAGER_ROLE_FOR: Record<string, string[]> = {
   account_manager: ['super_admin'],                      // Org Admin → CEO
   project_manager: ['account_manager', 'super_admin'],   // Team Lead → Org Admin (or CEO)
-  staff:           ['project_manager', 'account_manager'],// Staff → Team Lead (or Org Admin)
+  staff:           ['project_manager', 'account_manager', 'super_admin'], // Staff → Team Lead, Org Admin, or CEO
   client:          ['super_admin', 'account_manager'],
   partner:         ['super_admin', 'account_manager'],
 }
