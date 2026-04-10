@@ -458,6 +458,95 @@ export async function approveOptionalLeaveAction(
   }
 }
 
+// ─── Leave Template Actions ────────────────────────────────────────────────────
+
+export async function getOptionalLeaveTemplatesAction(): Promise<{
+  success: boolean
+  data?: Array<{ id: string; name: string; default_days: number; is_builtin: boolean }>
+  error?: string
+}> {
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('optional_leave_templates')
+      .select('id, name, default_days, is_builtin')
+      .order('is_builtin', { ascending: false })
+      .order('created_at', { ascending: true })
+    if (error) return { success: false, error: error.message }
+    return { success: true, data: data ?? [] }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function createOptionalLeaveTemplateAction(data: {
+  name: string
+  default_days: number
+}): Promise<{ success: boolean; id?: string; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+    const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!caller || caller.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    const admin = createAdminClient()
+    const { data: row, error } = await admin.from('optional_leave_templates').insert({
+      name: data.name.trim(),
+      default_days: data.default_days,
+      is_builtin: false,
+      created_by: user.id,
+    }).select('id').single()
+    if (error) return { success: false, error: error.message }
+    return { success: true, id: row.id }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function updateOptionalLeaveTemplateAction(
+  id: string,
+  data: { name: string; default_days: number }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+    const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!caller || caller.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    const admin = createAdminClient()
+    const { error } = await admin.from('optional_leave_templates')
+      .update({ name: data.name.trim(), default_days: data.default_days, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function deleteOptionalLeaveTemplateAction(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+    const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!caller || caller.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    const admin = createAdminClient()
+    // Prevent deleting built-in templates
+    const { data: tmpl } = await admin.from('optional_leave_templates').select('is_builtin').eq('id', id).single()
+    if (tmpl?.is_builtin) return { success: false, error: 'Cannot delete built-in templates' }
+
+    const { error } = await admin.from('optional_leave_templates').delete().eq('id', id)
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 export async function deleteOptionalLeaveAction(id: string): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient()

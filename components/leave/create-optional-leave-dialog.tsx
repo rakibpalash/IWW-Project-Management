@@ -19,37 +19,58 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, AlertCircle, Loader2, CalendarPlus } from 'lucide-react'
+import {
+  Search, AlertCircle, Loader2, CalendarPlus, Trash2, Pencil, Check, X, Plus,
+} from 'lucide-react'
 import { Profile } from '@/types'
-import { createOptionalLeaveAction } from '@/app/actions/leave'
+import { LeaveTemplate } from './leave-page'
+import {
+  createOptionalLeaveAction,
+  createOptionalLeaveTemplateAction,
+  updateOptionalLeaveTemplateAction,
+  deleteOptionalLeaveTemplateAction,
+} from '@/app/actions/leave'
 import { useToast } from '@/components/ui/use-toast'
+import { cn } from '@/lib/utils'
 
 function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
-const LEAVE_TEMPLATES = [
-  { value: 'hajj',     name: 'Hajj Leave',     days: 15, emoji: '🕌' },
-  { value: 'marriage', name: 'Marriage Leave',  days: 7,  emoji: '💍' },
-]
-
 interface Props {
   open: boolean
   onClose: () => void
   staffProfiles: Profile[]
+  leaveTemplates: LeaveTemplate[]
 }
 
-export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Props) {
+export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveTemplates: initialTemplates }: Props) {
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
 
-  const [templateValue, setTemplateValue] = useState('')
-  const [leaveName, setLeaveName]   = useState('')
-  const [totalDays, setTotalDays]   = useState('1')
+  // Template list (local state so updates reflect immediately)
+  const [templates, setTemplates] = useState<LeaveTemplate[]>(initialTemplates)
+
+  // Form state
+  const [templateId, setTemplateId]     = useState('')
+  const [leaveName, setLeaveName]       = useState('')
+  const [totalDays, setTotalDays]       = useState('1')
   const [selectedUserId, setSelectedUserId] = useState('')
-  const [notes, setNotes]           = useState('')
-  const [staffSearch, setStaffSearch] = useState('')
-  const [error, setError]           = useState<string | null>(null)
+  const [notes, setNotes]               = useState('')
+  const [staffSearch, setStaffSearch]   = useState('')
+  const [error, setError]               = useState<string | null>(null)
+
+  // Manage mode — inline edit per template
+  const [manageOpen, setManageOpen]     = useState(false)
+  const [editingId, setEditingId]       = useState<string | null>(null)
+  const [editName, setEditName]         = useState('')
+  const [editDays, setEditDays]         = useState('')
+  const [saving, setSaving]             = useState(false)
+
+  // Add-new-template mode
+  const [addingNew, setAddingNew]       = useState(false)
+  const [newName, setNewName]           = useState('')
+  const [newDays, setNewDays]           = useState('1')
 
   const selectedUser = staffProfiles.find((p) => p.id === selectedUserId)
   const filteredStaff = staffProfiles.filter((p) =>
@@ -58,25 +79,75 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
     p.email.toLowerCase().includes(staffSearch.toLowerCase())
   )
 
+  // ── Template selection ──
   function handleTemplateChange(val: string) {
-    setTemplateValue(val)
+    setTemplateId(val)
     if (val === 'custom') {
       setLeaveName('')
       setTotalDays('1')
     } else {
-      const t = LEAVE_TEMPLATES.find((t) => t.value === val)
-      if (t) { setLeaveName(t.name); setTotalDays(String(t.days)) }
+      const t = templates.find((t) => t.id === val)
+      if (t) { setLeaveName(t.name); setTotalDays(String(t.default_days)) }
     }
     setError(null)
   }
 
-  function reset() {
-    setTemplateValue(''); setLeaveName(''); setTotalDays('1')
-    setSelectedUserId(''); setNotes(''); setStaffSearch(''); setError(null)
+  // ── Inline edit template ──
+  function startEdit(t: LeaveTemplate) {
+    setEditingId(t.id)
+    setEditName(t.name)
+    setEditDays(String(t.default_days))
   }
 
-  function handleClose() { reset(); onClose() }
+  async function saveEdit(id: string) {
+    if (!editName.trim() || !editDays) return
+    setSaving(true)
+    const result = await updateOptionalLeaveTemplateAction(id, {
+      name: editName.trim(),
+      default_days: parseInt(editDays, 10),
+    })
+    setSaving(false)
+    if (!result.success) { toast({ title: 'Error', description: result.error, variant: 'destructive' }); return }
+    setTemplates((prev) => prev.map((t) => t.id === id ? { ...t, name: editName.trim(), default_days: parseInt(editDays, 10) } : t))
+    // If this template is currently selected, update the form fields too
+    if (templateId === id) { setLeaveName(editName.trim()); setTotalDays(editDays) }
+    setEditingId(null)
+  }
 
+  async function deleteTemplate(id: string, isBuiltin: boolean) {
+    if (isBuiltin) return
+    setSaving(true)
+    const result = await deleteOptionalLeaveTemplateAction(id)
+    setSaving(false)
+    if (!result.success) { toast({ title: 'Error', description: result.error, variant: 'destructive' }); return }
+    setTemplates((prev) => prev.filter((t) => t.id !== id))
+    if (templateId === id) { setTemplateId(''); setLeaveName(''); setTotalDays('1') }
+  }
+
+  // ── Add new template ──
+  async function saveNewTemplate() {
+    if (!newName.trim() || !newDays) return
+    setSaving(true)
+    const result = await createOptionalLeaveTemplateAction({
+      name: newName.trim(),
+      default_days: parseInt(newDays, 10),
+    })
+    setSaving(false)
+    if (!result.success) { toast({ title: 'Error', description: result.error, variant: 'destructive' }); return }
+    const newTemplate: LeaveTemplate = {
+      id: result.id!,
+      name: newName.trim(),
+      default_days: parseInt(newDays, 10),
+      is_builtin: false,
+    }
+    setTemplates((prev) => [...prev, newTemplate])
+    setAddingNew(false)
+    setNewName('')
+    setNewDays('1')
+    toast({ title: 'Template saved', description: `"${newName.trim()}" added to templates` })
+  }
+
+  // ── Grant leave ──
   function handleCreate() {
     if (!leaveName.trim()) { setError('Please enter a leave name'); return }
     if (!selectedUserId)   { setError('Please select a staff member'); return }
@@ -99,6 +170,14 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
       handleClose()
     })
   }
+
+  function reset() {
+    setTemplateId(''); setLeaveName(''); setTotalDays('1')
+    setSelectedUserId(''); setNotes(''); setStaffSearch(''); setError(null)
+    setManageOpen(false); setEditingId(null); setAddingNew(false)
+    setNewName(''); setNewDays('1')
+  }
+  function handleClose() { reset(); onClose() }
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
@@ -126,45 +205,151 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
           )}
 
           {/* ── Step 1: Leave Type ── */}
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs font-semibold">
-                Leave Type <span className="text-red-500">*</span>
-              </Label>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Choose a pre-built template or select &quot;Custom&quot; to enter your own
-              </p>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-xs font-semibold">
+                  Leave Type <span className="text-red-500">*</span>
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Pick a template or select &quot;Custom&quot; to enter a new name
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setManageOpen((v) => !v); setEditingId(null); setAddingNew(false) }}
+                className={cn(
+                  'text-xs flex items-center gap-1 px-2 py-1 rounded-md transition-colors',
+                  manageOpen
+                    ? 'bg-violet-100 text-violet-700'
+                    : 'text-muted-foreground hover:text-violet-700 hover:bg-violet-50'
+                )}
+              >
+                <Pencil className="h-3 w-3" />
+                Manage types
+              </button>
             </div>
 
-            {/* Template dropdown */}
-            <Select value={templateValue} onValueChange={handleTemplateChange}>
+            {/* ── Manage Panel ── */}
+            {manageOpen && (
+              <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-3 space-y-2">
+                <p className="text-[11px] font-semibold text-violet-700 uppercase tracking-wide mb-2">
+                  Manage Leave Types
+                </p>
+                {templates.map((t) => (
+                  <div key={t.id} className="flex items-center gap-2">
+                    {editingId === t.id ? (
+                      <>
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="h-7 text-xs flex-1"
+                          placeholder="Leave name"
+                        />
+                        <Input
+                          type="number"
+                          value={editDays}
+                          onChange={(e) => setEditDays(e.target.value)}
+                          className="h-7 text-xs w-16"
+                          min="1"
+                        />
+                        <button type="button" onClick={() => saveEdit(t.id)} disabled={saving}
+                          className="text-green-600 hover:text-green-700 p-1">
+                          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        </button>
+                        <button type="button" onClick={() => setEditingId(null)}
+                          className="text-muted-foreground hover:text-foreground p-1">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex-1 text-xs font-medium truncate">{t.name}</span>
+                        <span className="text-[10px] text-muted-foreground">{t.default_days}d</span>
+                        {t.is_builtin && (
+                          <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground">built-in</Badge>
+                        )}
+                        <button type="button" onClick={() => startEdit(t)}
+                          className="text-muted-foreground hover:text-violet-600 p-1 transition-colors">
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        {!t.is_builtin && (
+                          <button type="button" onClick={() => deleteTemplate(t.id, t.is_builtin)} disabled={saving}
+                            className="text-muted-foreground hover:text-red-500 p-1 transition-colors">
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+
+                {/* Add new template */}
+                {addingNew ? (
+                  <div className="flex items-center gap-2 pt-1 border-t border-violet-200 mt-2">
+                    <Input
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      className="h-7 text-xs flex-1"
+                      placeholder="New leave name…"
+                      autoFocus
+                    />
+                    <Input
+                      type="number"
+                      value={newDays}
+                      onChange={(e) => setNewDays(e.target.value)}
+                      className="h-7 text-xs w-16"
+                      min="1"
+                      placeholder="Days"
+                    />
+                    <button type="button" onClick={saveNewTemplate} disabled={saving || !newName.trim()}
+                      className="text-green-600 hover:text-green-700 p-1 disabled:opacity-40">
+                      {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    </button>
+                    <button type="button" onClick={() => { setAddingNew(false); setNewName(''); setNewDays('1') }}
+                      className="text-muted-foreground hover:text-foreground p-1">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setAddingNew(true)}
+                    className="flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-700 mt-1 pt-1 border-t border-violet-200 w-full">
+                    <Plus className="h-3 w-3" />
+                    Add new type
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Leave type dropdown */}
+            <Select value={templateId} onValueChange={handleTemplateChange}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select leave type…" />
               </SelectTrigger>
               <SelectContent>
-                {LEAVE_TEMPLATES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
+                {templates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
                     <span className="flex items-center gap-2">
-                      <span>{t.emoji}</span>
                       <span>{t.name}</span>
-                      <span className="text-muted-foreground text-xs">— {t.days} days</span>
+                      <span className="text-muted-foreground text-xs">— {t.default_days} days</span>
                     </span>
                   </SelectItem>
                 ))}
+                <div className="mx-2 my-1 border-t" />
                 <SelectItem value="custom">
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-2 text-violet-700">
                     <span>✏️</span>
-                    <span>Custom leave</span>
+                    <span>Custom (enter manually)</span>
                   </span>
                 </SelectItem>
               </SelectContent>
             </Select>
 
-            {/* Editable name + days — shown once a type is chosen */}
-            {templateValue && (
-              <div className="rounded-lg border border-dashed border-violet-300 bg-violet-50/30 p-3 space-y-3">
+            {/* Editable name + days */}
+            {templateId && (
+              <div className="rounded-lg border border-dashed border-violet-300 bg-violet-50/30 p-3 space-y-2">
                 <p className="text-xs text-violet-700 font-medium">
-                  {templateValue === 'custom' ? 'Enter leave details' : 'Edit template values (optional)'}
+                  {templateId === 'custom' ? 'Enter leave details' : 'Edit values (optional)'}
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="col-span-2 space-y-1">
@@ -298,7 +483,7 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles }: Prop
           <Button
             size="sm"
             onClick={handleCreate}
-            disabled={isPending || !leaveName.trim() || !selectedUserId || !templateValue}
+            disabled={isPending || !leaveName.trim() || !selectedUserId || !templateId}
             className="bg-violet-600 hover:bg-violet-700 text-white min-w-[100px]"
           >
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Grant Leave'}

@@ -82,6 +82,13 @@ export default async function LeaveServerPage() {
       .in('role', ['staff', 'super_admin'])
       .order('full_name')
 
+    // Fetch optional leave templates for the create dialog
+    const { data: leaveTemplates } = await supabase
+      .from('optional_leave_templates')
+      .select('id, name, default_days, is_builtin')
+      .order('is_builtin', { ascending: false })
+      .order('created_at', { ascending: true })
+
     return (
       <LeavePage
         profile={profile as Profile}
@@ -91,6 +98,7 @@ export default async function LeaveServerPage() {
         staffProfiles={(staffProfiles as Profile[]) ?? []}
         myBalance={null}
         myRequests={[]}
+        leaveTemplates={leaveTemplates ?? []}
       />
     )
   } else {

@@ -30,6 +30,13 @@ import {
 } from '@/components/ui/table'
 import { Plus, Search, Heart, Users, FileText, Clock, CalendarPlus } from 'lucide-react'
 
+export interface LeaveTemplate {
+  id: string
+  name: string
+  default_days: number
+  is_builtin: boolean
+}
+
 interface LeavePageProps {
   profile: Profile
   isAdmin: boolean
@@ -39,6 +46,7 @@ interface LeavePageProps {
   myBalance: LeaveBalance | null
   myRequests: LeaveRequest[]
   myOptionalLeaves?: OptionalLeave[]
+  leaveTemplates?: LeaveTemplate[]
 }
 
 function getInitials(name: string): string {
@@ -130,10 +138,12 @@ function AdminView({
   allRequests,
   allBalances,
   staffProfiles,
+  leaveTemplates = [],
 }: {
   allRequests: LeaveRequest[]
   allBalances: (LeaveBalance & { user?: Profile })[]
   staffProfiles: Profile[]
+  leaveTemplates?: LeaveTemplate[]
 }) {
   const [grantOpen, setGrantOpen] = useState(false)
   const [optionalOpen, setOptionalOpen] = useState(false)
@@ -383,6 +393,7 @@ function AdminView({
         open={optionalOpen}
         onClose={() => setOptionalOpen(false)}
         staffProfiles={staffProfiles}
+        leaveTemplates={leaveTemplates}
       />
     </div>
   )
@@ -397,6 +408,7 @@ export function LeavePage({
   myBalance,
   myRequests,
   myOptionalLeaves = [],
+  leaveTemplates = [],
 }: LeavePageProps) {
   if (isAdmin) {
     return (
@@ -404,6 +416,7 @@ export function LeavePage({
         allRequests={allRequests}
         allBalances={allBalances}
         staffProfiles={staffProfiles}
+        leaveTemplates={leaveTemplates}
       />
     )
   }
