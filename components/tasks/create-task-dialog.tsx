@@ -74,7 +74,10 @@ export function CreateTaskDialog({
   const [priority, setPriority] = useState<string>('medium')
   const [status, setStatus] = useState<string>('todo')
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([])
+  const [reporterId, setReporterId] = useState<string>(profile.id)
+  const [reporterSearch, setReporterSearch] = useState('')
   const [members, setMembers] = useState<Profile[]>([])
+  const [allStaff, setAllStaff] = useState<Profile[]>([])
   const [mentionableUsers, setMentionableUsers] = useState<Profile[]>([])
   const [loadingMembers, setLoadingMembers] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -91,33 +94,55 @@ export function CreateTaskDialog({
   const titleError = titleTouched && !title.trim()
   const projectError = titleTouched && !selectedProjectId && !defaultProjectId
 
-  // Fetch all staff (assignee list) and all profiles incl. clients (@ mention) when dialog opens
+  // Fetch members based on selected project + all staff for reporter + all users for @ mention
   useEffect(() => {
     if (!open) return
+    const projectId = selectedProjectId || defaultProjectId
+    const project = projects.find((p) => p.id === projectId)
+
     setLoadingMembers(true)
     const fetchMembers = async () => {
       const profileSelect =
         'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
 
-      // Assignee list: all internal users (non-client)
+      // Assignee list: project team members (workspace members + admins)
+      let projectMembers: Profile[] = []
+      if (project?.workspace_id) {
+        const [{ data: assignmentsRaw }, { data: admins }] = await Promise.all([
+          supabase
+            .from('workspace_assignments')
+            .select(`user:profiles(${profileSelect})`)
+            .eq('workspace_id', project.workspace_id),
+          supabase.from('profiles').select(profileSelect).eq('role', 'super_admin'),
+        ])
+        const wsMems: Profile[] = ((assignmentsRaw ?? []) as any[]).map((a) => a.user).filter(Boolean) as Profile[]
+        const memberIds = new Set(wsMems.map((m) => m.id))
+        for (const a of (admins ?? []) as Profile[]) {
+          if (!memberIds.has(a.id)) wsMems.push(a)
+        }
+        projectMembers = wsMems
+      }
+
+      // All non-client staff for reporter dropdown
       const { data: staffData } = await supabase
         .from('profiles')
         .select(profileSelect)
         .neq('role', 'client')
         .order('full_name')
 
-      // Mention list: all profiles including clients
+      // All profiles (incl. clients) for @ mention
       const { data: allData } = await supabase
         .from('profiles')
         .select(profileSelect)
         .order('full_name')
 
-      setMembers((staffData ?? []) as Profile[])
+      setMembers(projectMembers)
+      setAllStaff((staffData ?? []) as Profile[])
       setMentionableUsers((allData ?? []) as Profile[])
       setLoadingMembers(false)
     }
     fetchMembers()
-  }, [open])
+  }, [open, selectedProjectId, defaultProjectId, projects])
 
   function handleDescriptionChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const val = e.target.value
@@ -186,6 +211,8 @@ export function CreateTaskDialog({
     setStatus(defaultStatus)
     setSelectedAssigneeIds([])
     setAssigneeSearch('')
+    setReporterId(profile.id)
+    setReporterSearch('')
     setMentionOpen(false)
     setMentionQuery(null)
   }
@@ -221,7 +248,7 @@ export function CreateTaskDialog({
           estimated_hours: estimatedHours ? parseFloat(estimatedHours) : null,
           priority,
           status,
-          created_by: profile.id,
+          created_by: reporterId,
           depth,
         })
         .select('*')
@@ -372,6 +399,31 @@ export function CreateTaskDialog({
             </div>
           )}
 
+          {/* Task Name */}
+          <div className="space-y-1.5">
+            <Label htmlFor="task-title" className="text-xs font-semibold text-foreground">
+              Task Name <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="task-title"
+              ref={titleRef}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => setTitleTouched(true)}
+              placeholder="Enter task name"
+              className={cn(
+                'text-sm transition-colors',
+                titleError ? 'border-red-500 focus-visible:ring-red-300' : ''
+              )}
+              autoFocus
+            />
+            {titleError && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" /> Task name is required
+              </p>
+            )}
+          </div>
+
           {/* Status pill */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-foreground">Status</Label>
@@ -398,31 +450,6 @@ export function CreateTaskDialog({
               ))}
             </div>
             <p className="text-[11px] text-muted-foreground">This is the initial status upon creation</p>
-          </div>
-
-          {/* Task Name */}
-          <div className="space-y-1.5">
-            <Label htmlFor="task-title" className="text-xs font-semibold text-foreground">
-              Task Name <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="task-title"
-              ref={titleRef}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={() => setTitleTouched(true)}
-              placeholder="Enter task name"
-              className={cn(
-                'text-sm transition-colors',
-                titleError ? 'border-red-500 focus-visible:ring-red-300' : ''
-              )}
-              autoFocus
-            />
-            {titleError && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> Task name is required
-              </p>
-            )}
           </div>
 
           {/* Description */}
@@ -457,24 +484,32 @@ export function CreateTaskDialog({
                 className="w-56 p-0"
                 align="start"
                 onOpenAutoFocus={(e) => e.preventDefault()}
-                onInteractOutside={() => { setMentionOpen(false); setMentionQuery(null) }}
+                onInteractOutside={(e) => {
+                  // Don't close if interacting within the popover (e.g. scrolling)
+                  const target = e.target as Node
+                  const content = document.querySelector('[data-mention-popover]')
+                  if (content?.contains(target)) { e.preventDefault(); return }
+                  setMentionOpen(false); setMentionQuery(null)
+                }}
               >
-                <div className="max-h-44 overflow-y-auto py-1">
-                  {mentionMembers.map((member) => (
-                    <button
-                      key={member.id}
-                      type="button"
-                      onMouseDown={(e) => { e.preventDefault(); insertMention(member) }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
-                    >
-                      <Avatar className="h-6 w-6 shrink-0">
-                        <AvatarImage src={member.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
-                      </Avatar>
-                      <span className="truncate">{member.full_name}</span>
-                    </button>
-                  ))}
-                </div>
+                <ScrollArea className="h-44" data-mention-popover>
+                  <div className="py-1">
+                    {mentionMembers.map((member) => (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); insertMention(member) }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                      >
+                        <Avatar className="h-6 w-6 shrink-0">
+                          <AvatarImage src={member.avatar_url ?? undefined} />
+                          <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
+                        </Avatar>
+                        <span className="truncate">{member.full_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
               </PopoverContent>
             </Popover>
           </div>
@@ -562,12 +597,53 @@ export function CreateTaskDialog({
             <Label className="text-xs font-semibold text-foreground">
               Reporter <span className="text-red-500">*</span>
             </Label>
-            <div className="flex h-9 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm cursor-default">
-              <Avatar className="h-5 w-5 shrink-0">
-                <AvatarImage src={profile.avatar_url ?? undefined} />
-                <AvatarFallback className="text-[10px]">{getInitials(profile.full_name)}</AvatarFallback>
-              </Avatar>
-              <span>{profile.full_name}</span>
+            <div className="rounded-lg border border-border">
+              <div className="p-2 border-b">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                  <Input
+                    placeholder="Search reporter…"
+                    value={reporterSearch}
+                    onChange={(e) => setReporterSearch(e.target.value)}
+                    className="pl-8 h-8 text-sm bg-background"
+                  />
+                </div>
+              </div>
+              <ScrollArea className="h-36">
+                <ul className="p-1">
+                  {allStaff
+                    .filter((m) =>
+                      !reporterSearch ||
+                      m.full_name.toLowerCase().includes(reporterSearch.toLowerCase()) ||
+                      m.email.toLowerCase().includes(reporterSearch.toLowerCase())
+                    )
+                    .map((member) => {
+                      const selected = reporterId === member.id
+                      return (
+                        <li key={member.id}>
+                          <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
+                            <input
+                              type="radio"
+                              name="reporter"
+                              checked={selected}
+                              onChange={() => setReporterId(member.id)}
+                              className="accent-primary"
+                            />
+                            <Avatar className="h-7 w-7 shrink-0">
+                              <AvatarImage src={member.avatar_url ?? undefined} />
+                              <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">{member.full_name}</p>
+                              <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+                            </div>
+                            {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                          </label>
+                        </li>
+                      )
+                    })}
+                </ul>
+              </ScrollArea>
             </div>
           </div>
 
@@ -622,6 +698,7 @@ export function CreateTaskDialog({
                 id="task-due"
                 type="date"
                 value={dueDate}
+                min={startDate || undefined}
                 onChange={(e) => setDueDate(e.target.value)}
                 className="text-sm"
               />
