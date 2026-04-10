@@ -23,10 +23,11 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
 import {
-  X, Check, ChevronDown, AlertCircle,
+  X, Check, AlertCircle, Search,
   Bold, List, AlignLeft, Code2, Link2, Minus,
 } from 'lucide-react'
 import { MAX_SUBTASKS, MAX_SUBTASK_DEPTH } from '@/lib/constants'
@@ -77,7 +78,7 @@ export function CreateTaskDialog({
   const [loadingMembers, setLoadingMembers] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [createAnother, setCreateAnother] = useState(false)
-  const [assigneeOpen, setAssigneeOpen] = useState(false)
+  const [assigneeSearch, setAssigneeSearch] = useState('')
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionOpen, setMentionOpen] = useState(false)
 
@@ -187,7 +188,7 @@ export function CreateTaskDialog({
     setPriority(defaultPriority)
     setStatus(defaultStatus)
     setSelectedAssigneeIds([])
-    setAssigneeOpen(false)
+    setAssigneeSearch('')
     setMentionOpen(false)
     setMentionQuery(null)
   }
@@ -319,16 +320,10 @@ export function CreateTaskDialog({
       <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden max-h-[92vh] flex flex-col">
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+        <div className="flex items-center px-6 py-4 border-b shrink-0">
           <h2 className="text-base font-semibold">
             {isSubtask ? 'Add Subtask' : 'Create Task'}
           </h2>
-          <button
-            onClick={() => { reset(); onOpenChange(false) }}
-            className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
         {/* ── Scrollable body ── */}
@@ -500,95 +495,69 @@ export function CreateTaskDialog({
               </button>
             </div>
 
-            <Popover open={assigneeOpen} onOpenChange={setAssigneeOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  disabled={loadingMembers}
-                  className={cn(
-                    'w-full flex items-center gap-2 rounded-md border px-3 h-9 text-sm text-left transition-colors',
-                    'hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-ring',
-                    assignedMembers.length === 0 && 'text-muted-foreground'
-                  )}
-                >
-                  {assignedMembers.length === 0 ? (
-                    <>
-                      <Avatar className="h-5 w-5 shrink-0">
-                        <AvatarFallback className="text-[10px] bg-muted">?</AvatarFallback>
-                      </Avatar>
-                      <span>{loadingMembers ? 'Loading…' : 'Unassigned'}</span>
-                    </>
-                  ) : (
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                      <div className="flex -space-x-1">
-                        {assignedMembers.slice(0, 3).map((m) => (
-                          <Avatar key={m.id} className="h-5 w-5 ring-1 ring-background">
-                            <AvatarImage src={m.avatar_url ?? undefined} />
-                            <AvatarFallback className="text-[9px]">{getInitials(m.full_name)}</AvatarFallback>
-                          </Avatar>
-                        ))}
-                      </div>
-                      <span className="truncate text-sm">
-                        {assignedMembers.length === 1
-                          ? assignedMembers[0].full_name
-                          : `${assignedMembers.length} assignees`}
-                      </span>
-                    </div>
-                  )}
-                  <ChevronDown className="h-3.5 w-3.5 ml-auto shrink-0 text-muted-foreground" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-72 p-0" align="start">
-                {members.length === 0 ? (
-                  <p className="px-3 py-4 text-center text-sm text-muted-foreground">
-                    {loadingMembers ? 'Loading…' : 'No members found. Select a project first.'}
-                  </p>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto py-1">
-                    {members.map((member) => {
-                      const selected = selectedAssigneeIds.includes(member.id)
-                      return (
-                        <button
-                          key={member.id}
-                          type="button"
-                          onClick={() => toggleAssignee(member.id)}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted transition-colors"
-                        >
-                          <Avatar className="h-6 w-6 shrink-0">
-                            <AvatarImage src={member.avatar_url ?? undefined} />
-                            <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
-                          </Avatar>
-                          <span className="flex-1 text-left truncate">{member.full_name}</span>
-                          {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </PopoverContent>
-            </Popover>
-
-            {/* Selected assignee badges */}
-            {assignedMembers.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
-                {assignedMembers.map((m) => (
-                  <Badge key={m.id} variant="secondary" className="gap-1 pr-1 h-6">
-                    <Avatar className="h-4 w-4">
-                      <AvatarImage src={m.avatar_url ?? undefined} />
-                      <AvatarFallback className="text-[8px]">{getInitials(m.full_name)}</AvatarFallback>
-                    </Avatar>
-                    <span className="text-xs">{m.full_name}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleAssignee(m.id)}
-                      className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5"
-                    >
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                  </Badge>
-                ))}
+            <div className="rounded-lg border border-border">
+              {/* Search */}
+              <div className="p-2 border-b">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                  <Input
+                    placeholder="Search members…"
+                    value={assigneeSearch}
+                    onChange={(e) => setAssigneeSearch(e.target.value)}
+                    className="pl-8 h-8 text-sm bg-background"
+                  />
+                </div>
               </div>
-            )}
+
+              {/* List */}
+              {loadingMembers ? (
+                <div className="py-5 text-center text-sm text-muted-foreground">Loading…</div>
+              ) : members.length === 0 ? (
+                <div className="py-5 text-center text-sm text-muted-foreground">
+                  No members found. Select a project first.
+                </div>
+              ) : (
+                <ScrollArea className="h-44">
+                  <ul className="p-1">
+                    {members
+                      .filter((m) =>
+                        !assigneeSearch ||
+                        m.full_name.toLowerCase().includes(assigneeSearch.toLowerCase()) ||
+                        m.email.toLowerCase().includes(assigneeSearch.toLowerCase())
+                      )
+                      .map((member) => {
+                        const selected = selectedAssigneeIds.includes(member.id)
+                        return (
+                          <li key={member.id}>
+                            <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
+                              <Checkbox
+                                checked={selected}
+                                onCheckedChange={() => toggleAssignee(member.id)}
+                              />
+                              <Avatar className="h-7 w-7 shrink-0">
+                                <AvatarImage src={member.avatar_url ?? undefined} />
+                                <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">{member.full_name}</p>
+                                <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+                              </div>
+                              {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                            </label>
+                          </li>
+                        )
+                      })}
+                  </ul>
+                </ScrollArea>
+              )}
+
+              {/* Counter */}
+              <div className="border-t px-3 py-2">
+                <p className="text-xs text-muted-foreground">
+                  {assignedMembers.length} member{assignedMembers.length !== 1 ? 's' : ''} selected
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Reporter */}
