@@ -23,9 +23,10 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useToast } from '@/components/ui/use-toast'
 import {
-  X, Check, ChevronDown, CheckSquare, AlertCircle,
+  X, Check, ChevronDown, AlertCircle,
   Bold, List, AlignLeft, Code2, Link2, Minus,
 } from 'lucide-react'
 import { MAX_SUBTASKS, MAX_SUBTASK_DEPTH } from '@/lib/constants'
@@ -59,7 +60,6 @@ export function CreateTaskDialog({
   const { toast } = useToast()
   const supabase = createClient()
   const titleRef = useRef<HTMLInputElement>(null)
-  const assigneeRef = useRef<HTMLDivElement>(null)
   const { statuses, priorities, defaultStatus, defaultPriority } = useTaskConfig()
 
   const [title, setTitle] = useState('')
@@ -76,7 +76,7 @@ export function CreateTaskDialog({
   const [loadingMembers, setLoadingMembers] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [createAnother, setCreateAnother] = useState(false)
-  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
+  const [assigneeOpen, setAssigneeOpen] = useState(false)
 
   const isSubtask = !!parentTaskId
   const depth = isSubtask ? (parentTaskDepth ?? 0) + 1 : 0
@@ -118,23 +118,10 @@ export function CreateTaskDialog({
     fetchMembers()
   }, [selectedProjectId, defaultProjectId, projects])
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (assigneeRef.current && !assigneeRef.current.contains(e.target as Node)) {
-        setShowAssigneeDropdown(false)
-      }
-    }
-    if (showAssigneeDropdown) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showAssigneeDropdown])
-
   function toggleAssignee(userId: string) {
     setSelectedAssigneeIds((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     )
-    setShowAssigneeDropdown(false)
   }
 
   function assignToMe() {
@@ -154,7 +141,7 @@ export function CreateTaskDialog({
     setPriority(defaultPriority)
     setStatus(defaultStatus)
     setSelectedAssigneeIds([])
-    setShowAssigneeDropdown(false)
+    setAssigneeOpen(false)
   }
 
   async function handleSubmit() {
@@ -345,19 +332,6 @@ export function CreateTaskDialog({
             </div>
           )}
 
-          {/* Work type (fixed) */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-foreground">
-              Work type <span className="text-red-500">*</span>
-            </Label>
-            <div className="flex h-9 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm text-muted-foreground cursor-default select-none">
-              <CheckSquare className="h-4 w-4 text-primary" />
-              <span>Task</span>
-            </div>
-          </div>
-
-          <div className="border-t" />
-
           {/* Status pill */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-foreground">Status</Label>
@@ -386,10 +360,10 @@ export function CreateTaskDialog({
             <p className="text-[11px] text-muted-foreground">This is the initial status upon creation</p>
           </div>
 
-          {/* Summary / Title */}
+          {/* Task Name */}
           <div className="space-y-1.5">
             <Label htmlFor="task-title" className="text-xs font-semibold text-foreground">
-              Summary <span className="text-red-500">*</span>
+              Task Name <span className="text-red-500">*</span>
             </Label>
             <Input
               id="task-title"
@@ -397,7 +371,7 @@ export function CreateTaskDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={() => setTitleTouched(true)}
-              placeholder="Enter task summary"
+              placeholder="Enter task name"
               className={cn(
                 'text-sm transition-colors',
                 titleError ? 'border-red-500 focus-visible:ring-red-300' : ''
@@ -406,7 +380,7 @@ export function CreateTaskDialog({
             />
             {titleError && (
               <p className="text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> Summary is required
+                <AlertCircle className="h-3 w-3" /> Task name is required
               </p>
             )}
           </div>
@@ -449,66 +423,73 @@ export function CreateTaskDialog({
               </button>
             </div>
 
-            <div className="relative" ref={assigneeRef}>
-              <button
-                type="button"
-                onClick={() => !loadingMembers && setShowAssigneeDropdown((v) => !v)}
-                className={cn(
-                  'w-full flex items-center gap-2 rounded-md border px-3 h-9 text-sm text-left transition-colors',
-                  'hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-ring',
-                  assignedMembers.length === 0 && 'text-muted-foreground'
-                )}
-              >
-                {assignedMembers.length === 0 ? (
-                  <>
-                    <Avatar className="h-5 w-5 shrink-0">
-                      <AvatarFallback className="text-[10px] bg-muted">?</AvatarFallback>
-                    </Avatar>
-                    <span>{loadingMembers ? 'Loading…' : 'Unassigned'}</span>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                    <div className="flex -space-x-1">
-                      {assignedMembers.slice(0, 3).map((m) => (
-                        <Avatar key={m.id} className="h-5 w-5 ring-1 ring-background">
-                          <AvatarImage src={m.avatar_url ?? undefined} />
-                          <AvatarFallback className="text-[9px]">{getInitials(m.full_name)}</AvatarFallback>
-                        </Avatar>
-                      ))}
+            <Popover open={assigneeOpen} onOpenChange={setAssigneeOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  disabled={loadingMembers}
+                  className={cn(
+                    'w-full flex items-center gap-2 rounded-md border px-3 h-9 text-sm text-left transition-colors',
+                    'hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-ring',
+                    assignedMembers.length === 0 && 'text-muted-foreground'
+                  )}
+                >
+                  {assignedMembers.length === 0 ? (
+                    <>
+                      <Avatar className="h-5 w-5 shrink-0">
+                        <AvatarFallback className="text-[10px] bg-muted">?</AvatarFallback>
+                      </Avatar>
+                      <span>{loadingMembers ? 'Loading…' : 'Unassigned'}</span>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <div className="flex -space-x-1">
+                        {assignedMembers.slice(0, 3).map((m) => (
+                          <Avatar key={m.id} className="h-5 w-5 ring-1 ring-background">
+                            <AvatarImage src={m.avatar_url ?? undefined} />
+                            <AvatarFallback className="text-[9px]">{getInitials(m.full_name)}</AvatarFallback>
+                          </Avatar>
+                        ))}
+                      </div>
+                      <span className="truncate text-sm">
+                        {assignedMembers.length === 1
+                          ? assignedMembers[0].full_name
+                          : `${assignedMembers.length} assignees`}
+                      </span>
                     </div>
-                    <span className="truncate text-sm">
-                      {assignedMembers.length === 1
-                        ? assignedMembers[0].full_name
-                        : `${assignedMembers.length} assignees`}
-                    </span>
+                  )}
+                  <ChevronDown className="h-3.5 w-3.5 ml-auto shrink-0 text-muted-foreground" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-0" align="start">
+                {members.length === 0 ? (
+                  <p className="px-3 py-4 text-center text-sm text-muted-foreground">
+                    {loadingMembers ? 'Loading…' : 'No members found. Select a project first.'}
+                  </p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto py-1">
+                    {members.map((member) => {
+                      const selected = selectedAssigneeIds.includes(member.id)
+                      return (
+                        <button
+                          key={member.id}
+                          type="button"
+                          onClick={() => toggleAssignee(member.id)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                        >
+                          <Avatar className="h-6 w-6 shrink-0">
+                            <AvatarImage src={member.avatar_url ?? undefined} />
+                            <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
+                          </Avatar>
+                          <span className="flex-1 text-left truncate">{member.full_name}</span>
+                          {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
-                <ChevronDown className="h-3.5 w-3.5 ml-auto shrink-0 text-muted-foreground" />
-              </button>
-
-              {showAssigneeDropdown && members.length > 0 && (
-                <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg py-1 max-h-48 overflow-y-auto">
-                  {members.map((member) => {
-                    const selected = selectedAssigneeIds.includes(member.id)
-                    return (
-                      <button
-                        key={member.id}
-                        type="button"
-                        onClick={() => toggleAssignee(member.id)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted transition-colors"
-                      >
-                        <Avatar className="h-6 w-6 shrink-0">
-                          <AvatarImage src={member.avatar_url ?? undefined} />
-                          <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
-                        </Avatar>
-                        <span className="flex-1 text-left truncate">{member.full_name}</span>
-                        {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+              </PopoverContent>
+            </Popover>
 
             {/* Selected assignee badges */}
             {assignedMembers.length > 0 && (
