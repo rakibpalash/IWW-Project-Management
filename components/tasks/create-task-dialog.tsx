@@ -27,7 +27,7 @@ import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
 import {
-  X, Check, AlertCircle, Search,
+  X, Check, AlertCircle, Search, ChevronDown,
   Bold, List, AlignLeft, Code2, Link2, Minus,
 } from 'lucide-react'
 import { MAX_SUBTASKS, MAX_SUBTASK_DEPTH } from '@/lib/constants'
@@ -76,6 +76,7 @@ export function CreateTaskDialog({
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([])
   const [reporterId, setReporterId] = useState<string>(profile.id)
   const [reporterSearch, setReporterSearch] = useState('')
+  const [reporterOpen, setReporterOpen] = useState(false)
   const [members, setMembers] = useState<Profile[]>([])
   const [allStaff, setAllStaff] = useState<Profile[]>([])
   const [mentionableUsers, setMentionableUsers] = useState<Profile[]>([])
@@ -136,7 +137,8 @@ export function CreateTaskDialog({
         .select(profileSelect)
         .order('full_name')
 
-      setMembers(projectMembers)
+      // Assignee: all non-client staff (not restricted to project/workspace)
+      setMembers((staffData ?? []) as Profile[])
       setAllStaff((staffData ?? []) as Profile[])
       setMentionableUsers((allData ?? []) as Profile[])
       setLoadingMembers(false)
@@ -213,6 +215,7 @@ export function CreateTaskDialog({
     setAssigneeSearch('')
     setReporterId(profile.id)
     setReporterSearch('')
+    setReporterOpen(false)
     setMentionOpen(false)
     setMentionQuery(null)
   }
@@ -593,59 +596,87 @@ export function CreateTaskDialog({
           </div>
 
           {/* Reporter */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-foreground">
-              Reporter <span className="text-red-500">*</span>
-            </Label>
-            <div className="rounded-lg border border-border">
-              <div className="p-2 border-b">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                  <Input
-                    placeholder="Search reporter…"
-                    value={reporterSearch}
-                    onChange={(e) => setReporterSearch(e.target.value)}
-                    className="pl-8 h-8 text-sm bg-background"
-                  />
-                </div>
+          {(() => {
+            const selectedReporter = allStaff.find((m) => m.id === reporterId)
+            const filteredReporters = allStaff.filter((m) =>
+              !reporterSearch ||
+              m.full_name.toLowerCase().includes(reporterSearch.toLowerCase()) ||
+              m.email.toLowerCase().includes(reporterSearch.toLowerCase())
+            )
+            return (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  Reporter <span className="text-red-500">*</span>
+                </Label>
+                {/* Collapsed trigger */}
+                <button
+                  type="button"
+                  onClick={() => { setReporterOpen((v) => !v); setReporterSearch('') }}
+                  className="w-full flex items-center gap-2 h-10 rounded-md border border-border bg-background px-3 text-sm hover:bg-muted/30 transition-colors"
+                >
+                  {selectedReporter ? (
+                    <>
+                      <Avatar className="h-6 w-6 shrink-0">
+                        <AvatarImage src={selectedReporter.avatar_url ?? undefined} />
+                        <AvatarFallback className="text-[10px]">{getInitials(selectedReporter.full_name)}</AvatarFallback>
+                      </Avatar>
+                      <span className="flex-1 text-left font-medium">{selectedReporter.full_name}</span>
+                    </>
+                  ) : (
+                    <span className="flex-1 text-left text-muted-foreground">Select reporter…</span>
+                  )}
+                  <ChevronDown className={cn('h-4 w-4 text-muted-foreground/70 transition-transform', reporterOpen && 'rotate-180')} />
+                </button>
+
+                {/* Expanded list */}
+                {reporterOpen && (
+                  <div className="rounded-lg border border-border shadow-sm">
+                    <div className="p-2 border-b">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                        <Input
+                          placeholder="Search reporter…"
+                          value={reporterSearch}
+                          onChange={(e) => setReporterSearch(e.target.value)}
+                          className="pl-8 h-8 text-sm bg-background"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                    <ScrollArea className="h-40">
+                      <ul className="p-1">
+                        {filteredReporters.map((member) => {
+                          const selected = reporterId === member.id
+                          return (
+                            <li key={member.id}>
+                              <button
+                                type="button"
+                                onClick={() => { setReporterId(member.id); setReporterOpen(false); setReporterSearch('') }}
+                                className="w-full flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors text-left"
+                              >
+                                <Avatar className="h-7 w-7 shrink-0">
+                                  <AvatarImage src={member.avatar_url ?? undefined} />
+                                  <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-medium">{member.full_name}</p>
+                                  <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+                                </div>
+                                {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                              </button>
+                            </li>
+                          )
+                        })}
+                        {filteredReporters.length === 0 && (
+                          <li className="py-4 text-center text-sm text-muted-foreground">No results</li>
+                        )}
+                      </ul>
+                    </ScrollArea>
+                  </div>
+                )}
               </div>
-              <ScrollArea className="h-36">
-                <ul className="p-1">
-                  {allStaff
-                    .filter((m) =>
-                      !reporterSearch ||
-                      m.full_name.toLowerCase().includes(reporterSearch.toLowerCase()) ||
-                      m.email.toLowerCase().includes(reporterSearch.toLowerCase())
-                    )
-                    .map((member) => {
-                      const selected = reporterId === member.id
-                      return (
-                        <li key={member.id}>
-                          <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
-                            <input
-                              type="radio"
-                              name="reporter"
-                              checked={selected}
-                              onChange={() => setReporterId(member.id)}
-                              className="accent-primary"
-                            />
-                            <Avatar className="h-7 w-7 shrink-0">
-                              <AvatarImage src={member.avatar_url ?? undefined} />
-                              <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">{member.full_name}</p>
-                              <p className="truncate text-xs text-muted-foreground">{member.email}</p>
-                            </div>
-                            {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                          </label>
-                        </li>
-                      )
-                    })}
-                </ul>
-              </ScrollArea>
-            </div>
-          </div>
+            )
+          })()}
 
           {/* Priority */}
           <div className="space-y-1.5">
