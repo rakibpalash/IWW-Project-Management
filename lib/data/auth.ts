@@ -2,8 +2,13 @@ import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 
+// Full select — includes columns added by migrations (organization_id, is_active)
 const PROFILE_SELECT =
   'id, full_name, email, role, is_temp_password, is_active, onboarding_completed, avatar_url, organization_id, created_at, updated_at'
+
+// Fallback select — only columns that always exist (pre-migration safe)
+const PROFILE_SELECT_BASE =
+  'id, full_name, email, role, is_temp_password, onboarding_completed, avatar_url, created_at, updated_at'
 
 /**
  * getUser — deduplicated within a single React render via React cache().
@@ -25,18 +30,32 @@ export const getUser = cache(async () => {
 
 /**
  * _fetchProfile — cross-request cached via unstable_cache (2 min TTL).
- * Key includes userId so each user gets their own cache entry.
+ * Tries the full select first; if it fails (columns not yet migrated),
+ * falls back to the base select so the app never returns null just because
+ * a migration hasn't run yet.
  */
 const _fetchProfile = (userId: string) =>
   unstable_cache(
     async () => {
       const admin = createAdminClient()
-      const { data } = await admin
+
+      // Try full select (with organization_id, is_active)
+      const { data, error } = await admin
         .from('profiles')
         .select(PROFILE_SELECT)
         .eq('id', userId)
         .single()
-      return data
+
+      if (!error) return data
+
+      // Fall back to base columns (migration not yet applied)
+      const { data: baseData } = await admin
+        .from('profiles')
+        .select(PROFILE_SELECT_BASE)
+        .eq('id', userId)
+        .single()
+
+      return baseData
     },
     ['profile', userId],
     { revalidate: 120 }
@@ -63,11 +82,24 @@ export async function requireAuthWithOrg() {
   if (error || !user) throw new Error('Not authenticated')
 
   const admin = createAdminClient()
-  const { data: profile } = await admin
+
+  // Try with organization_id; fall back if column doesn't exist yet
+  const { data: profile, error: profileError } = await admin
     .from('profiles')
     .select('id, role, organization_id')
     .eq('id', user.id)
     .single()
+
+  if (profileError) {
+    // Column may not exist — fetch without it
+    const { data: baseProfile } = await admin
+      .from('profiles')
+      .select('id, role')
+      .eq('id', user.id)
+      .single()
+    if (!baseProfile) throw new Error('Profile not found')
+    throw new Error('Organization not set up')
+  }
 
   if (!profile) throw new Error('Profile not found')
   if (!profile.organization_id) throw new Error('Organization not set up')
