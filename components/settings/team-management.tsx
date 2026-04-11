@@ -316,22 +316,21 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                           <p className="text-sm font-medium leading-none">{user.full_name}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">{user.email}</p>
                           {user.is_temp_password && (
-                            <div className="flex items-center gap-1 mt-1 flex-wrap">
-                              <Badge variant="outline" className="text-[10px] h-4 px-1 border-amber-300 text-amber-600">
-                                Temp Password
-                              </Badge>
-                              {user.temp_password_plain && (
+                            <div className="flex flex-col gap-0.5 mt-1">
+                              {user.temp_password_plain ? (
                                 <button
                                   type="button"
                                   onClick={() => toggleRevealPassword(user.id)}
-                                  className="text-amber-600 hover:text-amber-800 transition-colors"
-                                  title={revealedPasswords.has(user.id) ? 'Hide password' : 'Show password'}
+                                  className="flex items-center gap-1 text-[10px] bg-amber-100 hover:bg-amber-200 text-amber-700 px-1.5 py-0.5 rounded-full font-medium transition-colors w-fit"
+                                  title={revealedPasswords.has(user.id) ? 'Hide password' : 'Click to show password'}
                                 >
-                                  {revealedPasswords.has(user.id)
-                                    ? <EyeOff className="h-3 w-3" />
-                                    : <Eye className="h-3 w-3" />
-                                  }
+                                  {revealedPasswords.has(user.id) ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
+                                  Temp Password
                                 </button>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] h-4 px-1 border-amber-300 text-amber-600 w-fit">
+                                  Temp Password
+                                </Badge>
                               )}
                               {revealedPasswords.has(user.id) && user.temp_password_plain && (
                                 <span className="text-[10px] font-mono bg-amber-50 border border-amber-200 text-amber-800 px-1.5 py-0.5 rounded select-all">
