@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { SettingsPage } from '@/components/settings/settings-page'
 import { getUser, getProfile } from '@/lib/data/auth'
-import { Profile, AttendanceSettings, WorkspaceAssignment, Workspace, CustomTaskStatus, CustomTaskPriority, CustomRole, StaffSalary } from '@/types'
+import { Profile, AttendanceSettings, CustomTaskStatus, CustomTaskPriority, CustomRole, StaffSalary } from '@/types'
 import { listPermissionTemplatesAction } from '@/app/actions/permission-templates'
 
 export const metadata = {
@@ -38,8 +38,6 @@ export default async function SettingsServerPage({
   const { data: attendanceSettings } = await settingsQuery
 
   let allStaff: Profile[] = []
-  let workspaceAssignments: (WorkspaceAssignment & { workspace?: Workspace })[] = []
-  let workspaces: Workspace[] = []
   let taskStatuses: CustomTaskStatus[] = []
   let taskPriorities: CustomTaskPriority[] = []
   let customRoles: CustomRole[] = []
@@ -49,9 +47,6 @@ export default async function SettingsServerPage({
     const staffQ = orgId
       ? supabase.from('profiles').select(staffProfileSelect).eq('organization_id', orgId).order('full_name')
       : supabase.from('profiles').select(staffProfileSelect).order('full_name')
-    const wsQ = orgId
-      ? supabase.from('workspaces').select('*').eq('organization_id', orgId).order('name')
-      : supabase.from('workspaces').select('*').order('name')
     const statusQ = orgId
       ? supabase.from('task_statuses').select('*').eq('organization_id', orgId).order('sort_order')
       : supabase.from('task_statuses').select('*').order('sort_order')
@@ -59,14 +54,8 @@ export default async function SettingsServerPage({
       ? supabase.from('task_priorities').select('*').eq('organization_id', orgId).order('sort_order')
       : supabase.from('task_priorities').select('*').order('sort_order')
 
-    const [staffData, workspacesData, assignmentsData, statusesData, prioritiesData] =
-      await Promise.all([
-        staffQ,
-        wsQ,
-        supabase.from('workspace_assignments').select('*, workspace:workspaces(*)'),
-        statusQ,
-        priorityQ,
-      ])
+    const [staffData, statusesData, prioritiesData] =
+      await Promise.all([staffQ, statusQ, priorityQ])
 
     if (staffData.error) {
       const fallbackQ = orgId
@@ -77,8 +66,6 @@ export default async function SettingsServerPage({
     } else {
       allStaff = (staffData.data as Profile[]) ?? []
     }
-    workspaces = workspacesData.data ?? []
-    workspaceAssignments = assignmentsData.data ?? []
     taskStatuses = (statusesData.data as CustomTaskStatus[]) ?? []
     taskPriorities = (prioritiesData.data as CustomTaskPriority[]) ?? []
 
@@ -105,8 +92,6 @@ export default async function SettingsServerPage({
       isAdmin={isAdmin}
       attendanceSettings={(attendanceSettings as AttendanceSettings) ?? null}
       allStaff={allStaff}
-      workspaces={workspaces}
-      workspaceAssignments={workspaceAssignments}
       taskStatuses={taskStatuses}
       taskPriorities={taskPriorities}
       customRoles={customRoles}

@@ -2,18 +2,17 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { Profile, AttendanceSettings, Workspace, WorkspaceAssignment, CustomTaskStatus, CustomTaskPriority, CustomRole, StaffSalary } from '@/types'
+import { Profile, AttendanceSettings, CustomTaskStatus, CustomTaskPriority, CustomRole, StaffSalary } from '@/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { AttendanceRulesForm } from './attendance-rules-form'
-import { TeamManagement } from './team-management'
 import { TaskStatusesForm } from './task-statuses-form'
 import { TaskPrioritiesForm } from './task-priorities-form'
 import { CustomRolesTab } from './custom-roles-tab'
 import { PermissionTemplatesTab } from './permission-templates-tab'
 import { SalaryManagement } from './salary-management'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Clock, Users, User, Shield, ExternalLink, ListTodo, Flag, Tag, ShieldCheck, Banknote } from 'lucide-react'
+import { Clock, User, Shield, ExternalLink, ListTodo, Flag, Tag, ShieldCheck, Banknote } from 'lucide-react'
 import { PermissionTemplate } from '@/app/actions/permission-templates'
 
 interface SettingsPageProps {
@@ -21,8 +20,6 @@ interface SettingsPageProps {
   isAdmin: boolean
   attendanceSettings: AttendanceSettings | null
   allStaff: Profile[]
-  workspaces: Workspace[]
-  workspaceAssignments: (WorkspaceAssignment & { workspace?: Workspace })[]
   taskStatuses: CustomTaskStatus[]
   taskPriorities: CustomTaskPriority[]
   customRoles: CustomRole[]
@@ -36,8 +33,6 @@ export function SettingsPage({
   isAdmin,
   attendanceSettings,
   allStaff,
-  workspaces,
-  workspaceAssignments,
   taskStatuses,
   taskPriorities,
   customRoles,
@@ -69,10 +64,6 @@ export function SettingsPage({
               <TabsTrigger value="attendance" className="gap-2">
                 <Clock className="h-4 w-4" />
                 Attendance Rules
-              </TabsTrigger>
-              <TabsTrigger value="team" className="gap-2">
-                <Users className="h-4 w-4" />
-                Team Management
               </TabsTrigger>
               <TabsTrigger value="statuses" className="gap-2">
                 <ListTodo className="h-4 w-4" />
@@ -110,15 +101,6 @@ export function SettingsPage({
           <>
             <TabsContent value="attendance">
               <AttendanceRulesForm settings={attendanceSettings} />
-            </TabsContent>
-
-            <TabsContent value="team">
-              <TeamManagement
-                users={allStaff}
-                workspaces={workspaces}
-                workspaceAssignments={workspaceAssignments}
-                customRoles={customRoles}
-              />
             </TabsContent>
 
             <TabsContent value="statuses">
