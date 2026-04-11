@@ -279,6 +279,37 @@ export async function toggleUserActiveAction(
   }
 }
 
+export async function resetTempPasswordAction(
+  userId: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = createAdminClient()
+    const { createClient: createRegularClient } = await import('@/lib/supabase/server')
+    const userClient = await createRegularClient()
+    const { data: { user: callerUser } } = await userClient.auth.getUser()
+    if (!callerUser) return { success: false, error: 'Not authenticated' }
+    const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerUser.id).single()
+    if (!callerProfile || callerProfile.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
+
+    // Update password in Supabase Auth
+    const { error: authError } = await supabase.auth.admin.updateUserById(userId, { password: newPassword })
+    if (authError) return { success: false, error: authError.message }
+
+    // Store new temp password in profile
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ is_temp_password: true, temp_password_plain: newPassword })
+      .eq('id', userId)
+    if (profileError) return { success: false, error: profileError.message }
+
+    revalidatePath('/team')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 export async function completeOnboardingAction(): Promise<{ success: boolean; error?: string }> {
   try {
     const userClient = await createClient()

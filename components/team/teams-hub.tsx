@@ -55,6 +55,7 @@ import { UserPermissionsDialog } from '@/components/settings/user-permissions-di
 import {
   createUserAction,
   updatePersonAction,
+  resetTempPasswordAction,
 } from '@/app/actions/user'
 import { addTeamMembersAction, removeTeamMemberAction, createTeamAction, updateTeamAction, deleteTeamAction } from '@/app/actions/teams'
 import { assignCustomRoleToUserAction, createCustomRoleAction } from '@/app/actions/custom-roles'
@@ -79,6 +80,8 @@ import {
   Loader2,
   Check,
   ShieldCheck,
+  RefreshCw,
+  Copy,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
@@ -720,6 +723,7 @@ function PeopleTable({
   const [assignGroupTarget, setAssignGroupTarget] = useState<Profile | null>(null)
   const [assignJobTitleTarget, setAssignJobTitleTarget] = useState<Profile | null>(null)
   const [permissionsTarget, setPermissionsTarget] = useState<Profile | null>(null)
+  const [tempPasswordTarget, setTempPasswordTarget] = useState<Profile | null>(null)
   const [revealedPasswords, setRevealedPasswords] = useState<Set<string>>(new Set())
   const profileMap = Object.fromEntries(allProfiles.map((p) => [p.id, p]))
 
@@ -807,28 +811,15 @@ function PeopleTable({
                           <span className="truncate max-w-[160px]">{person.email}</span>
                         </p>
                         {person.is_temp_password && (
-                          <div className="flex flex-col gap-0.5 mt-0.5">
-                            {isAdmin && person.temp_password_plain ? (
-                              <button
-                                type="button"
-                                onClick={() => toggleRevealPassword(person.id)}
-                                className="flex items-center gap-1 text-[10px] bg-amber-100 hover:bg-amber-200 text-amber-700 px-1.5 py-0.5 rounded-full font-medium transition-colors w-fit"
-                                title={revealedPasswords.has(person.id) ? 'Hide password' : 'Click to show password'}
-                              >
-                                {revealedPasswords.has(person.id) ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
-                                Temp Password
-                              </button>
-                            ) : (
-                              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium inline-block">
-                                Temp Password
-                              </span>
-                            )}
-                            {isAdmin && revealedPasswords.has(person.id) && person.temp_password_plain && (
-                              <span className="text-[10px] font-mono bg-amber-50 border border-amber-200 text-amber-800 px-1.5 py-0.5 rounded select-all">
-                                {person.temp_password_plain}
-                              </span>
-                            )}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => isAdmin && setTempPasswordTarget(person)}
+                            className={`flex items-center gap-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium mt-0.5 w-fit ${isAdmin ? 'hover:bg-amber-200 cursor-pointer transition-colors' : 'cursor-default'}`}
+                            title={isAdmin ? 'Click to view or reset password' : undefined}
+                          >
+                            <Eye className="h-2.5 w-2.5" />
+                            Temp Password
+                          </button>
                         )}
                       </div>
                     </div>
@@ -1092,7 +1083,135 @@ function PeopleTable({
           user={permissionsTarget}
         />
       )}
+
+      {tempPasswordTarget && (
+        <TempPasswordDialog
+          person={tempPasswordTarget}
+          open={!!tempPasswordTarget}
+          onClose={() => setTempPasswordTarget(null)}
+          onPasswordReset={(patch) => {
+            onProfileUpdate(tempPasswordTarget.id, patch)
+            setTempPasswordTarget((prev) => prev ? { ...prev, ...patch } : null)
+          }}
+        />
+      )}
     </>
+  )
+}
+
+// ── Temp Password Dialog ───────────────────────────────────────────────────────
+
+function generatePassword() {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#!'
+  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
+
+function TempPasswordDialog({
+  person, open, onClose, onPasswordReset,
+}: {
+  person: Profile
+  open: boolean
+  onClose: () => void
+  onPasswordReset: (patch: Partial<Profile>) => void
+}) {
+  const { toast } = useToast()
+  const [showPw, setShowPw] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [resetting, setResetting] = useState(false)
+  const [showResetForm, setShowResetForm] = useState(false)
+
+  function handleCopy(text: string) {
+    navigator.clipboard.writeText(text)
+    toast({ title: 'Copied to clipboard' })
+  }
+
+  async function handleReset() {
+    const pw = newPassword.trim() || generatePassword()
+    setResetting(true)
+    const result = await resetTempPasswordAction(person.id, pw)
+    if (!result.success) {
+      toast({ title: 'Failed', description: result.error, variant: 'destructive' })
+    } else {
+      onPasswordReset({ temp_password_plain: pw, is_temp_password: true })
+      toast({ title: 'Password reset', description: 'New temp password has been set.' })
+      setShowResetForm(false)
+      setNewPassword('')
+    }
+    setResetting(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Eye className="h-4 w-4 text-amber-500" />
+            Temporary Password
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {/* User info */}
+          <div className="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2.5">
+            <Avatar className="h-8 w-8 shrink-0">
+              <AvatarImage src={person.avatar_url ?? undefined} />
+              <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(person.full_name)}`}>
+                {getInitials(person.full_name)}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="text-sm font-medium">{person.full_name}</p>
+              <p className="text-xs text-muted-foreground">{person.email}</p>
+            </div>
+          </div>
+
+          {/* Current password */}
+          {person.temp_password_plain ? (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground font-medium">Current Temporary Password</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 font-mono text-sm bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-md select-all break-all">
+                  {showPw ? person.temp_password_plain : '••••••••••••'}
+                </div>
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-amber-600" onClick={() => setShowPw(v => !v)}>
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => handleCopy(person.temp_password_plain!)}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
+              No password stored. This user was created before password storage was enabled.
+            </p>
+          )}
+
+          {/* Reset section */}
+          {!showResetForm ? (
+            <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => setShowResetForm(true)}>
+              <RefreshCw className="h-3.5 w-3.5" />
+              Set New Temp Password
+            </Button>
+          ) : (
+            <div className="space-y-2 border rounded-lg p-3 bg-muted/30">
+              <p className="text-xs font-medium">New Temporary Password</p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Leave blank to auto-generate"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="text-sm h-8"
+                />
+                <Button size="sm" className="h-8 shrink-0" onClick={handleReset} disabled={resetting}>
+                  {resetting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Set'}
+                </Button>
+              </div>
+              <button type="button" onClick={() => { setShowResetForm(false); setNewPassword('') }} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1206,11 +1325,6 @@ function EditPersonDialog({
 }
 
 // ── Add Person Dialog ──────────────────────────────────────────────────────────
-
-function generatePassword() {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#!'
-  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-}
 
 // Maps each role to which roles are valid managers for it
 const MANAGER_ROLE_FOR: Record<string, string[]> = {
