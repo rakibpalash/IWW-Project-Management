@@ -227,6 +227,7 @@ export function TaskDetailPage({
   const [assignSearch, setAssignSearch] = useState('')
   const [pendingAssigneeIds, setPendingAssigneeIds] = useState<string[]>([])
   const [savingAssignees, setSavingAssignees] = useState(false)
+  const [savingDates, setSavingDates] = useState(false)
   const [timerRunning, setTimerRunning] = useState(false)
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null)
   const [timerClientBase, setTimerClientBase] = useState<number | undefined>(undefined)
@@ -483,6 +484,22 @@ export function TaskDetailPage({
     setTimerClientBase(clickedAt)
     setTimerRunning(true)
     setTimeEntries((p) => [result.entry!, ...p])
+  }
+
+  async function handleDateOrHoursChange(field: 'start_date' | 'due_date' | 'estimated_hours', value: string) {
+    setSavingDates(true)
+    const payload: Record<string, string | number | null> = {
+      [field]: field === 'estimated_hours'
+        ? (value ? parseFloat(value) : null)
+        : (value || null),
+    }
+    const result = await updateTaskAction(task.id, payload as any)
+    if (result.success && result.task) {
+      setTask((prev) => ({ ...prev, ...payload }))
+    } else {
+      toast({ title: 'Failed to update', description: result.error, variant: 'destructive' })
+    }
+    setSavingDates(false)
   }
 
   async function handleCloneTask() {
@@ -1221,28 +1238,53 @@ export function TaskDetailPage({
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                   Dates
                 </p>
-                <div className="flex items-center gap-2.5">
-                  <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-[10px] text-muted-foreground">Start</p>
-                    <p className="text-xs font-medium">
-                      {task.start_date ? formatDate(task.start_date) : '—'}
-                    </p>
-                  </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground">Start</p>
+                  {canEdit ? (
+                    <input
+                      type="date"
+                      value={task.start_date ?? ''}
+                      onChange={(e) => handleDateOrHoursChange('start_date', e.target.value)}
+                      disabled={savingDates}
+                      className="w-full text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                    />
+                  ) : (
+                    <p className="text-xs font-medium">{task.start_date ? formatDate(task.start_date) : '—'}</p>
+                  )}
                 </div>
-                <div className="flex items-center gap-2.5">
-                  <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-[10px] text-muted-foreground">Due</p>
-                    <p
-                      className={cn(
-                        'text-xs font-medium',
-                        !task.due_date && 'text-muted-foreground',
-                      )}
-                    >
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground">Due</p>
+                  {canEdit ? (
+                    <input
+                      type="date"
+                      value={task.due_date ?? ''}
+                      onChange={(e) => handleDateOrHoursChange('due_date', e.target.value)}
+                      disabled={savingDates}
+                      className="w-full text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                    />
+                  ) : (
+                    <p className={cn('text-xs font-medium', !task.due_date && 'text-muted-foreground')}>
                       {task.due_date ? formatDate(task.due_date) : '—'}
                     </p>
-                  </div>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground">Estimated Hours</p>
+                  {canEdit ? (
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={task.estimated_hours ?? ''}
+                      onChange={(e) => handleDateOrHoursChange('estimated_hours', e.target.value)}
+                      onKeyDown={(e) => { if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault() }}
+                      disabled={savingDates}
+                      placeholder="e.g. 4"
+                      className="w-full text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                    />
+                  ) : (
+                    <p className="text-xs font-medium">{task.estimated_hours ? `${task.estimated_hours}h` : '—'}</p>
+                  )}
                 </div>
               </div>
 

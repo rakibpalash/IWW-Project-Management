@@ -38,6 +38,7 @@ import {
   ListTodo,
   BarChart2,
   Plus,
+  Pencil,
 } from 'lucide-react'
 
 interface ProjectDetailPageProps {
@@ -544,6 +545,15 @@ function TaskRow({ task, projectId }: { task: Task; projectId: string }) {
             )}
           </div>
         )}
+
+        {/* Edit button */}
+        <button
+          onClick={() => { window.location.href = `/projects/${projectId}/tasks/${task.id}` }}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          title="Edit task"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
 
         {/* Subtask toggle */}
         {hasSubtasks && (

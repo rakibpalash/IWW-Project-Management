@@ -717,7 +717,17 @@ function PeopleTable({
   const { toast } = useToast()
   const [assignGroupTarget, setAssignGroupTarget] = useState<Profile | null>(null)
   const [assignJobTitleTarget, setAssignJobTitleTarget] = useState<Profile | null>(null)
+  const [revealedPasswords, setRevealedPasswords] = useState<Set<string>>(new Set())
   const profileMap = Object.fromEntries(allProfiles.map((p) => [p.id, p]))
+
+  function toggleRevealPassword(personId: string) {
+    setRevealedPasswords((prev) => {
+      const next = new Set(prev)
+      if (next.has(personId)) next.delete(personId)
+      else next.add(personId)
+      return next
+    })
+  }
 
   // Get all teams a profile belongs to
   function getTeamsForProfile(profileId: string) {
@@ -729,14 +739,23 @@ function PeopleTable({
   function handleInlineRoleChange(person: Profile, newRole: string) {
     startTransition(async () => {
       const result = await updatePersonAction(person.id, { role: newRole })
-      if (!result.success) toast({ title: 'Failed to update role', description: result.error, variant: 'destructive' })
+      if (!result.success) {
+        toast({ title: 'Failed to update role', description: result.error, variant: 'destructive' })
+      } else {
+        onProfileUpdate(person.id, { role: newRole as Profile['role'] })
+      }
     })
   }
 
   function handleInlineManagerChange(person: Profile, managerId: string) {
+    const resolvedId = managerId === '__none' ? null : managerId
     startTransition(async () => {
-      const result = await updatePersonAction(person.id, { manager_id: managerId === '__none' ? null : managerId })
-      if (!result.success) toast({ title: 'Failed to update manager', description: result.error, variant: 'destructive' })
+      const result = await updatePersonAction(person.id, { manager_id: resolvedId })
+      if (!result.success) {
+        toast({ title: 'Failed to update manager', description: result.error, variant: 'destructive' })
+      } else {
+        onProfileUpdate(person.id, { manager_id: resolvedId } as any)
+      }
     })
   }
 
@@ -785,9 +804,29 @@ function PeopleTable({
                           <span className="truncate max-w-[160px]">{person.email}</span>
                         </p>
                         {person.is_temp_password && (
-                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium mt-0.5 inline-block">
-                            Temp Password
-                          </span>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium inline-block">
+                              Temp Password
+                            </span>
+                            {isAdmin && person.temp_password_plain && (
+                              <button
+                                type="button"
+                                onClick={() => toggleRevealPassword(person.id)}
+                                className="text-amber-600 hover:text-amber-800 transition-colors"
+                                title={revealedPasswords.has(person.id) ? 'Hide password' : 'Show password'}
+                              >
+                                {revealedPasswords.has(person.id)
+                                  ? <EyeOff className="h-3 w-3" />
+                                  : <Eye className="h-3 w-3" />
+                                }
+                              </button>
+                            )}
+                            {isAdmin && revealedPasswords.has(person.id) && person.temp_password_plain && (
+                              <span className="text-[10px] font-mono bg-amber-50 border border-amber-200 text-amber-800 px-1.5 py-0.5 rounded select-all">
+                                {person.temp_password_plain}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1045,31 +1084,39 @@ function PeopleTable({
 // ── Edit Person Dialog ─────────────────────────────────────────────────────────
 
 function EditPersonDialog({
-  person, allProfiles, open, onClose,
+  person, allProfiles, open, onClose, onSaved,
 }: {
-  person: Profile | null; allProfiles: Profile[]; open: boolean; onClose: () => void
+  person: Profile | null; allProfiles: Profile[]; open: boolean; onClose: () => void; onSaved?: (patch: Partial<Profile>) => void
 }) {
   const { toast } = useToast()
   const [isPending, startTransition] = useTransition()
   const [name, setName] = useState(person?.full_name ?? '')
+  const [email, setEmail] = useState(person?.email ?? '')
   const [role, setRole] = useState(person?.role ?? 'staff')
   const [managerId, setManagerId] = useState(person?.manager_id ?? '__none')
 
   // Sync when person changes
   const personKey = person?.id
   useState(() => {
-    if (person) { setName(person.full_name); setRole(person.role); setManagerId(person.manager_id ?? '__none') }
+    if (person) { setName(person.full_name); setEmail(person.email ?? ''); setRole(person.role); setManagerId(person.manager_id ?? '__none') }
   })
 
   function handleSave() {
     if (!person) return
     startTransition(async () => {
-      const result = await updatePersonAction(person.id, {
+      const patch = {
         full_name: name.trim(), role,
         manager_id: managerId === '__none' ? null : managerId,
-      })
-      if (result.success) { toast({ title: 'Person updated' }); onClose() }
-      else toast({ title: 'Failed to update', description: result.error, variant: 'destructive' })
+        ...(email.trim() && email.trim() !== person.email ? { email: email.trim() } : {}),
+      }
+      const result = await updatePersonAction(person.id, patch)
+      if (result.success) {
+        onSaved?.(patch as Partial<Profile>)
+        toast({ title: 'Person updated' })
+        onClose()
+      } else {
+        toast({ title: 'Failed to update', description: result.error, variant: 'destructive' })
+      }
     })
   }
 
@@ -1081,6 +1128,10 @@ function EditPersonDialog({
           <div className="space-y-1.5">
             <Label>Full name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Email</Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>Role</Label>
@@ -1649,6 +1700,9 @@ export function TeamsHub({ profile, allProfiles, teams, customRoles: initialCust
           allProfiles={profiles}
           open={!!editTarget}
           onClose={handleEditClose}
+          onSaved={(patch) => {
+            setProfiles((prev) => prev.map((p) => p.id === editTarget.id ? { ...p, ...patch } : p))
+          }}
         />
       )}
 

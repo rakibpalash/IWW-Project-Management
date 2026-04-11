@@ -47,6 +47,7 @@ import { Switch } from '@/components/ui/switch'
 import {
   Plus, Search, MoreVertical, UserCog, Loader2, Tag, Crown, Shield,
   Briefcase, User, Trash2, UserCheck, UserX, CheckCircle2, XCircle, ShieldCheck,
+  Eye, EyeOff,
 } from 'lucide-react'
 import { updateUserRoleAction, updatePersonAction, deleteUserAction, toggleUserActiveAction } from '@/app/actions/user'
 import { getStaffDeleteImpact } from '@/app/actions/delete-impact'
@@ -108,6 +109,16 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
   const [permissionsTarget, setPermissionsTarget] = useState<Profile | null>(null)
   const [persons, setPersons] = useState<Profile[]>(users)
+  const [revealedPasswords, setRevealedPasswords] = useState<Set<string>>(new Set())
+
+  function toggleRevealPassword(userId: string) {
+    setRevealedPasswords((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) next.delete(userId)
+      else next.add(userId)
+      return next
+    })
+  }
 
   const filteredUsers = persons.filter((u) => {
     const matchesSearch =
@@ -298,9 +309,29 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                           <p className="text-sm font-medium leading-none">{user.full_name}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">{user.email}</p>
                           {user.is_temp_password && (
-                            <Badge variant="outline" className="mt-1 text-[10px] h-4 px-1 border-amber-300 text-amber-600">
-                              Temp Password
-                            </Badge>
+                            <div className="flex items-center gap-1 mt-1 flex-wrap">
+                              <Badge variant="outline" className="text-[10px] h-4 px-1 border-amber-300 text-amber-600">
+                                Temp Password
+                              </Badge>
+                              {user.temp_password_plain && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleRevealPassword(user.id)}
+                                  className="text-amber-600 hover:text-amber-800 transition-colors"
+                                  title={revealedPasswords.has(user.id) ? 'Hide password' : 'Show password'}
+                                >
+                                  {revealedPasswords.has(user.id)
+                                    ? <EyeOff className="h-3 w-3" />
+                                    : <Eye className="h-3 w-3" />
+                                  }
+                                </button>
+                              )}
+                              {revealedPasswords.has(user.id) && user.temp_password_plain && (
+                                <span className="text-[10px] font-mono bg-amber-50 border border-amber-200 text-amber-800 px-1.5 py-0.5 rounded select-all">
+                                  {user.temp_password_plain}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>

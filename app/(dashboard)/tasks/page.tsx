@@ -16,77 +16,96 @@ export default async function TasksServerPage() {
   if (!profile) redirect('/login')
 
   const supabase = await createClient()
+  const admin = createAdminClient()
 
   if (profile.role === 'client') redirect('/dashboard')
 
-  // Fetch tasks assigned to current user via task_assignees
-  const { data: assignedTaskIds } = await supabase
-    .from('task_assignees')
-    .select('task_id')
-    .eq('user_id', user.id)
+  const profileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+  const taskSelect = `
+    *,
+    project:projects(id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at),
+    assignees:task_assignees(
+      user:profiles(${profileSelect})
+    )
+  `
 
-  const assignedIds = (assignedTaskIds ?? []).map((a) => a.task_id)
-
-  // Fetch all tasks: assigned OR created by user
   let tasks: Task[] = []
 
-  const profileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+  if (profile.role === 'super_admin') {
+    // Super admin sees all tasks in their organisation
+    const orgId = (profile as Profile).organization_id
+    const { data: orgWorkspaces } = orgId
+      ? await admin.from('workspaces').select('id').eq('organization_id', orgId)
+      : { data: [] }
+    const orgWsIds = (orgWorkspaces ?? []).map((w: { id: string }) => w.id)
 
-  if (assignedIds.length > 0) {
-    const { data: assignedTasks } = await supabase
-      .from('tasks')
-      .select(`
-        *,
-        project:projects(id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at),
-        assignees:task_assignees(
-          user:profiles(${profileSelect})
-        )
-      `)
-      .in('id', assignedIds)
-      .is('parent_task_id', null)
-      .order('created_at', { ascending: false })
+    if (orgWsIds.length > 0) {
+      const { data: orgProjects } = await admin
+        .from('projects')
+        .select('id')
+        .in('workspace_id', orgWsIds)
+      const orgProjectIds = (orgProjects ?? []).map((p: { id: string }) => p.id)
 
-    const { data: createdTasks } = await supabase
-      .from('tasks')
-      .select(`
-        *,
-        project:projects(id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at),
-        assignees:task_assignees(
-          user:profiles(${profileSelect})
-        )
-      `)
-      .eq('created_by', user.id)
-      .not('id', 'in', `(${assignedIds.join(',')})`)
-      .is('parent_task_id', null)
-      .order('created_at', { ascending: false })
+      if (orgProjectIds.length > 0) {
+        const { data: allTasks } = await admin
+          .from('tasks')
+          .select(taskSelect)
+          .in('project_id', orgProjectIds)
+          .is('parent_task_id', null)
+          .order('created_at', { ascending: false })
 
-    const allRaw = [...(assignedTasks ?? []), ...(createdTasks ?? [])]
-    tasks = allRaw.map((t: any) => ({
-      ...t,
-      assignees: (t.assignees ?? []).map((a: any) => a.user).filter(Boolean),
-    })) as Task[]
+        tasks = (allTasks ?? []).map((t: any) => ({
+          ...t,
+          assignees: (t.assignees ?? []).map((a: any) => a.user).filter(Boolean),
+        })) as Task[]
+      }
+    }
   } else {
-    const { data: createdTasks } = await supabase
-      .from('tasks')
-      .select(`
-        *,
-        project:projects(id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at),
-        assignees:task_assignees(
-          user:profiles(${profileSelect})
-        )
-      `)
-      .eq('created_by', user.id)
-      .is('parent_task_id', null)
-      .order('created_at', { ascending: false })
+    // Non-admin: show tasks assigned to OR created by the user
+    const { data: assignedTaskIds } = await supabase
+      .from('task_assignees')
+      .select('task_id')
+      .eq('user_id', user.id)
 
-    tasks = (createdTasks ?? []).map((t: any) => ({
-      ...t,
-      assignees: (t.assignees ?? []).map((a: any) => a.user).filter(Boolean),
-    })) as Task[]
+    const assignedIds = (assignedTaskIds ?? []).map((a) => a.task_id)
+
+    if (assignedIds.length > 0) {
+      const { data: assignedTasks } = await supabase
+        .from('tasks')
+        .select(taskSelect)
+        .in('id', assignedIds)
+        .is('parent_task_id', null)
+        .order('created_at', { ascending: false })
+
+      const { data: createdTasks } = await supabase
+        .from('tasks')
+        .select(taskSelect)
+        .eq('created_by', user.id)
+        .not('id', 'in', `(${assignedIds.join(',')})`)
+        .is('parent_task_id', null)
+        .order('created_at', { ascending: false })
+
+      const allRaw = [...(assignedTasks ?? []), ...(createdTasks ?? [])]
+      tasks = allRaw.map((t: any) => ({
+        ...t,
+        assignees: (t.assignees ?? []).map((a: any) => a.user).filter(Boolean),
+      })) as Task[]
+    } else {
+      const { data: createdTasks } = await supabase
+        .from('tasks')
+        .select(taskSelect)
+        .eq('created_by', user.id)
+        .is('parent_task_id', null)
+        .order('created_at', { ascending: false })
+
+      tasks = (createdTasks ?? []).map((t: any) => ({
+        ...t,
+        assignees: (t.assignees ?? []).map((a: any) => a.user).filter(Boolean),
+      })) as Task[]
+    }
   }
 
   // Fetch all accessible projects for the create task dropdown (scoped to org via workspaces)
-  const admin = createAdminClient()
   const orgId = (profile as Profile).organization_id
   const { data: orgWorkspaces } = orgId
     ? await admin.from('workspaces').select('id').eq('organization_id', orgId)

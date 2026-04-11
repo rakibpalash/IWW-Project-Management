@@ -1,20 +1,19 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { SettingsPage } from '@/components/settings/settings-page'
 import { getUser, getProfile } from '@/lib/data/auth'
 import { Profile, AttendanceSettings, WorkspaceAssignment, Workspace, CustomTaskStatus, CustomTaskPriority, CustomRole, StaffSalary } from '@/types'
 import { listPermissionTemplatesAction } from '@/app/actions/permission-templates'
-import { getSalariesAction } from '@/app/actions/salary'
 
 export const metadata = {
   title: 'Settings',
 }
 
 const profileSelect =
-  'id, full_name, email, avatar_url, role, is_active, is_temp_password, onboarding_completed, created_at, updated_at'
+  'id, full_name, email, avatar_url, role, is_active, is_temp_password, temp_password_plain, onboarding_completed, created_at, updated_at'
 
 const staffProfileSelect =
-  'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_active, is_temp_password, onboarding_completed, created_at, updated_at'
+  'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_active, is_temp_password, temp_password_plain, onboarding_completed, created_at, updated_at'
 
 export default async function SettingsServerPage({
   searchParams,
@@ -93,8 +92,11 @@ export default async function SettingsServerPage({
   const permissionTemplates = isAdmin ? await listPermissionTemplatesAction() : []
 
   if (isAdmin) {
-    const { data: salaryData } = await getSalariesAction()
-    salaries = (salaryData as StaffSalary[] | undefined) ?? []
+    const admin = createAdminClient()
+    let salaryQ = admin.from('staff_salaries').select('*').order('created_at', { ascending: false })
+    if (orgId) salaryQ = salaryQ.eq('organization_id', orgId)
+    const { data: salaryData } = await salaryQ
+    salaries = (salaryData as StaffSalary[]) ?? []
   }
 
   return (

@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { StaffSalary } from '@/types'
 import { revalidatePath } from 'next/cache'
 
@@ -33,13 +33,20 @@ export async function getSalariesAction(): Promise<{
   error?: string
 }> {
   try {
-    const { organizationId, supabase } = await requireSuperAdmin()
+    const { organizationId } = await requireSuperAdmin()
+    const admin = createAdminClient()
 
-    const { data, error } = await supabase
+    // Use admin client to bypass RLS (authorization already verified above)
+    let query = admin
       .from('staff_salaries')
       .select('*, user:profiles(id, full_name, avatar_url, role)')
-      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
+
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId)
+    }
+
+    const { data, error } = await query
 
     if (error) return { error: error.message }
     return { data: data as (StaffSalary & { user: { id: string; full_name: string; avatar_url: string | null; role: string } | null })[] }

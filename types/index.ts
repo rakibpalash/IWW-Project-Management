@@ -38,6 +38,7 @@ export interface Profile {
   avatar_url: string | null
   role: Role
   is_temp_password: boolean
+  temp_password_plain?: string | null
   is_active?: boolean  // optional: column added in migration 021
   onboarding_completed: boolean
   organization_id: string | null

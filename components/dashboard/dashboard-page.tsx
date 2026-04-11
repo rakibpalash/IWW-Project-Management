@@ -322,11 +322,11 @@ function QuickActions({
       {role === 'super_admin' && (
         <Button
           size="sm"
-          onClick={() => router.push('/projects')}
+          onClick={() => router.push('/workspaces')}
           className="gap-2"
         >
           <Plus className="h-4 w-4" />
-          New Project
+          New Workspace
         </Button>
       )}
       {(role === 'staff' || role === 'account_manager' || role === 'project_manager') && (

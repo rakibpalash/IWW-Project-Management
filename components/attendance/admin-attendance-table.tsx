@@ -151,7 +151,7 @@ export function AdminAttendanceTable({
           supabase
             .from('attendance_records')
             .select(
-              '*, user:profiles(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)'
+              '*, user:profiles!user_id(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)'
             )
             .eq('date', newDate),
           supabase
@@ -196,7 +196,7 @@ export function AdminAttendanceTable({
           status: 'absent',
           is_football_rule: footballUserIds.has(staff.id),
         })
-        .select('*, user:profiles(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)')
+        .select('*, user:profiles!user_id(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)')
         .single()
 
       if (error) throw error

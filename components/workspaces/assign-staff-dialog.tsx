@@ -220,7 +220,7 @@ export function AssignStaffDialog({
           )}
 
           <p className="text-xs text-muted-foreground/70">
-            {selected.size} member{selected.size !== 1 ? 's' : ''} selected in total
+            {allMembers.filter((m) => selected.has(m.id)).length} member{allMembers.filter((m) => selected.has(m.id)).length !== 1 ? 's' : ''} selected in total
           </p>
         </div>
 

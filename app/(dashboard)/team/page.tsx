@@ -17,8 +17,8 @@ export default async function TeamServerPage() {
   const orgId = profile.organization_id
 
   // Fetch profiles — try with optional columns first, fall back to minimal
-  const fullSelect = 'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_temp_password, onboarding_completed, created_at, updated_at'
-  const minSelect  = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+  const fullSelect = 'id, full_name, email, avatar_url, role, manager_id, custom_role_id, is_temp_password, temp_password_plain, onboarding_completed, created_at, updated_at'
+  const minSelect  = 'id, full_name, email, avatar_url, role, is_temp_password, temp_password_plain, onboarding_completed, created_at, updated_at'
 
   if (!orgId) {
     return <TeamsHub profile={profile as Profile} allProfiles={[]} teams={[]} customRoles={[]} />

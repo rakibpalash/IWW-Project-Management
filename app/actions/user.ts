@@ -67,6 +67,7 @@ export async function createUserAction(data: {
         full_name: data.full_name,
         role: data.role,
         is_temp_password: true,
+        temp_password_plain: data.password,
         organization_id: callerProfile.organization_id,
       })
       .eq('id', authData.user.id)
@@ -172,7 +173,7 @@ export async function deleteUserAction(
 
 export async function updatePersonAction(
   userId: string,
-  data: { full_name?: string; role?: string; manager_id?: string | null }
+  data: { full_name?: string; role?: string; manager_id?: string | null; email?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = createAdminClient()
@@ -183,7 +184,14 @@ export async function updatePersonAction(
     const { data: callerProfile } = await supabase.from('profiles').select('role').eq('id', callerUser.id).single()
     if (!callerProfile || callerProfile.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
 
-    const { error } = await supabase.from('profiles').update(data).eq('id', userId)
+    // Update email in auth if provided
+    if (data.email) {
+      const { error: authError } = await supabase.auth.admin.updateUserById(userId, { email: data.email })
+      if (authError) return { success: false, error: authError.message }
+    }
+
+    const { email, ...profileData } = data
+    const { error } = await supabase.from('profiles').update({ ...profileData, ...(email ? { email } : {}) }).eq('id', userId)
     if (error) return { success: false, error: error.message }
 
     revalidatePath('/settings')

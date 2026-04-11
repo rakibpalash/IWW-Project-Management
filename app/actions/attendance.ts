@@ -492,7 +492,7 @@ export async function getMonthlyFinesSummaryAction(
     const monthStr = `${year}-${String(month).padStart(2, '0')}`
     const { data: records } = await supabase
       .from('attendance_records')
-      .select('user_id, fine_amount, fine_status, user:profiles(id, full_name, avatar_url)')
+      .select('user_id, fine_amount, fine_status, user:profiles!user_id(id, full_name, avatar_url)')
       .gte('date', `${monthStr}-01`)
       .lte('date', `${monthStr}-31`)
       .in('fine_status', ['pending', 'paid', 'waived'])
@@ -646,7 +646,7 @@ export async function adminSaveAttendanceRecordAction(data: {
         .from('attendance_records')
         .update(payload)
         .eq('id', data.id)
-        .select(`*, user:profiles(${profileSelect})`)
+        .select(`*, user:profiles!user_id(${profileSelect})`)
         .single()
       if (error) return { success: false, error: error.message }
       record = updated as unknown as AttendanceRecord
@@ -654,7 +654,7 @@ export async function adminSaveAttendanceRecordAction(data: {
       const { data: inserted, error } = await admin
         .from('attendance_records')
         .insert({ user_id: data.userId, date: data.date, ...payload })
-        .select(`*, user:profiles(${profileSelect})`)
+        .select(`*, user:profiles!user_id(${profileSelect})`)
         .single()
       if (error) return { success: false, error: error.message }
       record = inserted as unknown as AttendanceRecord
@@ -702,7 +702,7 @@ export async function getMonthlyFinesDetailAction(
         date, check_in_time, status,
         fine_amount, fine_status,
         fine_payment_method, fine_bkash_txn_id, fine_waived_reason,
-        user:profiles(full_name)
+        user:profiles!user_id(full_name)
       `)
       .gte('date', `${monthStr}-01`)
       .lte('date', `${monthStr}-31`)

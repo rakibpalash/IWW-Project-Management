@@ -60,12 +60,12 @@ export default async function AttendanceRoute() {
     const todayRecordsQuery = orgUserIds.length > 0
       ? supabase
           .from('attendance_records')
-          .select('*, user:profiles(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)')
+          .select('*, user:profiles!user_id(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)')
           .eq('date', today)
           .in('user_id', orgUserIds)
       : supabase
           .from('attendance_records')
-          .select('*, user:profiles(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)')
+          .select('*, user:profiles!user_id(id, full_name, avatar_url, email, role, is_temp_password, onboarding_completed, created_at, updated_at)')
           .eq('date', today)
 
     const footballQuery = orgId
