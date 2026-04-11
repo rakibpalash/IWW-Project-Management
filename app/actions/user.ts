@@ -74,7 +74,6 @@ export async function createUserAction(data: {
 
     if (profileError) return { success: false, error: profileError.message }
 
-    revalidatePath('/settings')
     revalidatePath('/team')
 
     return { success: true, userId: authData.user.id, tempPassword: data.password }
@@ -110,7 +109,6 @@ export async function updateUserRoleAction(
       return { success: false, error: error.message }
     }
 
-    revalidatePath('/settings')
     revalidatePath('/team')
 
     return { success: true }
@@ -163,7 +161,6 @@ export async function deleteUserAction(
     const { error } = await supabase.auth.admin.deleteUser(userId)
     if (error) return { success: false, error: error.message }
 
-    revalidatePath('/settings')
     revalidatePath('/team')
     return { success: true }
   } catch (err) {
@@ -194,7 +191,6 @@ export async function updatePersonAction(
     const { error } = await supabase.from('profiles').update({ ...profileData, ...(email ? { email } : {}) }).eq('id', userId)
     if (error) return { success: false, error: error.message }
 
-    revalidatePath('/settings')
     revalidatePath('/team')
     return { success: true }
   } catch (err) {
@@ -276,7 +272,6 @@ export async function toggleUserActiveAction(
     })
     if (authError) return { success: false, error: authError.message }
 
-    revalidatePath('/settings')
     revalidatePath('/team')
     return { success: true }
   } catch (err) {
