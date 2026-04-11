@@ -163,12 +163,14 @@ export function CheckInCard({ userId, settings: initialSettings, isAdmin = false
                 <Timer className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Today&apos;s Time Logged</span>
               </div>
-              <div className="text-4xl font-mono font-bold tabular-nums tracking-tight">
+              <div className="text-2xl font-mono font-semibold tabular-nums tracking-tight text-muted-foreground">
                 {formatMinutesDisplay(todayLoggedMinutes)}
               </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {todayLoggedMinutes === 0 ? 'No time entries yet today' : `${todayLoggedMinutes} min total`}
-              </div>
+              {todayLoggedMinutes > 0 && (
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {todayLoggedMinutes} min total
+                </div>
+              )}
             </>
           )}
         </div>

@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Banknote, ChevronLeft, ChevronRight, CheckCircle2, Download, Loader2 } from 'lucide-react'
-import { getMonthlyFinesSummaryAction, getMonthlyFinesDetailAction } from '@/app/actions/attendance'
+import { Banknote, ChevronLeft, ChevronRight, CheckCircle2, Download, Loader2, ShieldAlert, Check, X } from 'lucide-react'
+import { getMonthlyFinesSummaryAction, getMonthlyFinesDetailAction, getPendingVerificationFinesAction, updateFineStatusAction } from '@/app/actions/attendance'
 import { cn } from '@/lib/utils'
+import { format, parseISO } from 'date-fns'
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -18,6 +19,8 @@ function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
 }
 
+type PendingFine = NonNullable<Awaited<ReturnType<typeof getPendingVerificationFinesAction>>['data']>[number]
+
 export function FinesSummaryCard() {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
@@ -25,6 +28,9 @@ export function FinesSummaryCard() {
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [rows, setRows] = useState<Awaited<ReturnType<typeof getMonthlyFinesSummaryAction>>['data']>([])
+  const [pendingFines, setPendingFines] = useState<PendingFine[]>([])
+  const [pendingLoading, setPendingLoading] = useState(true)
+  const [verifyingId, setVerifyingId] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -33,6 +39,34 @@ export function FinesSummaryCard() {
       setLoading(false)
     })
   }, [year, month])
+
+  const refreshPendingFines = () => {
+    setPendingLoading(true)
+    getPendingVerificationFinesAction().then(({ data }) => {
+      setPendingFines(data ?? [])
+      setPendingLoading(false)
+    })
+  }
+
+  useEffect(() => {
+    refreshPendingFines()
+  }, [])
+
+  const handleVerifyFine = async (id: string, action: 'paid' | 'waived') => {
+    setVerifyingId(id)
+    const fine = pendingFines.find((f) => f.id === id)
+    await updateFineStatusAction(
+      id,
+      action,
+      undefined,
+      action === 'paid' ? 'bkash' : undefined,
+      action === 'paid' ? fine?.txnId : undefined
+    )
+    setVerifyingId(null)
+    refreshPendingFines()
+    // Also refresh the summary
+    getMonthlyFinesSummaryAction(year, month).then(({ data }) => setRows(data ?? []))
+  }
 
   const navigateMonth = (delta: number) => {
     const d = new Date(year, month - 1 + delta, 1)
@@ -138,6 +172,71 @@ export function FinesSummaryCard() {
             <p className="text-lg font-bold text-muted-foreground">৳{totalWaived}</p>
           </div>
         </div>
+
+        {/* Awaiting Verification */}
+        {(pendingLoading || pendingFines.length > 0) && (
+          <div className="rounded-lg border border-orange-200 bg-orange-50">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-orange-200">
+              <ShieldAlert className="h-4 w-4 text-orange-600" />
+              <span className="text-sm font-semibold text-orange-700">Awaiting Verification</span>
+              {!pendingLoading && pendingFines.length > 0 && (
+                <Badge className="ml-auto text-xs bg-orange-100 text-orange-700 border-orange-200">
+                  {pendingFines.length}
+                </Badge>
+              )}
+            </div>
+            {pendingLoading ? (
+              <div className="flex justify-center py-3">
+                <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
+              </div>
+            ) : (
+              <div className="divide-y divide-orange-100">
+                {pendingFines.map((fine) => (
+                  <div key={fine.id} className="px-3 py-2.5 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6 shrink-0">
+                        <AvatarFallback className="text-[9px] font-semibold">{getInitials(fine.fullName)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{fine.fullName}</p>
+                        <p className="text-xs text-muted-foreground">{format(parseISO(fine.date), 'dd MMM yyyy')} · ৳{fine.fineAmount}</p>
+                      </div>
+                    </div>
+                    <div className="rounded bg-white border border-orange-200 px-2 py-1.5">
+                      <p className="text-[10px] text-orange-600 uppercase tracking-wide font-medium mb-0.5">bKash TxnID</p>
+                      <p className="text-xs font-mono font-semibold break-all">{fine.txnId}</p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <Button
+                        size="sm"
+                        className="flex-1 h-7 text-xs gap-1 bg-green-600 hover:bg-green-700"
+                        disabled={verifyingId === fine.id}
+                        onClick={() => handleVerifyFine(fine.id, 'paid')}
+                      >
+                        {verifyingId === fine.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Check className="h-3 w-3" />
+                        )}
+                        Mark Paid
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 h-7 text-xs gap-1 border-red-200 text-red-600 hover:bg-red-50"
+                        disabled={verifyingId === fine.id}
+                        onClick={() => handleVerifyFine(fine.id, 'waived')}
+                      >
+                        <X className="h-3 w-3" />
+                        Waive
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Per-staff breakdown */}
         {loading ? (

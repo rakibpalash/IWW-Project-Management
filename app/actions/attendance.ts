@@ -603,6 +603,57 @@ export async function reportFinePaymentAction(
   }
 }
 
+// ── Admin: get fines awaiting verification (staff submitted bKash TxnID) ──────
+
+export async function getPendingVerificationFinesAction(): Promise<{
+  data?: {
+    id: string
+    date: string
+    fineAmount: number
+    txnId: string
+    reportedAt: string
+    userId: string
+    fullName: string
+    avatarUrl: string | null
+  }[]
+  error?: string
+}> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'Not authenticated' }
+
+    const { data: profile } = await supabase
+      .from('profiles').select('role').eq('id', user.id).single()
+    if (!profile || profile.role !== 'super_admin') return { error: 'Unauthorized' }
+
+    const admin = createAdminClient()
+    const { data: records, error } = await admin
+      .from('attendance_records')
+      .select('id, date, fine_amount, fine_reported_txn_id, fine_reported_at, user_id, user:profiles!user_id(full_name, avatar_url)')
+      .eq('fine_status', 'pending')
+      .not('fine_reported_txn_id', 'is', null)
+      .order('fine_reported_at', { ascending: false })
+
+    if (error) return { error: error.message }
+
+    return {
+      data: (records ?? []).map((r: any) => ({
+        id: r.id,
+        date: r.date,
+        fineAmount: r.fine_amount,
+        txnId: r.fine_reported_txn_id,
+        reportedAt: r.fine_reported_at,
+        userId: r.user_id,
+        fullName: r.user?.full_name ?? 'Unknown',
+        avatarUrl: r.user?.avatar_url ?? null,
+      })),
+    }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 // ── Admin: save (insert/update) attendance record ────────────────────────────
 
 export async function adminSaveAttendanceRecordAction(data: {
