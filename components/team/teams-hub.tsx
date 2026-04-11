@@ -1094,6 +1094,7 @@ function EditPersonDialog({
   const [email, setEmail] = useState(person?.email ?? '')
   const [role, setRole] = useState(person?.role ?? 'staff')
   const [managerId, setManagerId] = useState(person?.manager_id ?? '__none')
+  const [showTempPw, setShowTempPw] = useState(false)
 
   // Sync when person changes
   const personKey = person?.id
@@ -1156,6 +1157,27 @@ function EditPersonDialog({
               </SelectContent>
             </Select>
           </div>
+          {person?.is_temp_password && person?.temp_password_plain && (
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-amber-600">
+                Temporary Password
+              </Label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 font-mono text-sm bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-md select-all break-all">
+                  {showTempPw ? person.temp_password_plain : '••••••••••••'}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 text-amber-600 hover:text-amber-800"
+                  onClick={() => setShowTempPw((v) => !v)}
+                >
+                  {showTempPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
