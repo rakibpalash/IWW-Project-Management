@@ -174,17 +174,17 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
               )} />
               <FormField control={form.control} name="late_150_end" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Late 1.5× Until</FormLabel>
+                  <FormLabel>Late (150%) Until</FormLabel>
                   <FormControl><Input type="time" {...field} /></FormControl>
-                  <FormDescription className="text-xs">1.5× deduction</FormDescription>
+                  <FormDescription className="text-xs">150% deduction</FormDescription>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="late_250_end" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Late 2.5× Until</FormLabel>
+                  <FormLabel>Late (250%) Until</FormLabel>
                   <FormControl><Input type="time" {...field} /></FormControl>
-                  <FormDescription className="text-xs">2.5× deduction; after = Absent</FormDescription>
+                  <FormDescription className="text-xs">250% deduction; after = Absent</FormDescription>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -223,17 +223,17 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
               )} />
               <FormField control={form.control} name="friday_late_150_end" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Late 1.5× Until</FormLabel>
+                  <FormLabel>Late (150%) Until</FormLabel>
                   <FormControl><Input type="time" {...field} /></FormControl>
-                  <FormDescription className="text-xs">1.5× deduction</FormDescription>
+                  <FormDescription className="text-xs">150% deduction</FormDescription>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="friday_late_250_end" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Late 2.5× Until</FormLabel>
+                  <FormLabel>Late (250%) Until</FormLabel>
                   <FormControl><Input type="time" {...field} /></FormControl>
-                  <FormDescription className="text-xs">2.5× deduction; after = Absent</FormDescription>
+                  <FormDescription className="text-xs">250% deduction; after = Absent</FormDescription>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -258,7 +258,7 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
             </CardTitle>
             <CardDescription>
               Extended entry window for selected staff on football match days.
-              After the 2.5× cutoff, status becomes <strong>Advance Absence</strong> (not plain Absent).
+              After the 250% cutoff, status becomes <strong>Advance Absence</strong> (not plain Absent).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -273,17 +273,17 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
               )} />
               <FormField control={form.control} name="football_late_150_end" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Late 1.5× Until</FormLabel>
+                  <FormLabel>Late (150%) Until</FormLabel>
                   <FormControl><Input type="time" {...field} /></FormControl>
-                  <FormDescription className="text-xs">1.5× deduction</FormDescription>
+                  <FormDescription className="text-xs">150% deduction</FormDescription>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="football_late_250_end" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Late 2.5× Until</FormLabel>
+                  <FormLabel>Late (250%) Until</FormLabel>
                   <FormControl><Input type="time" {...field} /></FormControl>
-                  <FormDescription className="text-xs">2.5× → Advance Absence</FormDescription>
+                  <FormDescription className="text-xs">250% → Advance Absence</FormDescription>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -353,7 +353,7 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
             </CardTitle>
             <CardDescription>
               Fines are calculated automatically at check-in.
-              Staff with a salary set use <strong>per-minute deduction</strong> (Level 1 = 1.5×, Level 2 = 2.5×).
+              Staff with a salary set use <strong>per-minute deduction</strong> (Level 1 = 150%, Level 2 = 250%).
               Fixed amounts below are used as fallback when no salary is configured.
             </CardDescription>
           </CardHeader>
@@ -384,7 +384,7 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField control={form.control} name="fine_late_1" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Level 1 Fine <span className="text-xs text-amber-600 font-normal">(1.5× threshold)</span></FormLabel>
+                    <FormLabel>Level 1 Fine <span className="text-xs text-amber-600 font-normal">(150% threshold)</span></FormLabel>
                     <FormControl>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">৳</span>
@@ -399,7 +399,7 @@ export function AttendanceRulesForm({ settings }: AttendanceRulesFormProps) {
                 )} />
                 <FormField control={form.control} name="fine_late_2" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Level 2 Fine <span className="text-xs text-red-600 font-normal">(2.5× threshold)</span></FormLabel>
+                    <FormLabel>Level 2 Fine <span className="text-xs text-red-600 font-normal">(250% threshold)</span></FormLabel>
                     <FormControl>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">৳</span>
