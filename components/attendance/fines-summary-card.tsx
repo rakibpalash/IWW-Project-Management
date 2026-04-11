@@ -6,9 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Banknote, ChevronLeft, ChevronRight, CheckCircle2, Download, Loader2, ShieldAlert, Check, X } from 'lucide-react'
-import { getMonthlyFinesSummaryAction, getMonthlyFinesDetailAction, getPendingVerificationFinesAction, updateFineStatusAction } from '@/app/actions/attendance'
+import { getMonthlyFinesSummaryAction, getMonthlyFinesDetailAction, getPendingVerificationFinesAction, verifyMonthlyFinesAction } from '@/app/actions/attendance'
 import { cn } from '@/lib/utils'
-import { format, parseISO } from 'date-fns'
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -52,19 +51,11 @@ export function FinesSummaryCard() {
     refreshPendingFines()
   }, [])
 
-  const handleVerifyFine = async (id: string, action: 'paid' | 'waived') => {
-    setVerifyingId(id)
-    const fine = pendingFines.find((f) => f.id === id)
-    await updateFineStatusAction(
-      id,
-      action,
-      undefined,
-      action === 'paid' ? 'bkash' : undefined,
-      action === 'paid' ? fine?.txnId : undefined
-    )
+  const handleVerifyGroup = async (groupKey: string, recordIds: string[], txnId: string, action: 'paid' | 'waived') => {
+    setVerifyingId(groupKey)
+    await verifyMonthlyFinesAction(recordIds, action, action === 'paid' ? txnId : undefined)
     setVerifyingId(null)
     refreshPendingFines()
-    // Also refresh the summary
     getMonthlyFinesSummaryAction(year, month).then(({ data }) => setRows(data ?? []))
   }
 
@@ -173,7 +164,7 @@ export function FinesSummaryCard() {
           </div>
         </div>
 
-        {/* Awaiting Verification */}
+        {/* Awaiting Verification — grouped by staff + month */}
         {(pendingLoading || pendingFines.length > 0) && (
           <div className="rounded-lg border border-orange-200 bg-orange-50">
             <div className="flex items-center gap-2 px-3 py-2 border-b border-orange-200">
@@ -191,48 +182,54 @@ export function FinesSummaryCard() {
               </div>
             ) : (
               <div className="divide-y divide-orange-100">
-                {pendingFines.map((fine) => (
-                  <div key={fine.id} className="px-3 py-2.5 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-6 w-6 shrink-0">
-                        <AvatarFallback className="text-[9px] font-semibold">{getInitials(fine.fullName)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{fine.fullName}</p>
-                        <p className="text-xs text-muted-foreground">{format(parseISO(fine.date), 'dd MMM yyyy')} · ৳{fine.fineAmount}</p>
+                {pendingFines.map((group) => {
+                  const groupKey = `${group.userId}-${group.year}-${group.month}`
+                  const monthLabel = new Date(group.year, group.month - 1).toLocaleString('en', { month: 'long', year: 'numeric' })
+                  return (
+                    <div key={groupKey} className="px-3 py-2.5 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-6 w-6 shrink-0">
+                          <AvatarFallback className="text-[9px] font-semibold">{getInitials(group.fullName)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{group.fullName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {monthLabel} · {group.count} day{group.count !== 1 ? 's' : ''} · <span className="font-semibold text-orange-700">৳{group.totalAmount}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="rounded bg-white border border-orange-200 px-2 py-1.5">
+                        <p className="text-[10px] text-orange-600 uppercase tracking-wide font-medium mb-0.5">bKash TxnID</p>
+                        <p className="text-xs font-mono font-semibold break-all">{group.txnId}</p>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <Button
+                          size="sm"
+                          className="flex-1 h-7 text-xs gap-1 bg-green-600 hover:bg-green-700"
+                          disabled={verifyingId === groupKey}
+                          onClick={() => handleVerifyGroup(groupKey, group.recordIds, group.txnId, 'paid')}
+                        >
+                          {verifyingId === groupKey ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Check className="h-3 w-3" />
+                          )}
+                          Mark {group.count > 1 ? `All ${group.count}` : ''} Paid
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-7 text-xs gap-1 border-red-200 text-red-600 hover:bg-red-50"
+                          disabled={verifyingId === groupKey}
+                          onClick={() => handleVerifyGroup(groupKey, group.recordIds, group.txnId, 'waived')}
+                        >
+                          <X className="h-3 w-3" />
+                          Waive
+                        </Button>
                       </div>
                     </div>
-                    <div className="rounded bg-white border border-orange-200 px-2 py-1.5">
-                      <p className="text-[10px] text-orange-600 uppercase tracking-wide font-medium mb-0.5">bKash TxnID</p>
-                      <p className="text-xs font-mono font-semibold break-all">{fine.txnId}</p>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <Button
-                        size="sm"
-                        className="flex-1 h-7 text-xs gap-1 bg-green-600 hover:bg-green-700"
-                        disabled={verifyingId === fine.id}
-                        onClick={() => handleVerifyFine(fine.id, 'paid')}
-                      >
-                        {verifyingId === fine.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Check className="h-3 w-3" />
-                        )}
-                        Mark Paid
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 h-7 text-xs gap-1 border-red-200 text-red-600 hover:bg-red-50"
-                        disabled={verifyingId === fine.id}
-                        onClick={() => handleVerifyFine(fine.id, 'waived')}
-                      >
-                        <X className="h-3 w-3" />
-                        Waive
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

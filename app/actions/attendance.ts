@@ -603,18 +603,150 @@ export async function reportFinePaymentAction(
   }
 }
 
-// ── Admin: get fines awaiting verification (staff submitted bKash TxnID) ──────
+// ── Staff: report monthly fine payment (one TxnID covers all fines in a month) ─
+
+export async function reportMonthlyFinePaymentAction(
+  year: number,
+  month: number,
+  txnId: string
+): Promise<{ success: boolean; count?: number; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+    if (!txnId.trim()) return { success: false, error: 'Transaction ID is required' }
+
+    const monthStr = `${year}-${String(month).padStart(2, '0')}`
+
+    // All pending fines for this user in this month (reported or not)
+    const { data: records, error: fetchErr } = await supabase
+      .from('attendance_records')
+      .select('id, fine_amount, date')
+      .eq('user_id', user.id)
+      .eq('fine_status', 'pending')
+      .gte('date', `${monthStr}-01`)
+      .lte('date', `${monthStr}-31`)
+      .gt('fine_amount', 0)
+
+    if (fetchErr) return { success: false, error: fetchErr.message }
+    if (!records || records.length === 0) return { success: false, error: 'No pending fines found for this month' }
+
+    const { error: updateErr } = await supabase
+      .from('attendance_records')
+      .update({
+        fine_reported_txn_id: txnId.trim(),
+        fine_reported_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', records.map((r) => r.id))
+      .eq('user_id', user.id)
+
+    if (updateErr) return { success: false, error: updateErr.message }
+
+    // Notify admins
+    const admin = createAdminClient()
+    const { data: staffProfile } = await admin
+      .from('profiles')
+      .select('full_name, organization_id')
+      .eq('id', user.id)
+      .single()
+
+    const orgId = staffProfile?.organization_id
+    const totalAmount = records.reduce((s, r) => s + r.fine_amount, 0)
+    const monthName = new Date(year, month - 1).toLocaleString('en', { month: 'long' })
+
+    if (orgId) {
+      const { data: admins } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('organization_id', orgId)
+        .eq('role', 'super_admin')
+
+      if (admins && admins.length > 0) {
+        await admin.from('notifications').insert(
+          admins.map((a) => ({
+            user_id: a.id,
+            type: 'fine_imposed',
+            title: 'Monthly Fine Payment Reported',
+            message: `${staffProfile?.full_name ?? 'A staff member'} reported bKash payment (TxnID: ${txnId.trim()}) for ৳${totalAmount} covering ${records.length} late day(s) in ${monthName} ${year}. Please verify.`,
+            link: '/attendance',
+            is_read: false,
+          }))
+        )
+      }
+    }
+
+    revalidatePath('/attendance')
+    return { success: true, count: records.length }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// ── Admin: verify and close all fines for a user+month in one action ──────────
+
+export async function verifyMonthlyFinesAction(
+  recordIds: string[],
+  action: 'paid' | 'waived',
+  txnId?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const { data: profile } = await supabase
+      .from('profiles').select('role').eq('id', user.id).single()
+    if (!profile || profile.role !== 'super_admin') {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const payload: Record<string, unknown> = {
+      fine_status: action,
+      updated_at: new Date().toISOString(),
+    }
+    if (action === 'paid') {
+      payload.fine_paid_at = new Date().toISOString()
+      payload.fine_payment_method = 'bkash'
+      payload.fine_bkash_txn_id = txnId ?? null
+      payload.fine_waived_by = null
+      payload.fine_waived_reason = null
+    } else {
+      payload.fine_waived_by = user.id
+      payload.fine_waived_reason = null
+      payload.fine_paid_at = null
+      payload.fine_payment_method = null
+      payload.fine_bkash_txn_id = null
+    }
+
+    const { error } = await supabase
+      .from('attendance_records')
+      .update(payload)
+      .in('id', recordIds)
+
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath('/attendance')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// ── Admin: get fines awaiting verification — grouped by staff + month ─────────
 
 export async function getPendingVerificationFinesAction(): Promise<{
   data?: {
-    id: string
-    date: string
-    fineAmount: number
-    txnId: string
-    reportedAt: string
     userId: string
     fullName: string
     avatarUrl: string | null
+    year: number
+    month: number
+    totalAmount: number
+    count: number
+    txnId: string
+    reportedAt: string
+    recordIds: string[]
   }[]
   error?: string
 }> {
@@ -637,18 +769,48 @@ export async function getPendingVerificationFinesAction(): Promise<{
 
     if (error) return { error: error.message }
 
-    return {
-      data: (records ?? []).map((r: any) => ({
-        id: r.id,
-        date: r.date,
-        fineAmount: r.fine_amount,
-        txnId: r.fine_reported_txn_id,
-        reportedAt: r.fine_reported_at,
-        userId: r.user_id,
-        fullName: r.user?.full_name ?? 'Unknown',
-        avatarUrl: r.user?.avatar_url ?? null,
-      })),
+    // Group by user_id + year-month
+    const groups = new Map<string, {
+      userId: string
+      fullName: string
+      avatarUrl: string | null
+      year: number
+      month: number
+      totalAmount: number
+      count: number
+      txnId: string
+      reportedAt: string
+      recordIds: string[]
+    }>()
+
+    for (const r of records ?? []) {
+      const [year, month] = (r.date as string).split('-').map(Number)
+      const key = `${r.user_id}-${year}-${month}`
+      if (!groups.has(key)) {
+        groups.set(key, {
+          userId: r.user_id,
+          fullName: (r as any).user?.full_name ?? 'Unknown',
+          avatarUrl: (r as any).user?.avatar_url ?? null,
+          year,
+          month,
+          totalAmount: 0,
+          count: 0,
+          txnId: r.fine_reported_txn_id,
+          reportedAt: r.fine_reported_at,
+          recordIds: [],
+        })
+      }
+      const g = groups.get(key)!
+      g.totalAmount += r.fine_amount
+      g.count++
+      g.recordIds.push(r.id)
+      if (r.fine_reported_at > g.reportedAt) {
+        g.reportedAt = r.fine_reported_at
+        g.txnId = r.fine_reported_txn_id
+      }
     }
+
+    return { data: Array.from(groups.values()) }
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unknown error' }
   }
