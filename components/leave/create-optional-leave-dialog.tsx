@@ -192,6 +192,24 @@ export function CreateOptionalLeaveDialog({ open, onClose, staffProfiles, leaveT
     setError(null)
 
     startTransition(async () => {
+      // If this is a custom leave type not already in templates, save it as a template first
+      if (templateId === 'custom') {
+        const alreadyExists = templates.some(
+          (t) => t.name.toLowerCase() === leaveName.trim().toLowerCase()
+        )
+        if (!alreadyExists) {
+          const tmplResult = await createOptionalLeaveTemplateAction({
+            name: leaveName.trim(), default_days: days,
+          })
+          if (tmplResult.success && tmplResult.id) {
+            const newTemplate: LeaveTemplate = {
+              id: tmplResult.id, name: leaveName.trim(), default_days: days, is_builtin: false,
+            }
+            setTemplates((prev) => [...prev, newTemplate])
+          }
+        }
+      }
+
       const result = await createOptionalLeaveAction({
         name: leaveName.trim(), userId: selectedUserId, totalDays: days, notes,
       })
