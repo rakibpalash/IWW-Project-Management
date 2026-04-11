@@ -64,14 +64,17 @@ export async function approveLeaveAction(
       if (Object.keys(updateData).length > 0) {
         await admin.from('leave_balances').update(updateData).eq('id', balance.id)
       }
-    } else {
+    } else if (leaveType !== 'optional') {
       // No balance record exists — create one with the correct used days set
+      // (skip for optional leave — it uses the optional_leaves table instead)
       await admin.from('leave_balances').insert({
         user_id: request.user_id,
         year: currentYear,
         yearly_total: 18,
+        yearly_additional: 0,
         yearly_used: leaveType === 'yearly' ? request.total_days : 0,
         wfh_total: 10,
+        wfh_additional: 0,
         wfh_used: leaveType === 'work_from_home' ? request.total_days : 0,
         marriage_total: leaveType === 'marriage' ? request.total_days : 0,
         marriage_used: leaveType === 'marriage' ? request.total_days : 0,
@@ -299,8 +302,10 @@ export async function applyLeaveAction(data: {
         user_id: user.id,
         year: currentYear,
         yearly_total: 18,
+        yearly_additional: 0,
         yearly_used: 0,
         wfh_total: 10,
+        wfh_additional: 0,
         wfh_used: 0,
         marriage_total: 0,
         marriage_used: 0,

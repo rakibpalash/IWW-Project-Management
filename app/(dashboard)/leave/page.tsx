@@ -36,14 +36,15 @@ export default async function LeaveServerPage() {
     const leaveRequestsQuery = orgUserIds.length > 0
       ? supabase
           .from('leave_requests')
-          .select(`*, user:profiles!leave_requests_user_id_fkey(${profileSelect}), reviewer:profiles!leave_requests_reviewed_by_fkey(${profileSelect})`)
+          .select(`*, user:profiles!leave_requests_user_id_fkey(${profileSelect})`)
           .in('user_id', orgUserIds)
           .order('created_at', { ascending: false })
       : supabase
           .from('leave_requests')
-          .select(`*, user:profiles!leave_requests_user_id_fkey(${profileSelect}), reviewer:profiles!leave_requests_reviewed_by_fkey(${profileSelect})`)
+          .select(`*, user:profiles!leave_requests_user_id_fkey(${profileSelect})`)
           .order('created_at', { ascending: false })
-    const { data: allRequests } = await leaveRequestsQuery
+    const { data: allRequests, error: allRequestsError } = await leaveRequestsQuery
+    if (allRequestsError) console.error('[Leave page] allRequests query error:', allRequestsError.message)
 
     // Admin: fetch all staff balances for current year
     const balancesQuery = orgUserIds.length > 0

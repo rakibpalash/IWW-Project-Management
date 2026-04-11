@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
 import { LeaveRequest } from '@/types'
-import { approveLeaveAction, rejectLeaveAction } from '@/app/actions/leave'
+import { approveLeaveAction, rejectLeaveAction, approveOptionalLeaveAction } from '@/app/actions/leave'
 
 interface ReviewLeaveDialogProps {
   request: LeaveRequest | null
@@ -50,9 +50,12 @@ export function ReviewLeaveDialog({ request, open, onOpenChange }: ReviewLeaveDi
     setLoading(true)
     setError(null)
 
+    const isOptional = request.leave_type === 'optional'
     const result =
       action === 'approve'
-        ? await approveLeaveAction(request.id, notes)
+        ? isOptional
+          ? await approveOptionalLeaveAction(request.id, notes)
+          : await approveLeaveAction(request.id, notes)
         : await rejectLeaveAction(request.id, notes)
 
     setLoading(false)
