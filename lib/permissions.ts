@@ -153,7 +153,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionSet> = {
     projects:   ['view'],
     tasks:      ['view'],
     team:       [],
-    timesheet:  [],
+    timesheet:  ['view_own'],
     attendance: [],
     leave:      [],
     settings:   [],
