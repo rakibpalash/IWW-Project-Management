@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { getStaffDeleteImpact } from '@/app/actions/delete-impact'
 import { deleteUserAction } from '@/app/actions/user'
+import { UserPermissionsDialog } from '@/components/settings/user-permissions-dialog'
 import {
   createUserAction,
   updatePersonAction,
@@ -77,6 +78,7 @@ import {
   Building2,
   Loader2,
   Check,
+  ShieldCheck,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { format, parseISO } from 'date-fns'
@@ -717,6 +719,7 @@ function PeopleTable({
   const { toast } = useToast()
   const [assignGroupTarget, setAssignGroupTarget] = useState<Profile | null>(null)
   const [assignJobTitleTarget, setAssignJobTitleTarget] = useState<Profile | null>(null)
+  const [permissionsTarget, setPermissionsTarget] = useState<Profile | null>(null)
   const [revealedPasswords, setRevealedPasswords] = useState<Set<string>>(new Set())
   const profileMap = Object.fromEntries(allProfiles.map((p) => [p.id, p]))
 
@@ -994,6 +997,11 @@ function PeopleTable({
                           <DropdownMenuItem onClick={() => onEdit(person)} className="gap-2">
                             <Pencil className="h-3.5 w-3.5" />Edit
                           </DropdownMenuItem>
+                          {person.role !== 'super_admin' && (
+                            <DropdownMenuItem onClick={() => setPermissionsTarget(person)} className="gap-2">
+                              <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />Edit Permissions
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           {personTeams.length > 0 ? (
                             <>
@@ -1076,6 +1084,14 @@ function PeopleTable({
           setAssignJobTitleTarget(null)
         }}
       />
+
+      {permissionsTarget && (
+        <UserPermissionsDialog
+          open={!!permissionsTarget}
+          onClose={() => setPermissionsTarget(null)}
+          user={permissionsTarget}
+        />
+      )}
     </>
   )
 }
