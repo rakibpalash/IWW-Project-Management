@@ -99,7 +99,9 @@ function StaffView({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <LeaveBalanceCard type="yearly" allocated={yearlyTotal} used={yearlyUsed} />
         <LeaveBalanceCard type="work_from_home" allocated={wfhTotal} used={wfhUsed} />
-        <LeaveBalanceCard type="marriage" allocated={marriageTotal} used={marriageUsed} />
+        {marriageTotal > 0 && (
+          <LeaveBalanceCard type="marriage" allocated={marriageTotal} used={marriageUsed} />
+        )}
         {optionalLeaves.map((ol) => (
           <LeaveBalanceCard
             key={ol.id}

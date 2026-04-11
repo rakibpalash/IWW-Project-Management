@@ -208,7 +208,9 @@ export function ApplyLeaveDialog({ open, onOpenChange, balance, optionalLeaves =
                   {/* Standard leave types */}
                   <SelectItem value="yearly">Annual Leave</SelectItem>
                   <SelectItem value="work_from_home">Work From Home</SelectItem>
-                  <SelectItem value="marriage">Marriage Leave</SelectItem>
+                  {(balance?.marriage_total ?? 0) > 0 && (
+                    <SelectItem value="marriage">Marriage Leave</SelectItem>
+                  )}
 
                   {/* Optional leaves granted by admin */}
                   {optionalLeaves.length > 0 && (
