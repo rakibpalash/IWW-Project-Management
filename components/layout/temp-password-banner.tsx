@@ -1,13 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { AlertTriangle, X } from 'lucide-react'
 
 export function TempPasswordBanner() {
   const [dismissed, setDismissed] = useState(false)
+  const pathname = usePathname()
 
-  if (dismissed) return null
+  // Hide when already on the security settings page — the in-page alert handles it there
+  if (dismissed || pathname === '/settings/security') return null
 
   return (
     <div

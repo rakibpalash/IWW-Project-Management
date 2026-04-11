@@ -233,18 +233,19 @@ export function SecuritySettingsPage({ profile }: SecuritySettingsPageProps) {
               </li>
             </ul>
           </div>
+
+          <div className="pt-2">
+            <Button
+              onClick={handleSave}
+              disabled={saving || !newPassword || !confirmPassword}
+              className="w-full"
+            >
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Update Password
+            </Button>
+          </div>
         </CardContent>
       </Card>
-
-      <div className="flex justify-end">
-        <Button
-          onClick={handleSave}
-          disabled={saving || !newPassword || !confirmPassword}
-        >
-          {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Update Password
-        </Button>
-      </div>
     </div>
   )
 }
