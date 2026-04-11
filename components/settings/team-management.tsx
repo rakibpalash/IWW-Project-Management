@@ -40,6 +40,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { CreateUserDialog } from './create-user-dialog'
 import { UserPermissionsDialog } from './user-permissions-dialog'
 import { SmartDeleteDialog } from '@/components/ui/smart-delete-dialog'
@@ -108,6 +114,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
   const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
   const [permissionsTarget, setPermissionsTarget] = useState<Profile | null>(null)
+  const [tempPasswordTarget, setTempPasswordTarget] = useState<Profile | null>(null)
   const [persons, setPersons] = useState<Profile[]>(users)
   const [revealedPasswords, setRevealedPasswords] = useState<Set<string>>(new Set())
 
@@ -510,6 +517,19 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {/* View Temp Password */}
+                            {user.is_temp_password && user.temp_password_plain && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => setTempPasswordTarget(user)}
+                                  className="gap-2 text-xs text-amber-600 focus:text-amber-700"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  View Temp Password
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
                             {/* Permissions */}
                             {user.role !== 'super_admin' && (
                               <>
@@ -566,6 +586,43 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
           user={permissionsTarget}
         />
       )}
+
+      {/* Temp Password Dialog */}
+      <Dialog open={!!tempPasswordTarget} onOpenChange={(open) => { if (!open) setTempPasswordTarget(null) }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-amber-500" />
+              Temporary Password
+            </DialogTitle>
+          </DialogHeader>
+          {tempPasswordTarget && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2.5">
+                <Avatar className="h-8 w-8 shrink-0">
+                  <AvatarImage src={tempPasswordTarget.avatar_url ?? undefined} />
+                  <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(tempPasswordTarget.full_name)}`}>
+                    {getInitials(tempPasswordTarget.full_name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="text-sm font-medium">{tempPasswordTarget.full_name}</p>
+                  <p className="text-xs text-muted-foreground">{tempPasswordTarget.email}</p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Temporary Password</p>
+                <p className="font-mono text-sm bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-md select-all break-all">
+                  {tempPasswordTarget.temp_password_plain}
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This password will be cleared once the user logs in and changes it.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Activate / Deactivate confirmation dialog */}
       <AlertDialog open={!!toggleConfirm} onOpenChange={(open) => { if (!open) setToggleConfirm(null) }}>
