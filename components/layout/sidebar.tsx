@@ -18,11 +18,10 @@ import {
   ChevronDown,
   ChevronRight,
   Plus,
-  Hash,
   ListChecks,
   CalendarClock,
   Inbox,
-  User,
+  MoreHorizontal,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Profile, Space, List } from '@/types'
@@ -83,8 +82,8 @@ function NavItem({
       href={href}
       onClick={onClick}
       className={cn(
-        'group relative flex items-center gap-3 rounded-lg transition-colors select-none',
-        indent ? 'pl-9 pr-3 py-2' : 'px-3 py-2.5',
+        'group relative flex items-center gap-2.5 rounded-lg transition-colors select-none',
+        indent ? 'pl-8 pr-3 py-1.5' : 'px-2 py-1.5',
         active
           ? 'bg-sidebar-primary/15 text-white'
           : 'text-sidebar-foreground/60 hover:bg-white/5 hover:text-sidebar-foreground/90',
@@ -92,18 +91,18 @@ function NavItem({
     >
       {/* Left active bar */}
       {active && (
-        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[4px] h-[22px] rounded-r-full bg-sidebar-primary" />
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-full bg-sidebar-primary" />
       )}
       <Icon className={cn(
         'shrink-0 transition-colors',
-        indent ? 'h-[17px] w-[17px]' : 'h-5 w-5',
+        indent ? 'h-[15px] w-[15px]' : 'h-[17px] w-[17px]',
         active
           ? 'text-sidebar-primary'
           : 'text-sidebar-foreground/40 group-hover:text-sidebar-foreground/70',
       )} />
       <span className={cn(
         'truncate font-semibold leading-tight',
-        indent ? 'text-[13px]' : 'text-[15px]',
+        indent ? 'text-[12px]' : 'text-[13px]',
         active ? 'text-white' : '',
       )}>
         {label}
@@ -126,88 +125,87 @@ function SpaceItem({
   onClose: () => void
 }) {
   const hasActiveProject = projects.some(p => pathname.startsWith(`/lists/${p.id}`))
-  // Default open: always open (real-time fills in projects after mount)
   const [open, setOpen] = useState(true)
 
-  // Auto-open when an active project is detected (e.g. direct URL navigation)
   useEffect(() => {
     if (hasActiveProject) setOpen(true)
   }, [hasActiveProject])
+
   const color = getSpaceColor(workspace.id)
   const initial = workspace.name.slice(0, 1).toUpperCase()
 
   return (
     <div>
       {/* Space row */}
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-white/5"
-      >
-        {/* Colored badge */}
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[13px] font-black text-white leading-none"
-          style={{ backgroundColor: color }}
+      <div className="group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/5">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="flex items-center gap-2 flex-1 min-w-0 text-left"
         >
-          {initial}
+          {/* Colored badge */}
+          <span
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[12px] font-black text-white leading-none"
+            style={{ backgroundColor: color }}
+          >
+            {initial}
+          </span>
+          <span className="flex-1 truncate text-[13px] font-semibold text-sidebar-foreground/80 group-hover:text-white transition-colors">
+            {workspace.name}
+          </span>
+        </button>
+        {/* Actions: ... and + */}
+        <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <button className="h-5 w-5 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </button>
+          <button className="h-5 w-5 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
+            <Plus className="h-3.5 w-3.5" />
+          </button>
         </span>
-        <span className="flex-1 truncate text-[15px] font-semibold text-sidebar-foreground/80 group-hover:text-white transition-colors">
-          {workspace.name}
-        </span>
-        <span className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          {open
-            ? <ChevronDown className="h-4 w-4 text-sidebar-foreground/40" />
-            : <ChevronRight className="h-4 w-4 text-sidebar-foreground/40" />
-          }
-        </span>
-      </button>
+      </div>
 
-      {/* Projects list */}
+      {/* Lists */}
       {open && (
-        <div className="space-y-0.5 pb-1">
+        <div className="pb-0.5">
           {projects.length === 0 ? (
-            <p className="py-2 text-[13px] text-sidebar-foreground/25 font-medium" style={{ paddingLeft: '52px' }}>
+            <p className="py-1.5 text-[12px] text-sidebar-foreground/25 font-medium pl-9 pr-3">
               No lists yet
             </p>
           ) : (
             projects.map(proj => {
               const active = pathname.startsWith(`/lists/${proj.id}`)
               return (
-                <Link
-                  key={proj.id}
-                  href={`/lists/${proj.id}`}
-                  onClick={onClose}
-                  className={cn(
-                    'group relative flex items-center gap-3 rounded-lg py-2 transition-colors',
-                    active
-                      ? 'bg-sidebar-primary/15 text-white'
-                      : 'text-sidebar-foreground/55 hover:bg-white/5 hover:text-sidebar-foreground/85',
-                  )}
-                  style={{ paddingLeft: '44px', paddingRight: '12px' }}
-                >
-                  {active && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[4px] h-[18px] rounded-r-full bg-sidebar-primary" />
-                  )}
-                  <Hash className={cn(
-                    'h-[15px] w-[15px] shrink-0',
-                    active ? 'text-sidebar-primary' : 'text-sidebar-foreground/30 group-hover:text-sidebar-foreground/60',
-                  )} />
-                  <span className="truncate text-[13px] font-semibold">{proj.name}</span>
-                </Link>
+                <div key={proj.id} className="group/list relative flex items-center rounded-lg transition-colors hover:bg-white/5">
+                  <Link
+                    href={`/lists/${proj.id}`}
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-2 flex-1 min-w-0 py-1.5 pl-9 pr-2',
+                      active ? 'text-white' : 'text-sidebar-foreground/55 hover:text-sidebar-foreground/85',
+                    )}
+                  >
+                    {active && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[16px] rounded-r-full bg-sidebar-primary" />
+                    )}
+                    <ListChecks className={cn(
+                      'h-[14px] w-[14px] shrink-0',
+                      active ? 'text-sidebar-primary' : 'text-sidebar-foreground/30 group-hover/list:text-sidebar-foreground/60',
+                    )} />
+                    <span className="truncate text-[12px] font-semibold">{proj.name}</span>
+                  </Link>
+                  <span className="flex items-center gap-0.5 opacity-0 group-hover/list:opacity-100 transition-opacity pr-2 shrink-0">
+                    <button className="h-4 w-4 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
+                      <MoreHorizontal className="h-3 w-3" />
+                    </button>
+                    <button className="h-4 w-4 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
+                      <Plus className="h-3 w-3" />
+                    </button>
+                  </span>
+                </div>
               )
             })
           )}
-
-          {/* Add List */}
-          <Link
-            href="/lists"
-            onClick={onClose}
-            className="flex items-center gap-2 rounded-lg py-2 text-[13px] font-medium text-sidebar-foreground/25 hover:text-sidebar-foreground/55 hover:bg-white/5 transition-colors"
-            style={{ paddingLeft: '44px', paddingRight: '12px' }}
-          >
-            <Plus className="h-[15px] w-[15px] shrink-0" />
-            <span>Add List</span>
-          </Link>
         </div>
       )}
     </div>
@@ -442,43 +440,53 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
 
           {/* ────── EXPANDED layout ────── */}
           {!isCollapsed && (
-            <div className="px-3 py-3 space-y-0.5">
+            <div className="px-2 py-2 space-y-0.5">
 
               {/* Home */}
               <NavItem href="/dashboard" icon={LayoutGrid} label="Dashboard"
                 active={pathname === '/dashboard'} onClick={onClose} />
 
               {/* ── MY WORK ── */}
-              <div className="pt-3">
+              <div className="pt-2.5">
                 <div className="px-1 mb-1">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
                     My Work
                   </span>
                 </div>
                 <div className="space-y-0.5">
-                  <NavItem href="/tasks"              icon={CheckSquare}  label="My Tasks"        active={pathname === '/tasks' && !searchParams.get('filter')} onClick={onClose} indent />
-                  <NavItem href="/tasks?filter=today"  icon={CalendarClock} label="Today & Overdue" active={pathname === '/tasks' && searchParams.get('filter') === 'today'} onClick={onClose} indent />
+                  <NavItem href="/tasks"              icon={CheckSquare}   label="My Tasks"        active={pathname === '/tasks' && !searchParams.get('filter')} onClick={onClose} indent />
+                  <NavItem href="/tasks?filter=today" icon={CalendarClock} label="Today & Overdue" active={pathname === '/tasks' && searchParams.get('filter') === 'today'} onClick={onClose} indent />
                   {showTimesheet && <NavItem href="/timesheet" icon={Timer} label="Timesheet" active={pathname.startsWith('/timesheet')} onClick={onClose} indent />}
                 </div>
               </div>
 
               {/* ── SPACES ── */}
-              <div className="pt-3">
+              <div className="pt-2.5">
                 <div className="flex items-center justify-between px-1 mb-1">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
                     Spaces
                   </span>
-                  <button
-                    onClick={openCreateSpace}
-                    className="flex h-5 w-5 items-center justify-center rounded text-sidebar-foreground/30 hover:text-white hover:bg-white/10 transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
+                  <span className="flex items-center gap-0.5">
+                    <button
+                      className="flex h-4 w-4 items-center justify-center rounded text-sidebar-foreground/30 hover:text-white hover:bg-white/10 transition-colors"
+                    >
+                      <MoreHorizontal className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={openCreateSpace}
+                      className="flex h-4 w-4 items-center justify-center rounded text-sidebar-foreground/30 hover:text-white hover:bg-white/10 transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                  </span>
                 </div>
 
                 <div className="space-y-0.5">
-                  {/* All Tasks */}
-                  <NavItem href="/tasks" icon={ListChecks} label="All Tasks" active={false} onClick={onClose} indent />
+                  {/* All Tasks — grey square badge style */}
+                  <Link href="/tasks" onClick={onClose} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5 transition-colors text-sidebar-foreground/60 hover:text-sidebar-foreground/90">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sidebar-foreground/15" />
+                    <span className="truncate text-[13px] font-semibold">All Tasks</span>
+                  </Link>
 
                   {/* Space items */}
                   {workspaces.map(ws => (
@@ -490,14 +498,23 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
                       onClose={onClose}
                     />
                   ))}
+
+                  {/* New Space */}
+                  <button
+                    onClick={openCreateSpace}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-sidebar-foreground/35 hover:text-sidebar-foreground/70 hover:bg-white/5 transition-colors mt-1"
+                  >
+                    <Plus className="h-[14px] w-[14px] shrink-0" />
+                    <span>New Space</span>
+                  </button>
                 </div>
               </div>
 
               {/* ── TEAM & HR ── */}
               {(showAttendance || showLeave || showTeam) && (
-                <div className="pt-3">
+                <div className="pt-2.5">
                   <div className="px-1 mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
                       Team &amp; HR
                     </span>
                   </div>
@@ -510,7 +527,7 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
               )}
 
               {/* ── Reports + Settings ── */}
-              <div className="pt-3 space-y-0.5">
+              <div className="pt-2.5 space-y-0.5">
                 {showReports  && <NavItem href="/reports"  icon={BarChart2} label="Reports"  active={pathname.startsWith('/reports')}  onClick={onClose} />}
                 {showSettings && <NavItem href="/settings" icon={Settings}  label="Settings" active={pathname.startsWith('/settings')} onClick={onClose} />}
               </div>
