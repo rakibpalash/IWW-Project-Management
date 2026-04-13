@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   LayoutGrid,
   CheckSquare,
@@ -22,9 +22,11 @@ import {
   CalendarClock,
   Inbox,
   MoreHorizontal,
+  FolderOpen,
+  CircleDot,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Profile, Space, List } from '@/types'
+import { Profile, Space, List, Task } from '@/types'
 import { PermissionSet, can } from '@/lib/permissions'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -35,6 +37,8 @@ import {
 } from '@/components/ui/tooltip'
 import { createClient } from '@/lib/supabase/client'
 import { CreateWorkspaceDialog } from '@/components/workspaces/create-workspace-dialog'
+import { CreateProjectDialog } from '@/components/projects/create-project-dialog'
+import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 
 // ─── constants ─────────────────────────────────────────────────────────────────
 
@@ -58,6 +62,40 @@ function getSpaceColor(id: string) {
 }
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+}
+
+// ─── add menu popup ────────────────────────────────────────────────────────────
+
+interface AddMenuItem {
+  icon: React.ElementType
+  label: string
+  description: string
+  onClick: () => void
+}
+
+function AddMenu({ items }: { items: AddMenuItem[] }) {
+  return (
+    <div className="w-56 rounded-xl bg-[#1e2130] border border-white/10 shadow-2xl overflow-hidden py-1.5">
+      <p className="px-3 pt-1 pb-2 text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/35">
+        Create
+      </p>
+      {items.map((item) => (
+        <button
+          key={item.label}
+          onClick={item.onClick}
+          className="flex w-full items-start gap-3 px-3 py-2 hover:bg-white/8 transition-colors text-left"
+        >
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/8 border border-white/10">
+            <item.icon className="h-3.5 w-3.5 text-sidebar-foreground/70" />
+          </span>
+          <span className="min-w-0">
+            <p className="text-[13px] font-semibold text-white leading-tight">{item.label}</p>
+            <p className="text-[11px] text-sidebar-foreground/40 leading-tight mt-0.5">{item.description}</p>
+          </span>
+        </button>
+      ))}
+    </div>
+  )
 }
 
 // ─── nav item ──────────────────────────────────────────────────────────────────
@@ -118,18 +156,36 @@ function SpaceItem({
   projects,
   pathname,
   onClose,
+  onCreateList,
+  onCreateTask,
 }: {
   workspace: Space
   projects: List[]
   pathname: string
   onClose: () => void
+  onCreateList: (spaceId: string) => void
+  onCreateTask: (listId: string) => void
 }) {
   const hasActiveProject = projects.some(p => pathname.startsWith(`/lists/${p.id}`))
   const [open, setOpen] = useState(true)
+  const [spaceMenuOpen, setSpaceMenuOpen] = useState(false)
+  const [listMenuOpen, setListMenuOpen] = useState<string | null>(null)
+  const spaceMenuRef = useRef<HTMLDivElement>(null)
+  const listMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (hasActiveProject) setOpen(true)
   }, [hasActiveProject])
+
+  // Close menus on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (spaceMenuRef.current && !spaceMenuRef.current.contains(e.target as Node)) setSpaceMenuOpen(false)
+      if (listMenuRef.current && !listMenuRef.current.contains(e.target as Node)) setListMenuOpen(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const color = getSpaceColor(workspace.id)
   const initial = workspace.name.slice(0, 1).toUpperCase()
@@ -143,7 +199,6 @@ function SpaceItem({
           onClick={() => setOpen(o => !o)}
           className="flex items-center gap-2 flex-1 min-w-0 text-left"
         >
-          {/* Colored badge */}
           <span
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[12px] font-black text-white leading-none"
             style={{ backgroundColor: color }}
@@ -159,9 +214,23 @@ function SpaceItem({
           <button className="h-5 w-5 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
             <MoreHorizontal className="h-3.5 w-3.5" />
           </button>
-          <button className="h-5 w-5 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
-            <Plus className="h-3.5 w-3.5" />
-          </button>
+          {/* Space + button with popup */}
+          <div className="relative" ref={spaceMenuRef}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setSpaceMenuOpen(o => !o) }}
+              className="h-5 w-5 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+            {spaceMenuOpen && (
+              <div className="absolute left-0 top-6 z-50">
+                <AddMenu items={[
+                  { icon: ListChecks, label: 'List', description: 'Track tasks, projects, people & more', onClick: () => { setSpaceMenuOpen(false); onCreateList(workspace.id) } },
+                  { icon: FolderOpen, label: 'Folder', description: 'Group Lists, Docs & more', onClick: () => { setSpaceMenuOpen(false) } },
+                ]} />
+              </div>
+            )}
+          </div>
         </span>
       </div>
 
@@ -198,9 +267,23 @@ function SpaceItem({
                     <button className="h-4 w-4 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
                       <MoreHorizontal className="h-3 w-3" />
                     </button>
-                    <button className="h-4 w-4 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
-                      <Plus className="h-3 w-3" />
-                    </button>
+                    {/* List + button with popup */}
+                    <div className="relative" ref={listMenuOpen === proj.id ? listMenuRef : undefined}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setListMenuOpen(o => o === proj.id ? null : proj.id) }}
+                        className="h-4 w-4 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                      {listMenuOpen === proj.id && (
+                        <div className="absolute right-0 top-5 z-50">
+                          <AddMenu items={[
+                            { icon: CircleDot, label: 'Task', description: 'Create individual tasks to manage your work', onClick: () => { setListMenuOpen(null); onCreateTask(proj.id) } },
+                            { icon: ListChecks, label: 'List', description: 'Track tasks, projects, people & more', onClick: () => { setListMenuOpen(null); onCreateList(workspace.id) } },
+                          ]} />
+                        </div>
+                      )}
+                    </div>
                   </span>
                 </div>
               )
@@ -232,10 +315,14 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
   const searchParams = useSearchParams()
   const supabase = createClient()
 
-  const [workspaces,      setWorkspaces]      = useState<Space[]>(initialSpaces)
-  const [projects,        setProjects]        = useState<List[]>(initialLists)
-  const [showCreateSpace, setShowCreateSpace] = useState(false)
-  const [staffProfiles,   setStaffProfiles]   = useState<Profile[]>([])
+  const [workspaces,        setWorkspaces]        = useState<Space[]>(initialSpaces)
+  const [projects,          setProjects]          = useState<List[]>(initialLists)
+  const [showCreateSpace,   setShowCreateSpace]   = useState(false)
+  const [staffProfiles,     setStaffProfiles]     = useState<Profile[]>([])
+  const [showCreateList,    setShowCreateList]    = useState(false)
+  const [createListSpaceId, setCreateListSpaceId] = useState<string | null>(null)
+  const [showCreateTask,    setShowCreateTask]    = useState(false)
+  const [createTaskListId,  setCreateTaskListId]  = useState<string | null>(null)
 
   const PROJECT_SELECT = 'id, name, workspace_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, actual_hours, estimated_hours, start_date, due_date, description'
   const WS_SELECT      = 'id, name, description, created_at, updated_at, created_by'
@@ -324,6 +411,16 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
     return () => { supabase.removeChannel(channel) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  function openCreateList(spaceId: string) {
+    setCreateListSpaceId(spaceId)
+    setShowCreateList(true)
+  }
+
+  function openCreateTask(listId: string) {
+    setCreateTaskListId(listId)
+    setShowCreateTask(true)
+  }
 
   function openCreateSpace() {
     if (staffProfiles.length === 0) {
@@ -498,6 +595,8 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
                       projects={projects.filter(p => p.workspace_id === ws.id)}
                       pathname={pathname}
                       onClose={onClose}
+                      onCreateList={openCreateList}
+                      onCreateTask={openCreateTask}
                     />
                   ))}
 
@@ -589,6 +688,30 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
           setShowCreateSpace(false)
         }}
       />
+
+      {/* ── Create List Dialog ── */}
+      <CreateProjectDialog
+        open={showCreateList}
+        onOpenChange={setShowCreateList}
+        workspaces={createListSpaceId ? workspaces.filter(w => w.id === createListSpaceId) : workspaces}
+        onCreated={(newList) => {
+          setProjects(prev => [...prev, newList].sort((a, b) => a.name.localeCompare(b.name)))
+          setShowCreateList(false)
+        }}
+        profile={profile}
+      />
+
+      {/* ── Create Task Dialog ── */}
+      {showCreateTask && createTaskListId && (
+        <CreateTaskDialog
+          open={showCreateTask}
+          onOpenChange={setShowCreateTask}
+          projects={projects}
+          profile={profile}
+          projectId={createTaskListId}
+          onCreated={() => { setShowCreateTask(false) }}
+        />
+      )}
     </TooltipProvider>
   )
 }
