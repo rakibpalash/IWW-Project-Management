@@ -84,7 +84,7 @@ export function TimeLogReport({ workspaces, isAdmin }: Props) {
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Member</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Project</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">List</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Task</th>
                   <th className="text-right px-4 py-3 font-medium text-muted-foreground">Duration</th>
                   <th className="text-center px-4 py-3 font-medium text-muted-foreground">Billable</th>

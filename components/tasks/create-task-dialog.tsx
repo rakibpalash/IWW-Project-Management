@@ -253,7 +253,7 @@ export function CreateTaskDialog({
           user_id: uid, type: 'task_assigned',
           title: 'Task assigned to you',
           message: `You have been assigned to "${newTask.title}"`,
-          link: `/projects/${projectId}/tasks/${newTask.id}`, is_read: false,
+          link: `/lists/${projectId}/tasks/${newTask.id}`, is_read: false,
         })))
 
       const assigneeProfiles = members.filter(m => assigneeIds.includes(m.id))

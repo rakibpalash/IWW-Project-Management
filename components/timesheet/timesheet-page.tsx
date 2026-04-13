@@ -259,7 +259,7 @@ function WorkspaceFilter({
             )
           })}
           {filtered.length === 0 && (
-            <p className="text-xs text-muted-foreground/70 text-center py-3">No workspaces found</p>
+            <p className="text-xs text-muted-foreground/70 text-center py-3">No spaces found</p>
           )}
         </div>
       </PopoverContent>
@@ -285,10 +285,10 @@ function ProjectFilter({
 
   const allSelected = selected.length === 0
   const label = allSelected
-    ? 'All Projects'
+    ? 'All Lists'
     : selected.length === 1
-    ? (projects.find((p) => p.id === selected[0])?.name ?? '1 Project')
-    : `${selected.length} Projects`
+    ? (projects.find((p) => p.id === selected[0])?.name ?? '1 List')
+    : `${selected.length} Lists`
 
   const toggle = (id: string) => {
     onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
@@ -304,7 +304,7 @@ function ProjectFilter({
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <div className="flex items-center justify-between px-3 pt-3 pb-2">
-          <span className="text-sm font-semibold text-foreground">Projects</span>
+          <span className="text-sm font-semibold text-foreground">Lists</span>
           <Button size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
             Done
           </Button>
@@ -332,7 +332,7 @@ function ProjectFilter({
             )}>
               {allSelected && <Check className="h-2.5 w-2.5 text-white" />}
             </div>
-            <span className="text-foreground/80">All Projects</span>
+            <span className="text-foreground/80">All Lists</span>
           </button>
           {filtered.map((p) => {
             const checked = selected.includes(p.id)
@@ -354,7 +354,7 @@ function ProjectFilter({
             )
           })}
           {filtered.length === 0 && (
-            <p className="text-xs text-muted-foreground/70 text-center py-3">No projects found</p>
+            <p className="text-xs text-muted-foreground/70 text-center py-3">No lists found</p>
           )}
         </div>
       </PopoverContent>
@@ -629,7 +629,7 @@ export function TimesheetPage({
       </tr>`).join('')
     return `
       <table>
-        <thead><tr><th>Date</th><th>Task</th><th>Project</th><th>Added By</th><th>Duration</th><th>Description</th></tr></thead>
+        <thead><tr><th>Date</th><th>Task</th><th>List</th><th>Added By</th><th>Duration</th><th>Description</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`
   }

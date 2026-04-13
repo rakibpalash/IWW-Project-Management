@@ -500,7 +500,7 @@ export function WorkspaceDetailPage({
                 )}
                 {isAdmin && (
                   <DropdownMenuItem onClick={() => setShowCreateProject(true)}>
-                    New project
+                    New List
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
@@ -512,7 +512,7 @@ export function WorkspaceDetailPage({
                       if (!result.success) {
                         toast({ title: 'Clone failed', description: result.error, variant: 'destructive' })
                       } else {
-                        toast({ title: 'Workspace cloned', description: `"${workspaceName} (Copy)" created.` })
+                        toast({ title: 'Space cloned', description: `"${workspaceName} (Copy)" created.` })
                         router.push('/spaces')
                       }
                     } finally {
@@ -842,7 +842,7 @@ export function WorkspaceDetailPage({
             <div className="flex-1 overflow-auto p-4">
               {filteredTasks.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-16">
-                  {search ? 'No tasks match your search.' : 'No tasks in this workspace yet.'}
+                  {search ? 'No tasks match your search.' : 'No tasks in this space yet.'}
                 </p>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -890,14 +890,14 @@ export function WorkspaceDetailPage({
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-28">Priority</th>
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-36">Status</th>
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-32">Due date</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-32">Project</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-32">List</th>
                   <th className="w-10 px-2" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
                 {filteredTasks.length === 0 ? (
                   <tr><td colSpan={8} className="py-16 text-center text-sm text-muted-foreground">
-                    {search ? 'No tasks match your search.' : 'No tasks in this workspace yet.'}
+                    {search ? 'No tasks match your search.' : 'No tasks in this space yet.'}
                   </td></tr>
                 ) : filteredTasks.map(task => {
                   const subtasks = subtaskMap[task.id] ?? []
@@ -1048,10 +1048,10 @@ export function WorkspaceDetailPage({
                 {projects.length === 0 ? (
                   <>
                     <p className="text-sm text-muted-foreground mb-4 max-w-xs">
-                      You need a project before you can create tasks. Start by creating a project in this workspace.
+                      You need a list before you can create tasks. Start by creating a list in this space.
                     </p>
                     <Button onClick={() => setShowCreateProject(true)}>
-                      <Plus className="h-4 w-4 mr-2" />New project
+                      <Plus className="h-4 w-4 mr-2" />New List
                     </Button>
                   </>
                 ) : (

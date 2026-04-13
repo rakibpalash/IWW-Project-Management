@@ -1250,7 +1250,7 @@ export function TaskDetailPage({
                 {task.project && (
                   <div className="flex items-center gap-2 py-1.5 rounded-md hover:bg-muted/30 px-1 transition-colors">
                     <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <span className="text-xs text-muted-foreground w-[80px] shrink-0">Project</span>
+                    <span className="text-xs text-muted-foreground w-[80px] shrink-0">List</span>
                     <span className="text-xs font-medium truncate flex-1">{task.project.name}</span>
                   </div>
                 )}

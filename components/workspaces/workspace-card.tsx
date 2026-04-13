@@ -65,7 +65,7 @@ export function WorkspaceCard({
           </div>
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <FolderKanban className="h-4 w-4 text-muted-foreground/70" />
-            <span>{workspace.project_count} project{workspace.project_count !== 1 ? 's' : ''}</span>
+            <span>{workspace.project_count} list{workspace.project_count !== 1 ? 's' : ''}</span>
           </div>
           <div className="ml-auto text-xs text-muted-foreground/70">
             Created {formatDate(workspace.created_at)}

@@ -135,7 +135,7 @@ export function AssignStaffDialog({
         <DialogHeader>
           <DialogTitle>Assign Members</DialogTitle>
           <DialogDescription>
-            Select staff, clients, and partners to assign to this workspace.
+            Select staff, clients, and partners to assign to this space.
           </DialogDescription>
         </DialogHeader>
 

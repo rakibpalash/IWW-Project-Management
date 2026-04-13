@@ -355,7 +355,7 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
                 <SelectValue placeholder="Project" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Projects</SelectItem>
+                <SelectItem value="all">All Lists</SelectItem>
                 {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>
                 ))}

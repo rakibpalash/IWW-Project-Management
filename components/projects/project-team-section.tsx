@@ -313,7 +313,7 @@ export function ProjectTeamSection({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Member</AlertDialogTitle>
             <AlertDialogDescription>
-              Remove <strong>{removeTarget?.profile?.full_name ?? 'this member'}</strong> from the project team?
+              Remove <strong>{removeTarget?.profile?.full_name ?? 'this member'}</strong> from the list team?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

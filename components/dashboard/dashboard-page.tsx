@@ -701,7 +701,7 @@ function RecentProjectsCard({ projects, router }: { projects: Project[]; router:
         <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-7" onClick={() => router.push('/lists')}>View all</Button>
       </div>
       {projects.length === 0 ? (
-        <p className="px-5 py-8 text-center text-sm text-muted-foreground/70">No projects yet</p>
+        <p className="px-5 py-8 text-center text-sm text-muted-foreground/70">No lists yet</p>
       ) : (
         <ul className="divide-y divide-border/40">
           {projects.slice(0, 5).map(project => (
@@ -905,7 +905,7 @@ function ClientProjectsList({ projects, router }: { projects: Project[]; router:
         <h3 className="text-[14px] font-semibold text-foreground">Your Projects</h3>
       </div>
       {projects.length === 0 ? (
-        <p className="px-5 py-8 text-center text-sm text-muted-foreground/70">No projects assigned</p>
+        <p className="px-5 py-8 text-center text-sm text-muted-foreground/70">No lists assigned</p>
       ) : (
         <ul className="divide-y divide-border/40">
           {projects.map(project => (

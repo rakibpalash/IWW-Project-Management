@@ -59,7 +59,7 @@ export async function createWorkspaceAction(data: {
       )
     }
 
-    revalidatePath('/workspaces')
+    revalidatePath('/spaces')
     return { success: true, workspace }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
@@ -87,8 +87,8 @@ export async function renameWorkspaceAction(
 
     if (error) return { success: false, error: error.message }
 
-    revalidatePath('/workspaces')
-    revalidatePath(`/workspaces/${workspaceId}`)
+    revalidatePath('/spaces')
+    revalidatePath(`/spaces/${workspaceId}`)
     return { success: true }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
@@ -142,7 +142,7 @@ export async function deleteWorkspaceAction(
           message: opts?.moveProjectsToWorkspaceId
             ? `Workspace was reorganised by ${deleter.full_name}. Your projects were moved.`
             : `Workspace and all its projects were deleted by ${deleter.full_name}.`,
-          link: '/projects',
+          link: '/lists',
           is_read: false,
         }))
       if (notifications.length > 0) await admin.from('notifications').insert(notifications)
@@ -220,7 +220,7 @@ export async function cloneWorkspaceAction(
       )
     }
 
-    revalidatePath('/workspaces')
+    revalidatePath('/spaces')
     return { success: true, newWorkspaceId: newWsId }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
@@ -271,7 +271,7 @@ export async function updateWorkspaceMembersAction(
       if (error) return { success: false, error: error.message }
     }
 
-    revalidatePath(`/workspaces/${workspaceId}`)
+    revalidatePath(`/spaces/${workspaceId}`)
     return { success: true }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }

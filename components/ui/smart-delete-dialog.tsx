@@ -56,7 +56,7 @@ interface SmartDeleteDialogProps {
 
 const ENTITY_LABELS: Record<EntityType, { label: string }> = {
   workspace: { label: 'Space' },
-  project:   { label: 'Project' },
+  project:   { label: 'List' },
   task:      { label: 'Task' },
   staff:     { label: 'Staff Member' },
 }
@@ -150,8 +150,8 @@ export function SmartDeleteDialog({
     if (entityType === 'workspace' && impact.projectCount > 0) {
       parts.push(
         moveToWorkspace
-          ? `${impact.projectCount} project${impact.projectCount !== 1 ? 's' : ''} will be moved`
-          : `${impact.projectCount} project${impact.projectCount !== 1 ? 's' : ''} & ${impact.taskCount} task${impact.taskCount !== 1 ? 's' : ''} will be permanently deleted`
+          ? `${impact.projectCount} list${impact.projectCount !== 1 ? 's' : ''} will be moved`
+          : `${impact.projectCount} list${impact.projectCount !== 1 ? 's' : ''} & ${impact.taskCount} task${impact.taskCount !== 1 ? 's' : ''} will be permanently deleted`
       )
     }
     if (entityType === 'project' && impact.taskCount > 0) {
@@ -210,7 +210,7 @@ export function SmartDeleteDialog({
                 <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3">
                   <Info className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                   <p className="text-sm text-muted-foreground">
-                    No projects, tasks, or members are affected. This action cannot be undone.
+                    No lists, tasks, or members are affected. This action cannot be undone.
                   </p>
                 </div>
               )}
@@ -248,7 +248,7 @@ export function SmartDeleteDialog({
                     <div className="px-3 py-2.5 space-y-1.5">
                       <div className="flex items-center gap-1.5 text-xs text-amber-700 font-medium">
                         <FolderKanban className="h-3.5 w-3.5" />
-                        {impact.projects.length} {impact.projects.length === 1 ? 'project' : 'projects'} &amp;{' '}
+                        {impact.projects.length} {impact.projects.length === 1 ? 'list' : 'lists'} &amp;{' '}
                         {impact.taskCount} {impact.taskCount === 1 ? 'task' : 'tasks'} will be deleted
                       </div>
                       <div className="space-y-1">
@@ -373,13 +373,13 @@ export function SmartDeleteDialog({
             <div className="px-5 py-4 space-y-4">
               {entityType === 'workspace' && impact.projectCount > 0 && impact.otherWorkspaces.length > 0 && (
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Move projects to another space</label>
+                  <label className="text-sm font-medium">Move lists to another space</label>
                   <Select value={moveToWorkspace} onValueChange={setMoveToWorkspace}>
                     <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="Delete all projects" />
+                      <SelectValue placeholder="Delete all lists" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Delete all projects</SelectItem>
+                      <SelectItem value="">Delete all lists</SelectItem>
                       {impact.otherWorkspaces.map((w) => (
                         <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
                       ))}
@@ -390,7 +390,7 @@ export function SmartDeleteDialog({
 
               {entityType === 'project' && impact.taskCount > 0 && impact.otherProjects.length > 0 && (
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Move tasks to another project</label>
+                  <label className="text-sm font-medium">Move tasks to another list</label>
                   <Select value={moveToProject} onValueChange={setMoveToProject}>
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue placeholder="Delete all tasks" />

@@ -84,7 +84,7 @@ export function ProjectProgressReport({ workspaces, isAdmin }: Props) {
             <table className="w-full text-sm">
               <thead className="bg-muted/40 border-b">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Project</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">List</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Priority</th>
                   <th className="text-center px-4 py-3 font-medium text-muted-foreground">Progress</th>

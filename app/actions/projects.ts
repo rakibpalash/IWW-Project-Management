@@ -55,7 +55,7 @@ export async function createProjectAction(
       return { success: false, error: error.message }
     }
 
-    revalidatePath('/projects')
+    revalidatePath('/lists')
     revalidatePath('/dashboard')
 
     return { success: true, project: project as Project }
@@ -108,8 +108,8 @@ export async function updateProjectAction(
       return { success: false, error: error.message }
     }
 
-    revalidatePath('/projects')
-    revalidatePath(`/projects/${id}`)
+    revalidatePath('/lists')
+    revalidatePath(`/lists/${id}`)
     revalidatePath('/dashboard')
 
     return { success: true, project: project as Project }
@@ -184,13 +184,13 @@ export async function deleteProjectAction(
         message: opts?.moveTasksToProjectId
           ? `Project "${project?.name}" was deleted by ${deleter?.full_name}. Your tasks were moved.`
           : `Project "${project?.name}" and all its tasks were deleted by ${deleter?.full_name}.`,
-        link: '/projects',
+        link: '/lists',
         is_read: false,
       }))
       await admin.from('notifications').insert(notifications)
     }
 
-    revalidatePath('/projects')
+    revalidatePath('/lists')
     revalidatePath('/dashboard')
     return { success: true }
   } catch (err) {
@@ -256,8 +256,8 @@ export async function cloneProjectAction(
       )
     }
 
-    revalidatePath('/projects')
-    revalidatePath(`/workspaces/${original.workspace_id}`)
+    revalidatePath('/lists')
+    revalidatePath(`/spaces/${original.workspace_id}`)
     return { success: true, project: cloned as Project }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }

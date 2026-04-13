@@ -77,7 +77,7 @@ export function OverdueTasksReport({ workspaces, isAdmin }: Props) {
               <thead className="bg-muted/40 border-b">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Task</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Project</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">List</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Priority</th>
                   <th className="text-right px-4 py-3 font-medium text-muted-foreground">Due Date</th>
                   <th className="text-right px-4 py-3 font-medium text-muted-foreground">Days Late</th>

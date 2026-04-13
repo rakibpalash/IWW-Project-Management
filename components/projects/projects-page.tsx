@@ -101,7 +101,7 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Lists</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {projects.length} project{projects.length !== 1 ? 's' : ''} total
+            {projects.length} list{projects.length !== 1 ? 's' : ''} total
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -242,13 +242,13 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
           <div className="mb-4 rounded-full bg-muted p-4">
             <Search className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold">No projects found</h3>
+          <h3 className="text-lg font-semibold">No lists found</h3>
           <p className="text-sm text-muted-foreground mt-1 max-w-sm">
             {hasActiveFilters
               ? 'Try adjusting your filters or search query.'
               : canCreate
-              ? 'Get started by creating your first project.'
-              : 'No projects have been assigned to you yet.'}
+              ? 'Get started by creating your first list.'
+              : 'No lists have been assigned to you yet.'}
           </p>
           {hasActiveFilters && (
             <Button variant="outline" size="sm" onClick={clearFilters} className="mt-4">

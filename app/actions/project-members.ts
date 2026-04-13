@@ -75,11 +75,11 @@ export async function addProjectMemberAction(
       type: 'project_member_added',
       title: 'Added to project',
       message: `You've been added to "${project?.name ?? 'a project'}" as ${role === 'lead' ? 'Team Lead' : 'Member'}.`,
-      link: `/projects/${projectId}`,
+      link: `/lists/${projectId}`,
     })
   }
 
-  revalidatePath(`/projects/${projectId}`)
+  revalidatePath(`/lists/${projectId}`)
   return { member: data }
 }
 
@@ -100,7 +100,7 @@ export async function updateProjectMemberRoleAction(
     .eq('id', memberId)
 
   if (error) return { error: error.message }
-  revalidatePath(`/projects/${projectId}`)
+  revalidatePath(`/lists/${projectId}`)
   return { success: true }
 }
 
@@ -120,6 +120,6 @@ export async function removeProjectMemberAction(
     .eq('id', memberId)
 
   if (error) return { error: error.message }
-  revalidatePath(`/projects/${projectId}`)
+  revalidatePath(`/lists/${projectId}`)
   return { success: true }
 }

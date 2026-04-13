@@ -112,7 +112,7 @@ export async function createTaskAction(
     )
 
     revalidatePath('/tasks')
-    revalidatePath(`/projects/${data.project_id}`)
+    revalidatePath(`/lists/${data.project_id}`)
 
     return { success: true, task: task as Task }
   } catch (err) {
@@ -355,7 +355,7 @@ export async function deleteTaskAction(
     )
 
     revalidatePath('/tasks')
-    revalidatePath(`/projects/${task?.project_id}`)
+    revalidatePath(`/lists/${task?.project_id}`)
 
     return { success: true }
   } catch (err) {
@@ -525,7 +525,7 @@ export async function cloneTaskAction(
     if (!newId) return { success: false, error: 'Failed to clone task' }
 
     revalidatePath('/tasks')
-    revalidatePath(`/projects/${original.project_id}`)
+    revalidatePath(`/lists/${original.project_id}`)
     return { success: true, taskId: newId }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }

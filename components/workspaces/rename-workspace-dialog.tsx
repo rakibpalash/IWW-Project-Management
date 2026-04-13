@@ -104,7 +104,7 @@ export function RenameWorkspaceDialog({
         <DialogHeader>
           <DialogTitle>Rename Space</DialogTitle>
           <DialogDescription>
-            Update the name and description for this workspace.
+            Update the name and description for this space.
           </DialogDescription>
         </DialogHeader>
 
@@ -134,7 +134,7 @@ export function RenameWorkspaceDialog({
                   <FormLabel>Description</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="What is this workspace for?"
+                      placeholder="What is this space for?"
                       rows={3}
                       {...field}
                     />

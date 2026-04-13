@@ -183,7 +183,7 @@ function ProjectTaskList({
         </div>
         <h3 className="text-base font-semibold">No tasks yet</h3>
         <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-          Click below to add your first task to this project.
+          Click below to add your first task to this list.
         </p>
         {canManage && (
           <Button className="mt-4" onClick={() => openInlineAdd('todo')}>
@@ -1257,7 +1257,7 @@ export function ProjectDetailPage({
             <EmptyState
               icon={<Activity className="h-10 w-10 text-muted-foreground" />}
               title="No activity yet"
-              description="Activity for this project will appear here."
+              description="Activity for this list will appear here."
             />
           ) : (
             <div className="relative pl-6 space-y-4">

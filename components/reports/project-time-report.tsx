@@ -81,7 +81,7 @@ export function ProjectTimeReport({ workspaces, isAdmin }: Props) {
         <Select value={groupBy} onValueChange={v => setGroupBy(v as 'project' | 'member')}>
           <SelectTrigger className="w-[140px] h-8 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="project">By Project</SelectItem>
+            <SelectItem value="project">By List</SelectItem>
             <SelectItem value="member">By Member</SelectItem>
           </SelectContent>
         </Select>

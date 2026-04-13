@@ -495,7 +495,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {userWorkspaces.length === 0 ? (
-                          <span className="text-xs text-muted-foreground">No workspaces</span>
+                          <span className="text-xs text-muted-foreground">No spaces</span>
                         ) : (
                           userWorkspaces.map((ws) => (
                             <Badge key={ws.id} variant="outline" className="text-xs">{ws.name}</Badge>
