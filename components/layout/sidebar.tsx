@@ -40,6 +40,7 @@ import { createClient } from '@/lib/supabase/client'
 import { CreateWorkspaceDialog } from '@/components/workspaces/create-workspace-dialog'
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog'
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
+import { getSidebarDataAction } from '@/app/actions/sidebar'
 
 // ─── constants ─────────────────────────────────────────────────────────────────
 
@@ -351,52 +352,12 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
   const [showCreateTask,    setShowCreateTask]    = useState(false)
   const [createTaskListId,  setCreateTaskListId]  = useState<string | null>(null)
 
-  const PROJECT_SELECT = 'id, name, workspace_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, actual_hours, estimated_hours, start_date, due_date, description'
-  const WS_SELECT      = 'id, name, description, created_at, updated_at, created_by'
-
-  // Role-aware fetch — mirrors the EXACT same query logic as the Lists page
+  // Server-action-based fetch — uses admin client, bypasses RLS restrictions
   async function fetchSidebarData() {
-    const role    = profile.role
-    const userId  = profile.id
-    const orgId   = (profile as any).organization_id as string | null ?? null
-
-    if (role === 'staff') {
-      const { data: assignments } = await supabase
-        .from('workspace_assignments').select('workspace_id').eq('user_id', userId)
-      const wsIds = (assignments ?? []).map((a: { workspace_id: string }) => a.workspace_id)
-      if (wsIds.length > 0) {
-        const [wsRes, projRes] = await Promise.all([
-          supabase.from('workspaces').select(WS_SELECT).in('id', wsIds).order('name'),
-          supabase.from('projects').select(PROJECT_SELECT).in('workspace_id', wsIds).order('name'),
-        ])
-        setWorkspaces((wsRes.data as Space[]) ?? [])
-        setProjects((projRes.data as List[]) ?? [])
-      } else {
-        setWorkspaces([])
-        setProjects([])
-      }
-    } else if (role === 'client') {
-      const [wsRes, projRes] = await Promise.all([
-        supabase.from('workspaces').select(WS_SELECT).order('name'),
-        supabase.from('projects').select(PROJECT_SELECT).eq('client_id', userId).order('name'),
-      ])
-      setWorkspaces((wsRes.data as Space[]) ?? [])
-      setProjects((projRes.data as List[]) ?? [])
-    } else {
-      // super_admin / account_manager / others — explicit org-scoped filter (same as Lists page)
-      const wsQuery = orgId
-        ? supabase.from('workspaces').select(WS_SELECT).eq('organization_id', orgId).order('name')
-        : supabase.from('workspaces').select(WS_SELECT).order('name')
-      const { data: wsData } = await wsQuery
-      const spaces = (wsData as Space[]) ?? []
-      const wsIds  = spaces.map(w => w.id)
-
-      const { data: projData } = wsIds.length > 0
-        ? await supabase.from('projects').select(PROJECT_SELECT).in('workspace_id', wsIds).order('name')
-        : await supabase.from('projects').select(PROJECT_SELECT).order('name')
-
-      setWorkspaces(spaces)
-      setProjects((projData as List[]) ?? [])
+    const { workspaces: ws, projects: proj } = await getSidebarDataAction()
+    if (ws.length > 0 || proj.length > 0) {
+      setWorkspaces(ws)
+      setProjects(proj)
     }
   }
 
@@ -410,25 +371,8 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
   useEffect(() => {
     const channel = supabase
       .channel('sidebar-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'projects' },
-        (payload) => {
-          supabase.from('projects').select(PROJECT_SELECT).eq('id', payload.new.id).single()
-            .then(({ data }) => {
-              if (data) setProjects(prev =>
-                [...prev, data as List].sort((a, b) => a.name.localeCompare(b.name)))
-            })
-        }
-      )
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'projects' },
-        (payload) => {
-          supabase.from('projects').select(PROJECT_SELECT).eq('id', payload.new.id).single()
-            .then(({ data }) => {
-              if (data) setProjects(prev => prev.map(p => p.id === (data as List).id ? data as List : p))
-            })
-        }
-      )
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'projects' },
-        (payload) => { setProjects(prev => prev.filter(p => p.id !== payload.old.id)) }
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' },
+        () => { fetchSidebarData() }
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'workspaces' },
         () => { fetchSidebarData() }
