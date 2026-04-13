@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Project, Task, Profile, ActivityLog, ProjectMember, CustomRole } from '@/types'
+import { List, Task, Profile, ActivityLog, ListMember, CustomRole } from '@/types'
 import { ProjectHeader } from './project-header'
 import { TimeSummary } from './time-summary'
 import { ProjectTeamSection } from './project-team-section'
@@ -880,12 +880,12 @@ function ProjectBoardView({
 }
 
 interface ProjectDetailPageProps {
-  project: Project
+  project: List
   tasks: Task[]
   activityLogs: ActivityLog[]
   members: Profile[]
   profile: Profile
-  projectMembers: ProjectMember[]
+  projectMembers: ListMember[]
   allProfiles: Profile[]
   customRoles: CustomRole[]
 }
@@ -901,7 +901,7 @@ export function ProjectDetailPage({
   customRoles,
 }: ProjectDetailPageProps) {
   const router = useRouter()
-  const [project, setProject] = useState<Project>(initialProject)
+  const [project, setProject] = useState<List>(initialProject)
   const [taskList, setTaskList] = useState<Task[]>(tasks)
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [taskView, setTaskView] = useState<'list' | 'board'>('list')
@@ -909,7 +909,7 @@ export function ProjectDetailPage({
     search: '', assignee: 'all', priority: 'all', showClosed: false,
   })
 
-  function handleProjectUpdated(updated: Project) {
+  function handleProjectUpdated(updated: List) {
     setProject(updated)
   }
 

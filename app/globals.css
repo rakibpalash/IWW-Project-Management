@@ -2,88 +2,123 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── ClickUp Design System ──────────────────────────────────────────────────
+ *
+ * Primary brand:  #7B68EE  hsl(252 78% 67%)   ClickUp purple
+ * App bg:         #F8F8FA  hsl(240 11% 97%)   very light gray canvas
+ * Sidebar:        #2C2C3D  hsl(240 16% 21%)   dark purple-gray
+ * Text:           #1C1C1E  hsl(240  3% 11%)
+ * Border:         #E3E3E8  hsl(240  9% 90%)
+ * ─────────────────────────────────────────────────────────────────────────── */
+
 @layer base {
   /* ── Light Mode ───────────────────────────────────────────────────────── */
   :root {
-    --background:             0 0% 100%;
-    --card:                   0 0% 100%;
-    --card-foreground:        224 71% 4%;
-    --popover:                0 0% 100%;
-    --popover-foreground:     224 71% 4%;
-    --foreground:             224 71% 4%;
-    --muted:                  220 14% 96%;
-    --muted-foreground:       220 9% 46%;
-    --primary:                239 84% 60%;
-    --primary-foreground:     0 0% 100%;
-    --secondary:              220 14% 96%;
-    --secondary-foreground:   224 71% 4%;
-    --accent:                 220 14% 93%;
-    --accent-foreground:      224 71% 4%;
-    --destructive:            0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border:                 220 13% 88%;
-    --input:                  220 13% 88%;
-    --ring:                   239 84% 60%;
-    --radius:                 0.5rem;
+    /* Canvas */
+    --background:             240 11% 97%;      /* #F8F8FA  light gray canvas */
+    --foreground:             240  3% 11%;      /* #1C1C1E  near-black text   */
 
-    /* Sidebar — always dark regardless of theme */
-    --sidebar-background:         224 71% 4%;
-    --sidebar-foreground:         215 28% 78%;
-    --sidebar-primary:            239 84% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent:             222 47% 10%;
-    --sidebar-accent-foreground:  215 28% 92%;
-    --sidebar-border:             222 47% 10%;
-    --sidebar-ring:               239 84% 60%;
+    /* Cards / popovers — white on gray canvas */
+    --card:                   0 0% 100%;
+    --card-foreground:        240  3% 11%;
+    --popover:                0 0% 100%;
+    --popover-foreground:     240  3% 11%;
+
+    /* Muted / secondary surfaces */
+    --muted:                  240  9% 95%;      /* #F0F0F3 */
+    --muted-foreground:       220  9% 52%;      /* #7B8FA1 */
+    --secondary:              240  9% 95%;
+    --secondary-foreground:   240  3% 11%;
+
+    /* Brand purple — ClickUp signature */
+    --primary:                252 78% 67%;      /* #7B68EE */
+    --primary-foreground:     0   0% 100%;
+
+    /* Hover tint surface */
+    --accent:                 252 78% 97%;      /* #F4F2FF  very pale purple  */
+    --accent-foreground:      252 78% 45%;      /* #4B3BC7  deep purple text  */
+
+    /* Danger */
+    --destructive:            0  90% 60%;       /* #F44 */
+    --destructive-foreground: 0   0% 100%;
+
+    /* Borders / inputs */
+    --border:                 240  9% 90%;      /* #E3E3E8 */
+    --input:                  240  9% 90%;
+    --ring:                   252 78% 67%;
+
+    /* Border radius — ClickUp uses 6 px for most UI */
+    --radius:                 0.375rem;
+
+    /* ── Sidebar — always dark ────────────────────────────────────────────
+     * ClickUp sidebar: #2C2C3D  hsl(240 16% 21%)
+     * Active item:     #7B68EE  hsl(252 78% 67%)
+     * Hover bg:        #363650  hsl(240 16% 26%)
+     * ---------------------------------------------------------------------- */
+    --sidebar-background:         240 16% 21%;   /* #2C2C3D */
+    --sidebar-foreground:         213 13% 78%;   /* #BABECE */
+    --sidebar-primary:            252 78% 67%;   /* #7B68EE */
+    --sidebar-primary-foreground: 0   0% 100%;
+    --sidebar-accent:             240 16% 27%;   /* #38384D  hover bg */
+    --sidebar-accent-foreground:  0   0% 100%;
+    --sidebar-border:             240 14% 26%;   /* #363649  divider */
+    --sidebar-ring:               252 78% 67%;
   }
 
   /* ── Dark Mode ────────────────────────────────────────────────────────── */
   .dark {
-    --background:             222 47% 6%;
-    --card:                   222 47% 8%;
-    --card-foreground:        215 28% 90%;
-    --popover:                222 47% 8%;
-    --popover-foreground:     215 28% 90%;
-    --foreground:             215 28% 90%;
-    --muted:                  222 47% 11%;
-    --muted-foreground:       215 16% 55%;
-    --primary:                239 84% 65%;
-    --primary-foreground:     0 0% 100%;
-    --secondary:              222 47% 11%;
-    --secondary-foreground:   215 28% 90%;
-    --accent:                 222 47% 13%;
-    --accent-foreground:      215 28% 90%;
-    --destructive:            0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --border:                 222 47% 15%;
-    --input:                  222 47% 13%;
-    --ring:                   239 84% 65%;
+    --background:             240 24% 10%;      /* #141420 */
+    --foreground:             220 20% 90%;      /* #DDDFF0 */
 
-    /* Sidebar in dark mode — slightly darker than page bg */
-    --sidebar-background:         224 80% 3%;
-    --sidebar-foreground:         215 28% 72%;
-    --sidebar-primary:            239 84% 65%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent:             222 60% 7%;
-    --sidebar-accent-foreground:  215 28% 90%;
-    --sidebar-border:             222 60% 7%;
-    --sidebar-ring:               239 84% 65%;
+    --card:                   240 22% 14%;      /* #1C1C2E */
+    --card-foreground:        220 20% 90%;
+    --popover:                240 22% 14%;
+    --popover-foreground:     220 20% 90%;
+
+    --muted:                  240 20% 18%;      /* #242437 */
+    --muted-foreground:       220 12% 55%;      /* #82889C */
+    --secondary:              240 20% 18%;
+    --secondary-foreground:   220 20% 90%;
+
+    --primary:                252 78% 70%;      /* #8B7BF2  slightly lighter */
+    --primary-foreground:     0   0% 100%;
+
+    --accent:                 252 40% 22%;      /* #252045 */
+    --accent-foreground:      252 78% 80%;
+
+    --destructive:            0  72% 51%;
+    --destructive-foreground: 0   0% 100%;
+
+    --border:                 240 20% 22%;      /* #2C2C40 */
+    --input:                  240 20% 22%;
+    --ring:                   252 78% 70%;
+
+    /* Sidebar dark — slightly deeper than page bg */
+    --sidebar-background:         240 22% 11%;   /* #161627 */
+    --sidebar-foreground:         213 13% 72%;
+    --sidebar-primary:            252 78% 70%;
+    --sidebar-primary-foreground: 0   0% 100%;
+    --sidebar-accent:             240 20% 17%;   /* #202035 */
+    --sidebar-accent-foreground:  0   0% 100%;
+    --sidebar-border:             240 20% 16%;
+    --sidebar-ring:               252 78% 70%;
   }
 }
 
+/* ─── Base reset ─────────────────────────────────────────────────────────── */
 @layer base {
   * { @apply border-border; }
-
   html { @apply scroll-smooth; }
-
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
 
+/* ─── Utilities ──────────────────────────────────────────────────────────── */
 @layer utilities {
-  /* ── Scrollbars ─────────────────────────────────────────────────────── */
+
+  /* Scrollbars ─────────────────────────────────────────────────────────── */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -101,47 +136,27 @@
     border-radius: 2px;
   }
 
-  /* ── Page layout system ─────────────────────────────────────────────── */
-  /* Use these on every new page for instant responsiveness */
+  /* Page layout ────────────────────────────────────────────────────────── */
+  .page-root  { @apply flex-1 overflow-y-auto scrollbar-thin; }
+  .page-inner { @apply mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6; }
 
-  .page-root {
-    @apply flex-1 overflow-y-auto scrollbar-thin;
-  }
-  .page-inner {
-    @apply mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6;
-  }
+  .page-header   { @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between; }
+  .page-title    { @apply text-xl font-bold tracking-tight text-foreground sm:text-2xl; }
+  .page-subtitle { @apply text-sm text-muted-foreground mt-0.5; }
 
-  /* Standard page header row */
-  .page-header {
-    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
-  }
-  .page-title {
-    @apply text-xl font-bold tracking-tight text-foreground sm:text-2xl;
-  }
-  .page-subtitle {
-    @apply text-sm text-muted-foreground mt-0.5;
-  }
+  /* Grids */
+  .stat-grid      { @apply grid grid-cols-2 gap-4 lg:grid-cols-4; }
+  .content-grid-2 { @apply grid grid-cols-1 gap-4 lg:grid-cols-2; }
+  .content-grid-3 { @apply grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3; }
 
-  /* Stat / KPI grid — 2 cols mobile → 4 cols desktop */
-  .stat-grid {
-    @apply grid grid-cols-2 gap-4 lg:grid-cols-4;
-  }
+  /* Card */
+  .card-base { @apply rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5; }
 
-  /* Content grid — 1 col mobile → 2 or 3 col desktop */
-  .content-grid-2 {
-    @apply grid grid-cols-1 gap-4 lg:grid-cols-2;
-  }
-  .content-grid-3 {
-    @apply grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3;
-  }
+  /* Label */
+  .label-xs { @apply text-[10px] font-bold uppercase tracking-widest text-muted-foreground; }
 
-  /* Card with consistent padding */
-  .card-base {
-    @apply rounded-xl border border-border bg-card p-4 sm:p-5;
-  }
-
-  /* Section label */
-  .label-xs {
-    @apply text-[11px] font-semibold uppercase tracking-widest text-muted-foreground;
+  /* ClickUp-style focus ring */
+  .cu-focus {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-1;
   }
 }

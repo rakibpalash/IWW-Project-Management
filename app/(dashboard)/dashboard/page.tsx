@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { DashboardPage } from '@/components/dashboard/dashboard-page'
-import { Profile, Project, Task, AttendanceRecord, LeaveBalance, ActivityLog } from '@/types'
+import { Profile, List, Task, AttendanceRecord, LeaveBalance, ActivityLog } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 
 export const metadata = {
@@ -125,7 +125,7 @@ export default async function DashboardRoute() {
         todayAttendanceCount={todayAttendance?.length ?? 0}
         totalStaff={staffProfiles?.length ?? 0}
         recentActivity={(recentActivity as unknown as ActivityLog[]) ?? []}
-        recentProjects={(recentProjects as unknown as Project[]) ?? []}
+        recentProjects={(recentProjects as unknown as List[]) ?? []}
         recentTeamTimeEntries={recentTeamTimeEntries}
       />
     )
@@ -179,7 +179,7 @@ export default async function DashboardRoute() {
   return (
     <DashboardPage
       profile={profile as Profile}
-      clientProjects={(clientProjects as unknown as Project[]) ?? []}
+      clientProjects={(clientProjects as unknown as List[]) ?? []}
     />
   )
 }

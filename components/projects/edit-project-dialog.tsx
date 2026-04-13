@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
-import { Project, Workspace, Profile, BillingType } from '@/types'
+import { List, Space, Profile, BillingType } from '@/types'
 import { toast } from '@/components/ui/use-toast'
 import {
   Dialog,
@@ -85,9 +85,9 @@ type FormValues = z.infer<typeof formSchema>
 interface EditProjectDialogProps {
   open:          boolean
   onOpenChange:  (open: boolean) => void
-  project:       Project
+  project:       List
   isSuperAdmin?: boolean
-  onUpdated?:    (project: Project) => void
+  onUpdated?:    (project: List) => void
 }
 
 export function EditProjectDialog({
@@ -101,7 +101,7 @@ export function EditProjectDialog({
   const [loading,    setLoading]    = useState(false)
   const [clients,    setClients]    = useState<Profile[]>([])
   const [partners,   setPartners]   = useState<Profile[]>([])
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [workspaces, setWorkspaces] = useState<Space[]>([])
   const [statuses,   setStatuses]   = useState<TaskStatus[]>([])
   const [priorities, setPriorities] = useState<TaskPriority[]>([])
   const [startOpen,  setStartOpen]  = useState(false)
@@ -310,7 +310,7 @@ export function EditProjectDialog({
       }
 
       toast({ title: 'List updated', description: `"${data.name}" has been updated successfully.` })
-      onUpdated?.(data as Project)
+      onUpdated?.(data as List)
       onOpenChange(false)
     } finally {
       setLoading(false)

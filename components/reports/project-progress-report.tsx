@@ -8,9 +8,9 @@ import { Progress } from '@/components/ui/progress'
 import { StatCard, ExportButton, ReportLoading, ReportEmpty, statusColor, priorityColor, MiniProgress } from './report-shell'
 import { format, parseISO } from 'date-fns'
 import { AlertTriangle } from 'lucide-react'
-import { Workspace } from '@/types'
+import { Space } from '@/types'
 
-interface Props { workspaces: Workspace[]; isAdmin: boolean }
+interface Props { workspaces: Space[]; isAdmin: boolean }
 
 export function ProjectProgressReport({ workspaces, isAdmin }: Props) {
   const [data, setData] = useState<ProjectProgressRow[]>([])

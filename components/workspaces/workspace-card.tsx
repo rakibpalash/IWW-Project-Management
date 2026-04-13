@@ -2,7 +2,7 @@
 
 import { Building2, Users, FolderKanban, ChevronRight, MoreHorizontal, Pencil, Copy, Trash2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { Workspace } from '@/types'
+import { Space } from '@/types'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,14 +13,14 @@ import {
 import { Button } from '@/components/ui/button'
 
 interface WorkspaceCardProps {
-  workspace: Workspace & {
+  workspace: Space & {
     member_count: number
     project_count: number
   }
   onClick: () => void
-  onRename: (workspace: Workspace) => void
-  onClone: (workspace: Workspace) => void
-  onDelete: (workspace: Workspace) => void
+  onRename: (workspace: Space) => void
+  onClone: (workspace: Space) => void
+  onDelete: (workspace: Space) => void
   canEdit?: boolean
   canDelete?: boolean
 }

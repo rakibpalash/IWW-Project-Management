@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Profile, Workspace } from '@/types'
+import { Profile, Space } from '@/types'
 import { BarChart2, FolderKanban, CheckSquare, AlertTriangle, PieChart, Timer, Users, Clock, CalendarDays, ChevronRight } from 'lucide-react'
 import { ProjectProgressReport } from './project-progress-report'
 import { ProjectTimeReport } from './project-time-report'
@@ -81,7 +81,7 @@ export function ReportsPage({ profile, isAdmin, defaultReport }: Props) {
   const [activeReport, setActiveReport] = useState<ReportId>(
     (defaultReport as ReportId) ?? DEFAULT_REPORT
   )
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [workspaces, setWorkspaces] = useState<Space[]>([])
 
   // Fetch workspaces for filter dropdowns
   useEffect(() => {

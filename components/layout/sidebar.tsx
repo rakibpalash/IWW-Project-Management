@@ -25,7 +25,7 @@ import {
   User,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Profile, Workspace, Project } from '@/types'
+import { Profile, Space, List } from '@/types'
 import { PermissionSet, can } from '@/lib/permissions'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -120,13 +120,19 @@ function SpaceItem({
   pathname,
   onClose,
 }: {
-  workspace: Workspace
-  projects: Project[]
+  workspace: Space
+  projects: List[]
   pathname: string
   onClose: () => void
 }) {
   const hasActiveProject = projects.some(p => pathname.startsWith(`/lists/${p.id}`))
-  const [open, setOpen] = useState(hasActiveProject || projects.length <= 5)
+  // Default open: always open (real-time fills in projects after mount)
+  const [open, setOpen] = useState(true)
+
+  // Auto-open when an active project is detected (e.g. direct URL navigation)
+  useEffect(() => {
+    if (hasActiveProject) setOpen(true)
+  }, [hasActiveProject])
   const color = getSpaceColor(workspace.id)
   const initial = workspace.name.slice(0, 1).toUpperCase()
 
@@ -213,6 +219,8 @@ function SpaceItem({
 interface SidebarProps {
   profile: Profile
   permissions?: PermissionSet
+  initialSpaces?: Space[]
+  initialLists?: List[]
   isOpen: boolean
   isCollapsed: boolean
   onClose: () => void
@@ -221,26 +229,102 @@ interface SidebarProps {
 
 // ─── component ─────────────────────────────────────────────────────────────────
 
-export function Sidebar({ profile, permissions, isOpen, isCollapsed, onClose, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ profile, permissions, initialSpaces = [], initialLists = [], isOpen, isCollapsed, onClose, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const supabase = createClient()
 
-  const [workspaces,      setWorkspaces]      = useState<Workspace[]>([])
-  const [projects,        setProjects]        = useState<Project[]>([])
+  const [workspaces,      setWorkspaces]      = useState<Space[]>(initialSpaces)
+  const [projects,        setProjects]        = useState<List[]>(initialLists)
   const [showCreateSpace, setShowCreateSpace] = useState(false)
   const [staffProfiles,   setStaffProfiles]   = useState<Profile[]>([])
 
-  useEffect(() => {
-    supabase.from('workspaces')
-      .select('id, name, description, created_at, updated_at, created_by')
-      .order('name')
-      .then(({ data }) => setWorkspaces((data as Workspace[]) ?? []))
+  const PROJECT_SELECT = 'id, name, workspace_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, actual_hours, estimated_hours, start_date, due_date, description'
+  const WS_SELECT      = 'id, name, description, created_at, updated_at, created_by'
 
-    supabase.from('projects')
-      .select('id, name, workspace_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, actual_hours, estimated_hours, start_date, due_date, description')
-      .order('name')
-      .then(({ data }) => setProjects((data as Project[]) ?? []))
+  // Role-aware fetch — mirrors the EXACT same query logic as the Lists page
+  async function fetchSidebarData() {
+    const role    = profile.role
+    const userId  = profile.id
+    const orgId   = (profile as any).organization_id as string | null ?? null
+
+    if (role === 'staff') {
+      const { data: assignments } = await supabase
+        .from('workspace_assignments').select('workspace_id').eq('user_id', userId)
+      const wsIds = (assignments ?? []).map((a: { workspace_id: string }) => a.workspace_id)
+      if (wsIds.length > 0) {
+        const [wsRes, projRes] = await Promise.all([
+          supabase.from('workspaces').select(WS_SELECT).in('id', wsIds).order('name'),
+          supabase.from('projects').select(PROJECT_SELECT).in('workspace_id', wsIds).order('name'),
+        ])
+        setWorkspaces((wsRes.data as Space[]) ?? [])
+        setProjects((projRes.data as List[]) ?? [])
+      } else {
+        setWorkspaces([])
+        setProjects([])
+      }
+    } else if (role === 'client') {
+      const [wsRes, projRes] = await Promise.all([
+        supabase.from('workspaces').select(WS_SELECT).order('name'),
+        supabase.from('projects').select(PROJECT_SELECT).eq('client_id', userId).order('name'),
+      ])
+      setWorkspaces((wsRes.data as Space[]) ?? [])
+      setProjects((projRes.data as List[]) ?? [])
+    } else {
+      // super_admin / account_manager / others — explicit org-scoped filter (same as Lists page)
+      const wsQuery = orgId
+        ? supabase.from('workspaces').select(WS_SELECT).eq('organization_id', orgId).order('name')
+        : supabase.from('workspaces').select(WS_SELECT).order('name')
+      const { data: wsData } = await wsQuery
+      const spaces = (wsData as Space[]) ?? []
+      const wsIds  = spaces.map(w => w.id)
+
+      const { data: projData } = wsIds.length > 0
+        ? await supabase.from('projects').select(PROJECT_SELECT).in('workspace_id', wsIds).order('name')
+        : await supabase.from('projects').select(PROJECT_SELECT).order('name')
+
+      setWorkspaces(spaces)
+      setProjects((projData as List[]) ?? [])
+    }
+  }
+
+  // Refetch on every route change — catches list creation, deletion, rename
+  useEffect(() => {
+    fetchSidebarData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
+
+  // Real-time subscription for instant in-page updates (no navigation needed)
+  useEffect(() => {
+    const channel = supabase
+      .channel('sidebar-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'projects' },
+        (payload) => {
+          supabase.from('projects').select(PROJECT_SELECT).eq('id', payload.new.id).single()
+            .then(({ data }) => {
+              if (data) setProjects(prev =>
+                [...prev, data as List].sort((a, b) => a.name.localeCompare(b.name)))
+            })
+        }
+      )
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'projects' },
+        (payload) => {
+          supabase.from('projects').select(PROJECT_SELECT).eq('id', payload.new.id).single()
+            .then(({ data }) => {
+              if (data) setProjects(prev => prev.map(p => p.id === (data as List).id ? data as List : p))
+            })
+        }
+      )
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'projects' },
+        (payload) => { setProjects(prev => prev.filter(p => p.id !== payload.old.id)) }
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'workspaces' },
+        () => { fetchSidebarData() }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function openCreateSpace() {
@@ -280,7 +364,7 @@ export function Sidebar({ profile, permissions, isOpen, isCollapsed, onClose, on
 
         {/* ── Logo bar ── */}
         <div className={cn(
-          'flex h-[60px] shrink-0 items-center border-b border-sidebar-border',
+          'flex h-11 shrink-0 items-center border-b border-sidebar-border',
           isCollapsed ? 'lg:justify-center px-2' : 'px-4 gap-3',
         )}>
           {/* Logo badge */}

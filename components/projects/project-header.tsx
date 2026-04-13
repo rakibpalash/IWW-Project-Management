@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Project, Profile } from '@/types'
+import { List, Profile } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -23,9 +23,9 @@ import { getProjectDeleteImpact } from '@/app/actions/delete-impact'
 import { useToast } from '@/components/ui/use-toast'
 
 interface ProjectHeaderProps {
-  project: Project
+  project: List
   profile: Profile
-  onProjectUpdated?: (updated: Project) => void
+  onProjectUpdated?: (updated: List) => void
 }
 
 const BILLING_LABELS: Record<string, string> = {

@@ -3,14 +3,14 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
-import { Profile, ProjectMember } from '@/types'
+import { Profile, ListMember } from '@/types'
 import { notify } from '@/lib/notifications'
 
 const PROFILE_SELECT = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, custom_role_id'
 
 // ── Get project members ───────────────────────────────────────────────────────
 export async function getProjectMembersAction(projectId: string): Promise<{
-  members?: ProjectMember[]
+  members?: ListMember[]
   error?: string
 }> {
   const admin = createAdminClient()
@@ -35,7 +35,7 @@ export async function getProjectMembersAction(projectId: string): Promise<{
     profilesById[p.id] = p as Profile
   }
 
-  const members: ProjectMember[] = membersData.map((m) => ({
+  const members: ListMember[] = membersData.map((m) => ({
     ...m,
     profile: profilesById[m.user_id],
   }))

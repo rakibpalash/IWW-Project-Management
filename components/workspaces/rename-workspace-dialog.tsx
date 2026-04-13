@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { Loader2 } from 'lucide-react'
 import { renameWorkspaceAction } from '@/app/actions/workspaces'
-import { Workspace } from '@/types'
+import { Space } from '@/types'
 
 const formSchema = z.object({
   name: z
@@ -40,7 +40,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>
 
 interface RenameWorkspaceDialogProps {
-  workspace: Workspace | null
+  workspace: Space | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: (id: string, name: string, description: string | null) => void

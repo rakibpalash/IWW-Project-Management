@@ -13,7 +13,7 @@ export default function Loading() {
       <aside className="hidden lg:flex lg:w-[220px] lg:shrink-0 border-r bg-sidebar flex-col">
 
         {/* Logo / brand */}
-        <div className="flex items-center gap-2 h-14 px-4 border-b border-sidebar-border">
+        <div className="flex items-center gap-2 h-11 px-4 border-b border-sidebar-border">
           <div className="h-7 w-7 rounded-lg bg-white/10 animate-pulse" />
           <div className="h-3.5 w-24 rounded bg-white/10 animate-pulse" />
         </div>
@@ -61,7 +61,7 @@ export default function Loading() {
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
 
         {/* Topbar */}
-        <header className="flex items-center gap-3 h-14 px-4 border-b bg-background shrink-0">
+        <header className="flex items-center gap-3 h-11 px-4 border-b bg-background shrink-0">
           <Skeleton className="h-8 w-8 rounded-md lg:hidden" />
           <Skeleton className="h-4 w-32 hidden sm:block" />
           <div className="flex-1" />

@@ -1,6 +1,6 @@
 export type Role = 'super_admin' | 'account_manager' | 'project_manager' | 'staff' | 'client' | 'partner'
 
-export type ProjectStatus = 'planning' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled'
+export type ListStatus = 'planning' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled'
 export type Priority = 'low' | 'medium' | 'high' | 'urgent'
 export type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled'
 export type BillingType = 'hourly' | 'fixed' | 'retainer' | 'non_billable'
@@ -49,7 +49,7 @@ export interface Profile {
   manager_id?: string | null
 }
 
-export interface Workspace {
+export interface Space {
   id: string
   name: string
   description: string | null
@@ -58,14 +58,14 @@ export interface Workspace {
   updated_at: string
 }
 
-export interface WorkspaceAssignment {
+export interface SpaceAssignment {
   id: string
   workspace_id: string
   user_id: string
   created_at: string
 }
 
-export interface Project {
+export interface List {
   id: string
   workspace_id: string
   name: string
@@ -76,7 +76,7 @@ export interface Project {
   billing_type: BillingType | null
   start_date: string | null
   due_date: string | null
-  status: ProjectStatus
+  status: ListStatus
   priority: Priority
   progress: number
   estimated_hours: number | null
@@ -85,7 +85,7 @@ export interface Project {
   created_at: string
   updated_at: string
   // joined
-  workspace?: Workspace
+  workspace?: Space
   client?: Profile
   partner?: Profile
   actual_hours?: number
@@ -108,7 +108,7 @@ export interface Task {
   updated_at: string
   depth: number
   // joined
-  project?: Project
+  project?: List
   assignees?: Profile[]
   subtasks?: Task[]
   actual_hours?: number
@@ -353,7 +353,7 @@ export interface CustomTaskPriority {
   created_at: string
 }
 
-export interface ProjectMember {
+export interface ListMember {
   id: string
   project_id: string
   user_id: string
@@ -363,8 +363,8 @@ export interface ProjectMember {
 }
 
 export interface DashboardStats {
-  total_projects: number
-  active_projects: number
+  total_lists: number
+  active_lists: number
   overdue_tasks: number
   my_tasks: number
   pending_leaves: number

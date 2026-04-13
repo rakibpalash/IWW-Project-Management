@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Profile, Workspace, WorkspaceAssignment, Role } from '@/types'
+import { Profile, Space, SpaceAssignment, Role } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,8 +20,8 @@ import { format, parseISO } from 'date-fns'
 interface TeamPageProps {
   profile: Profile
   allProfiles: Profile[]
-  workspaces: Workspace[]
-  workspaceAssignments: (WorkspaceAssignment & { workspace?: Workspace })[]
+  workspaces: Space[]
+  workspaceAssignments: (SpaceAssignment & { workspace?: Space })[]
 }
 
 const roleConfig: Record<string, { label: string; icon: React.ElementType; className: string }> = {
@@ -44,7 +44,7 @@ function UserCard({
   workspaces,
 }: {
   user: Profile
-  workspaces: Workspace[]
+  workspaces: Space[]
 }) {
   const rc = roleConfig[user.role] ?? roleConfig.staff
   const RoleIcon = rc.icon
@@ -111,12 +111,12 @@ export function TeamPage({
 }: TeamPageProps) {
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
-  const [workspaceFilter, setWorkspaceFilter] = useState('all')
+  const [spaceFilter, setSpaceFilter] = useState('all')
 
-  const getUserWorkspaces = (userId: string): Workspace[] => {
+  const getUserWorkspaces = (userId: string): Space[] => {
     return workspaceAssignments
       .filter((a) => a.user_id === userId && a.workspace)
-      .map((a) => a.workspace as Workspace)
+      .map((a) => a.workspace as Space)
   }
 
   const filteredUsers = allProfiles.filter((u) => {
@@ -128,9 +128,9 @@ export function TeamPage({
     const matchesRole = roleFilter === 'all' || u.role === roleFilter
 
     const matchesWorkspace =
-      workspaceFilter === 'all' ||
+      spaceFilter === 'all' ||
       workspaceAssignments.some(
-        (a) => a.user_id === u.id && a.workspace_id === workspaceFilter
+        (a) => a.user_id === u.id && a.workspace_id === spaceFilter
       )
 
     return matchesSearch && matchesRole && matchesWorkspace
@@ -174,7 +174,7 @@ export function TeamPage({
           </SelectContent>
         </Select>
         {workspaces.length > 0 && (
-          <Select value={workspaceFilter} onValueChange={setWorkspaceFilter}>
+          <Select value={spaceFilter} onValueChange={setSpaceFilter}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="All Spaces" />
             </SelectTrigger>

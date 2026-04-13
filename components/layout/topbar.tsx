@@ -36,8 +36,8 @@ import { cn } from '@/lib/utils'
 
 const BREADCRUMB_MAP: Record<string, string> = {
   dashboard:     'Dashboard',
-  workspaces:    'Workspaces',
-  projects:      'Projects',
+  spaces:        'Spaces',
+  lists:         'Lists',
   tasks:         'My Tasks',
   attendance:    'Attendance',
   leave:         'Leave',
@@ -45,6 +45,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   settings:      'Settings',
   notifications: 'Notifications',
   timesheet:     'Timesheet',
+  reports:       'Reports',
 }
 
 function getInitials(name: string) {
@@ -104,7 +105,7 @@ export function Topbar({ profile, onMobileMenuToggle }: TopbarProps) {
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-3 md:px-5">
+    <header className="flex h-11 shrink-0 items-center gap-3 border-b border-border bg-background px-3 md:px-5">
       {/* Mobile hamburger */}
       <Button
         variant="ghost"

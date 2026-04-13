@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
-import { ProjectMember, Profile, CustomRole } from '@/types'
+import { ListMember, Profile, CustomRole } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -42,7 +42,7 @@ import { getInitials } from '@/lib/utils'
 
 interface ProjectTeamSectionProps {
   projectId: string
-  initialMembers: ProjectMember[]
+  initialMembers: ListMember[]
   allProfiles: Profile[]   // all staff available to add
   customRoles: CustomRole[]
   canManage: boolean        // true for super_admin
@@ -55,9 +55,9 @@ export function ProjectTeamSection({
   customRoles,
   canManage,
 }: ProjectTeamSectionProps) {
-  const [members, setMembers] = useState<ProjectMember[]>(initialMembers)
+  const [members, setMembers] = useState<ListMember[]>(initialMembers)
   const [addOpen, setAddOpen] = useState(false)
-  const [removeTarget, setRemoveTarget] = useState<ProjectMember | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<ListMember | null>(null)
   const [search, setSearch] = useState('')
   const [selectedUserId, setSelectedUserId] = useState('')
   const [selectedRole, setSelectedRole] = useState<'lead' | 'member'>('member')
@@ -92,7 +92,7 @@ export function ProjectTeamSection({
       const result = await addProjectMemberAction(projectId, selectedUserId, selectedRole)
       if (result.error) { setError(result.error); return }
       const profile = allProfiles.find((p) => p.id === selectedUserId)
-      const newMember: ProjectMember = {
+      const newMember: ListMember = {
         id: (result.member as any).id,
         project_id: projectId,
         user_id: selectedUserId,
@@ -108,7 +108,7 @@ export function ProjectTeamSection({
     })
   }
 
-  const handleRoleChange = (member: ProjectMember, newRole: 'lead' | 'member') => {
+  const handleRoleChange = (member: ListMember, newRole: 'lead' | 'member') => {
     startTransition(async () => {
       const result = await updateProjectMemberRoleAction(member.id, newRole, projectId)
       if (result.error) { setError(result.error); return }
@@ -333,11 +333,11 @@ export function ProjectTeamSection({
 
 // ── Member Row ──────────────────────────────────────────────────────────────
 interface MemberRowProps {
-  member: ProjectMember
+  member: ListMember
   customRole: CustomRole | null
   canManage: boolean
   isPending: boolean
-  onRoleChange: (m: ProjectMember, role: 'lead' | 'member') => void
+  onRoleChange: (m: ListMember, role: 'lead' | 'member') => void
   onRemove: () => void
 }
 

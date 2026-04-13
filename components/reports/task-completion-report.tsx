@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react'
 import { getTaskCompletionReportAction, TaskCompletionData } from '@/app/actions/reports'
 import { StatCard, ExportButton, ReportLoading, ReportEmpty, BarChart, HorizontalBar, statusColor } from './report-shell'
-import { Workspace } from '@/types'
+import { Space } from '@/types'
 import { format, subDays } from 'date-fns'
 
-interface Props { workspaces: Workspace[]; isAdmin: boolean }
+interface Props { workspaces: Space[]; isAdmin: boolean }
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')

@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 import { getOverdueTasksReportAction, OverdueTaskRow } from '@/app/actions/reports'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StatCard, ExportButton, ReportLoading, ReportEmpty, priorityColor } from './report-shell'
-import { Workspace } from '@/types'
+import { Space } from '@/types'
 import { format, parseISO } from 'date-fns'
 import { AlertTriangle } from 'lucide-react'
 
-interface Props { workspaces: Workspace[]; isAdmin: boolean }
+interface Props { workspaces: Space[]; isAdmin: boolean }
 
 export function OverdueTasksReport({ workspaces, isAdmin }: Props) {
   const [data, setData] = useState<OverdueTaskRow[]>([])

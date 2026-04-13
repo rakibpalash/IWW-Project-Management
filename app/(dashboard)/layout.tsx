@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation'
 import { DashboardShell } from '@/components/layout/dashboard-shell'
-import { Profile } from '@/types'
-import { getUser, getProfile } from '@/lib/data/auth'
+import { Profile, Space, List } from '@/types'
+import { getUser, getProfile, getSidebarData } from '@/lib/data/auth'
 import { getMyPermissionsAction } from '@/app/actions/permissions'
-import { PermissionSet } from '@/lib/permissions'
 
 export default async function DashboardLayout({
   children,
@@ -23,10 +22,18 @@ export default async function DashboardLayout({
     redirect('/setup-org')
   }
 
-  const permissions = await getMyPermissionsAction()
+  const [permissions, { workspaces, projects }] = await Promise.all([
+    getMyPermissionsAction(),
+    getSidebarData(user.id, profile.role, profile.organization_id ?? null),
+  ])
 
   return (
-    <DashboardShell profile={profile as Profile} permissions={permissions}>
+    <DashboardShell
+      profile={profile as Profile}
+      permissions={permissions}
+      initialSpaces={workspaces as Space[]}
+      initialLists={projects as List[]}
+    >
       {children}
     </DashboardShell>
   )

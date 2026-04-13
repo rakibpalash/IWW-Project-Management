@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Project, Profile, Workspace, ProjectStatus, Priority } from '@/types'
+import { List, Profile, Space, ListStatus, Priority } from '@/types'
 import { ProjectCard } from './project-card'
 import { CreateProjectDialog } from './create-project-dialog'
 import { Button } from '@/components/ui/button'
@@ -14,25 +14,25 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { LayoutGrid, List, Plus, Search, X } from 'lucide-react'
+import { LayoutGrid, List as ListIcon, Plus, Search, X } from 'lucide-react'
 import { PROJECT_STATUSES, PRIORITIES } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
 interface ProjectsPageProps {
-  initialProjects: Project[]
+  initialLists: List[]
   profile: Profile
-  workspaces: Workspace[]
+  spaces: Space[]
 }
 
 type ViewMode = 'grid' | 'list'
 
-export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsPageProps) {
-  const [projects, setProjects] = useState<Project[]>(initialProjects)
+export function ProjectsPage({ initialLists, profile, spaces: workspaces }: ProjectsPageProps) {
+  const [projects, setProjects] = useState<List[]>(initialLists)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [priorityFilter, setPriorityFilter] = useState<string>('all')
-  const [workspaceFilter, setWorkspaceFilter] = useState<string>('all')
+  const [spaceFilter, setSpaceFilter] = useState<string>('all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
   const canCreate = profile.role === 'super_admin' || profile.role === 'staff'
@@ -49,31 +49,31 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
       const matchesStatus = statusFilter === 'all' || project.status === statusFilter
       const matchesPriority = priorityFilter === 'all' || project.priority === priorityFilter
       const matchesWorkspace =
-        workspaceFilter === 'all' || project.workspace_id === workspaceFilter
+        spaceFilter === 'all' || project.workspace_id === spaceFilter
 
       return matchesSearch && matchesStatus && matchesPriority && matchesWorkspace
     })
-  }, [projects, search, statusFilter, priorityFilter, workspaceFilter])
+  }, [projects, search, statusFilter, priorityFilter, spaceFilter])
 
   const hasActiveFilters =
     search !== '' ||
     statusFilter !== 'all' ||
     priorityFilter !== 'all' ||
-    workspaceFilter !== 'all'
+    spaceFilter !== 'all'
 
   function clearFilters() {
     setSearch('')
     setStatusFilter('all')
     setPriorityFilter('all')
-    setWorkspaceFilter('all')
+    setSpaceFilter('all')
   }
 
-  function handleProjectCreated(newProject: Project) {
+  function handleProjectCreated(newProject: List) {
     setProjects((prev) => [newProject, ...prev])
     setShowCreateDialog(false)
   }
 
-  function handleProjectUpdated(updated: Project) {
+  function handleProjectUpdated(updated: List) {
     setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
   }
 
@@ -81,7 +81,7 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
     setProjects((prev) => prev.filter((p) => p.id !== id))
   }
 
-  function handleProjectCloned(cloned: Project) {
+  function handleProjectCloned(cloned: List) {
     setProjects((prev) => [cloned, ...prev])
   }
 
@@ -123,7 +123,7 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
               onClick={() => setViewMode('list')}
               aria-label="List view"
             >
-              <List className="h-4 w-4" />
+              <ListIcon className="h-4 w-4" />
             </Button>
           </div>
 
@@ -212,7 +212,7 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
           </Select>
 
           {isAdmin && workspaces.length > 0 && (
-            <Select value={workspaceFilter} onValueChange={setWorkspaceFilter}>
+            <Select value={spaceFilter} onValueChange={setSpaceFilter}>
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Space" />
               </SelectTrigger>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Profile } from '@/types'
+import { Profile, Space, List } from '@/types'
 import { PermissionSet } from '@/lib/permissions'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
@@ -13,10 +13,12 @@ import { TourAutoStart } from '@/components/onboarding/tour-auto-start'
 interface DashboardShellProps {
   profile: Profile
   permissions?: PermissionSet
+  initialSpaces?: Space[]
+  initialLists?: List[]
   children: React.ReactNode
 }
 
-export function DashboardShell({ profile, permissions, children }: DashboardShellProps) {
+export function DashboardShell({ profile, permissions, initialSpaces = [], initialLists = [], children }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -30,7 +32,7 @@ export function DashboardShell({ profile, permissions, children }: DashboardShel
         {/* Sidebar skeleton — matches real sidebar dimensions & dark bg */}
         <aside className="hidden lg:flex lg:w-[220px] lg:shrink-0 border-r bg-sidebar flex-col">
           {/* Logo row */}
-          <div className="flex items-center gap-2 h-14 px-4 border-b border-sidebar-border">
+          <div className="flex items-center gap-2 h-11 px-4 border-b border-sidebar-border">
             <div className="h-7 w-7 rounded-lg bg-white/10 animate-pulse" />
             <div className="h-3.5 w-24 rounded bg-white/10 animate-pulse" />
           </div>
@@ -69,7 +71,7 @@ export function DashboardShell({ profile, permissions, children }: DashboardShel
 
         {/* Main area skeleton */}
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-          <div className="h-14 border-b bg-background" />
+          <div className="h-11 border-b bg-background" />
           <div className="flex-1 overflow-y-auto scrollbar-thin">{children}</div>
         </div>
       </div>
@@ -82,6 +84,8 @@ export function DashboardShell({ profile, permissions, children }: DashboardShel
         <Sidebar
           profile={profile}
           permissions={permissions}
+          initialSpaces={initialSpaces}
+          initialLists={initialLists}
           isOpen={sidebarOpen}
           isCollapsed={sidebarCollapsed}
           onClose={() => setSidebarOpen(false)}

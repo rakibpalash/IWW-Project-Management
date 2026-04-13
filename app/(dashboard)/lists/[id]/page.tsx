@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { ProjectDetailPage } from '@/components/projects/project-detail-page'
-import { Project, Task, Profile, ActivityLog, ProjectMember, CustomRole } from '@/types'
+import { List, Task, Profile, ActivityLog, ListMember, CustomRole } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 
 interface ProjectPageProps {
@@ -186,7 +186,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   const pmProfileById: Record<string, Profile> = {}
   for (const p of pmProfiles) pmProfileById[p.id] = p
 
-  const projectMembers: ProjectMember[] = (pmData ?? []).map((m: any) => ({
+  const projectMembers: ListMember[] = (pmData ?? []).map((m: any) => ({
     ...m,
     profile: pmProfileById[m.user_id],
   }))
@@ -194,7 +194,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   const projectWithHours = {
     ...project,
     actual_hours: actualHours,
-  } as Project
+  } as List
 
   return (
     <ProjectDetailPage

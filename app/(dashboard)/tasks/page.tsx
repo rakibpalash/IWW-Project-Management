@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { MyTasksPage } from '@/components/tasks/my-tasks-page'
-import { Task, Profile, Project } from '@/types'
+import { Task, Profile, List } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 
 export const metadata = {
@@ -115,7 +115,7 @@ export default async function TasksServerPage() {
   const { data: projectsData } = orgWsIds.length > 0
     ? await supabase.from('projects').select('id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at').in('workspace_id', orgWsIds).order('name')
     : { data: [] }
-  const allProjects: Project[] = (projectsData ?? []) as Project[]
+  const allProjects: List[] = (projectsData ?? []) as List[]
 
   return (
     <MyTasksPage

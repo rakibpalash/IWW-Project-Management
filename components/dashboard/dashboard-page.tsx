@@ -38,7 +38,7 @@ import {
 } from '@/lib/utils'
 import {
   Profile,
-  Project,
+  List,
   Task,
   AttendanceRecord,
   LeaveBalance,
@@ -68,7 +68,7 @@ interface DashboardPageProps {
   todayAttendanceCount?: number
   totalStaff?: number
   recentActivity?: ActivityLog[]
-  recentProjects?: Project[]
+  recentProjects?: List[]
   recentTeamTimeEntries?: DashboardTimeEntry[]
   // Staff / Manager
   myTasks?: Task[]
@@ -77,7 +77,7 @@ interface DashboardPageProps {
   timeTrackedTodayMinutes?: number
   myRecentTimeEntries?: DashboardTimeEntry[]
   // Client
-  clientProjects?: Project[]
+  clientProjects?: List[]
 }
 
 function getGreeting(name: string) {
@@ -185,7 +185,7 @@ function SuperAdminDashboard({
   todayAttendanceCount: number
   totalStaff: number
   recentActivity: ActivityLog[]
-  recentProjects: Project[]
+  recentProjects: List[]
   recentTeamTimeEntries: DashboardTimeEntry[]
   router: ReturnType<typeof useRouter>
 }) {
@@ -693,7 +693,7 @@ function PriorityDot({ priority }: { priority: string }) {
 
 // ─── Recent Projects Card ─────────────────────────────────────────────────────
 
-function RecentProjectsCard({ projects, router }: { projects: Project[]; router: ReturnType<typeof useRouter> }) {
+function RecentProjectsCard({ projects, router }: { projects: List[]; router: ReturnType<typeof useRouter> }) {
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
@@ -898,7 +898,7 @@ function TimeLogWidget({
 
 // ─── Client Projects List ─────────────────────────────────────────────────────
 
-function ClientProjectsList({ projects, router }: { projects: Project[]; router: ReturnType<typeof useRouter> }) {
+function ClientProjectsList({ projects, router }: { projects: List[]; router: ReturnType<typeof useRouter> }) {
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm">
       <div className="border-b border-border/60 px-5 py-4">

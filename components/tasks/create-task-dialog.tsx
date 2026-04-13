@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Task, Profile, Project } from '@/types'
+import { Task, Profile, List } from '@/types'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useToast } from '@/components/ui/use-toast'
@@ -18,7 +18,7 @@ import { useTaskConfig } from '@/hooks/use-task-config'
 interface CreateTaskDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  projects: Project[]
+  projects: List[]
   profile: Profile
   onCreated: (task: Task) => void
   parentTaskId?: string

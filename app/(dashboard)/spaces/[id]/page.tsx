@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/server'
 import { WorkspaceDetailPage } from '@/components/workspaces/workspace-detail-page'
-import { Workspace, Profile, Project, Task, ActivityLog } from '@/types'
+import { Space, Profile, List, Task, ActivityLog } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 import { getMyPermissionsAction } from '@/app/actions/permissions'
 import { can } from '@/lib/permissions'
@@ -67,7 +67,7 @@ export default async function SpaceDetailRoute({
     .eq('workspace_id', id)
     .order('created_at', { ascending: false })
 
-  const projectList = (projects as Project[]) ?? []
+  const projectList = (projects as List[]) ?? []
   const projectIds = projectList.map((p) => p.id)
 
   let tasks: Task[] = []
@@ -111,7 +111,7 @@ export default async function SpaceDetailRoute({
 
   return (
     <WorkspaceDetailPage
-      workspace={workspace as Workspace}
+      workspace={workspace as Space}
       members={members}
       projects={projectList}
       tasks={tasks}

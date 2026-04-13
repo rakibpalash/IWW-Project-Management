@@ -23,11 +23,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Workspace, Profile, Project, Task, ActivityLog } from '@/types'
+import { Space, Profile, List, Task, ActivityLog } from '@/types'
 import { cn, formatStatus, getInitials, timeAgo } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 import {
-  Users, Search, Filter, LayoutGrid, List, MoreHorizontal, Loader2, Copy,
+  Users, Search, Filter, LayoutGrid, List as ListIcon, MoreHorizontal, Loader2, Copy,
   Plus, RefreshCw, ChevronDown, ChevronRight, SlidersHorizontal,
   Share2, Maximize2, UserPlus, FolderKanban, LayoutList, Calendar,
   ExternalLink, CheckCircle2, PenLine, FilePlus2, Clock, Activity,
@@ -42,9 +42,9 @@ import { Label } from '@/components/ui/label'
 type TabType = 'summary' | 'list' | 'board' | 'calendar' | 'timeline'
 
 interface WorkspaceDetailPageProps {
-  workspace: Workspace
+  workspace: Space
   members: Profile[]
-  projects: Project[]
+  projects: List[]
   tasks: Task[]
   activityLogs: ActivityLog[]
   isAdmin: boolean
@@ -831,7 +831,7 @@ export function WorkspaceDetailPage({
             </Button>
             <div className="ml-auto flex items-center gap-1">
               <div className="flex items-center border rounded-md overflow-hidden">
-                <button onClick={() => setListView('list')} className={cn('px-2 py-1.5 border-r', listView === 'list' ? 'bg-blue-50 text-blue-600' : 'text-muted-foreground hover:bg-muted')}><List className="h-3.5 w-3.5" /></button>
+                <button onClick={() => setListView('list')} className={cn('px-2 py-1.5 border-r', listView === 'list' ? 'bg-blue-50 text-blue-600' : 'text-muted-foreground hover:bg-muted')}><ListIcon className="h-3.5 w-3.5" /></button>
                 <button onClick={() => setListView('grid')} className={cn('px-2 py-1.5', listView === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-muted-foreground hover:bg-muted')}><LayoutGrid className="h-3.5 w-3.5" /></button>
               </div>
             </div>

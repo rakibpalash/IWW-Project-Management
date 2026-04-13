@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/server'
 import { WorkspacesPage } from '@/components/workspaces/workspaces-page'
-import { Workspace, Profile } from '@/types'
+import { Space, Profile } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 import { getMyPermissionsAction } from '@/app/actions/permissions'
 import { can } from '@/lib/permissions'
@@ -59,7 +59,7 @@ export default async function SpacesRoute() {
       console.error('[SpacesRoute] DB error:', wsErr.message)
     }
 
-    const workspacesWithCounts = (workspaces ?? []).map((ws: Workspace) => ({
+    const workspacesWithCounts = (workspaces ?? []).map((ws: Space) => ({
       ...ws,
       member_count: (assignments ?? []).filter(
         (a: { workspace_id: string }) => a.workspace_id === ws.id

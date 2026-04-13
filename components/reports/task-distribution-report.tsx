@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import { getTaskDistributionReportAction, TaskDistributionData } from '@/app/actions/reports'
 import { StatCard, ExportButton, ReportLoading, ReportEmpty, BarChart, HorizontalBar } from './report-shell'
-import { Workspace } from '@/types'
+import { Space } from '@/types'
 
-interface Props { workspaces: Workspace[]; isAdmin: boolean }
+interface Props { workspaces: Space[]; isAdmin: boolean }
 
 export function TaskDistributionReport({ workspaces, isAdmin }: Props) {
   const [data, setData] = useState<TaskDistributionData | null>(null)

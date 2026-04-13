@@ -4,11 +4,11 @@ import { useState, useEffect, useRef } from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { createWorkspaceAction } from '@/app/actions/workspaces'
-import { Profile, Workspace } from '@/types'
+import { Profile, Space } from '@/types'
 import { X, Search, Shield, ChevronDown, Lock, Check } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 
-type WorkspaceWithCounts = Workspace & { member_count: number; project_count: number }
+type WorkspaceWithCounts = Space & { member_count: number; project_count: number }
 
 interface CreateWorkspaceDialogProps {
   open: boolean

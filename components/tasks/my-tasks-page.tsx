@@ -10,7 +10,7 @@ import {
   startOfDay,
   format,
 } from 'date-fns'
-import { Task, Profile, Project, TaskStatus, Priority } from '@/types'
+import { Task, Profile, List, TaskStatus, Priority } from '@/types'
 import { TaskRow } from './task-row'
 import { CreateTaskDialog } from './create-task-dialog'
 import { Button } from '@/components/ui/button'
@@ -50,7 +50,7 @@ import { useTaskConfig } from '@/hooks/use-task-config'
 interface MyTasksPageProps {
   initialTasks: Task[]
   profile: Profile
-  projects: Project[]
+  projects: List[]
 }
 
 type TaskGroup = {

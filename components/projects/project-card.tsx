@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Project, Profile } from '@/types'
+import { List, Profile } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -52,13 +52,13 @@ const BILLING_LABELS: Record<string, string> = {
 }
 
 interface ProjectCardProps {
-  project: Project
+  project: List
   listMode?: boolean
   isAdmin?: boolean
   userRole?: Role
   onDeleted?: (id: string) => void
-  onUpdated?: (project: Project) => void
-  onCloned?: (project: Project) => void
+  onUpdated?: (project: List) => void
+  onCloned?: (project: List) => void
 }
 
 export function ProjectCard({

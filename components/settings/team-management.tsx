@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Profile, Workspace, WorkspaceAssignment, CustomRole } from '@/types'
+import { Profile, Space, SpaceAssignment, CustomRole } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -63,8 +63,8 @@ import { cn } from '@/lib/utils'
 
 interface TeamManagementProps {
   users: Profile[]
-  workspaces: Workspace[]
-  workspaceAssignments: (WorkspaceAssignment & { workspace?: Workspace })[]
+  workspaces: Space[]
+  workspaceAssignments: (SpaceAssignment & { workspace?: Space })[]
   customRoles?: CustomRole[]
 }
 
@@ -141,10 +141,10 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
     return matchesSearch && matchesRole && matchesStatus
   })
 
-  const getUserWorkspaces = (userId: string): Workspace[] => {
+  const getUserWorkspaces = (userId: string): Space[] => {
     return workspaceAssignments
       .filter((a) => a.user_id === userId && a.workspace)
-      .map((a) => a.workspace as Workspace)
+      .map((a) => a.workspace as Space)
   }
 
   const handleRoleChange = async (userId: string, newRole: string) => {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Project, Workspace, Profile } from '@/types'
+import { List, Space, Profile } from '@/types'
 import { toast } from '@/components/ui/use-toast'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { X, Search, Check, ChevronDown } from 'lucide-react'
@@ -15,8 +15,8 @@ import { useTaskConfig } from '@/hooks/use-task-config'
 interface CreateProjectDialogProps {
   open:         boolean
   onOpenChange: (open: boolean) => void
-  workspaces:   Workspace[]
-  onCreated?:   (project: Project) => void
+  workspaces:   Space[]
+  onCreated?:   (project: List) => void
   profile?:     Profile
 }
 
@@ -123,7 +123,7 @@ export function CreateProjectDialog({
       if (memberInserts.length > 0) await supabase.from('project_members').insert(memberInserts)
 
       toast({ title: 'List created', description: `"${data.name}" has been created.` })
-      onCreated?.(data as Project)
+      onCreated?.(data as List)
       onOpenChange(false)
       router.push(`/lists/${data.id}`)
     } finally { setLoading(false) }

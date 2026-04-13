@@ -12,9 +12,9 @@ import { SmartDeleteDialog } from '@/components/ui/smart-delete-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { deleteWorkspaceAction, cloneWorkspaceAction } from '@/app/actions/workspaces'
 import { getWorkspaceDeleteImpact } from '@/app/actions/delete-impact'
-import { Workspace, Profile } from '@/types'
+import { Space, Profile } from '@/types'
 
-type WorkspaceWithCounts = Workspace & { member_count: number; project_count: number }
+type WorkspaceWithCounts = Space & { member_count: number; project_count: number }
 
 interface WorkspacesPageProps {
   workspaces: WorkspaceWithCounts[]
@@ -31,8 +31,8 @@ export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles, c
   const [workspaces, setWorkspaces] = useState<WorkspaceWithCounts[]>(initialWorkspaces)
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
-  const [renameTarget, setRenameTarget] = useState<Workspace | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
+  const [renameTarget, setRenameTarget] = useState<Space | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Space | null>(null)
   const [cloningId, setCloningId] = useState<string | null>(null)
 
   const filtered = workspaces.filter(
@@ -55,7 +55,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles, c
   }
 
   // ── Clone: needs server data for new workspace ────────────────────────────
-  async function handleClone(workspace: Workspace) {
+  async function handleClone(workspace: Space) {
     setCloningId(workspace.id)
     try {
       const result = await cloneWorkspaceAction(workspace.id)

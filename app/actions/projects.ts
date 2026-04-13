@@ -2,7 +2,7 @@
 
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { Project } from '@/types'
+import { List } from '@/types'
 
 type ProjectInput = {
   workspace_id: string
@@ -20,7 +20,7 @@ type ProjectInput = {
 
 export async function createProjectAction(
   data: ProjectInput
-): Promise<{ success: boolean; project?: Project; error?: string }> {
+): Promise<{ success: boolean; project?: List; error?: string }> {
   try {
     const supabase = await createClient()
 
@@ -58,7 +58,7 @@ export async function createProjectAction(
     revalidatePath('/lists')
     revalidatePath('/dashboard')
 
-    return { success: true, project: project as Project }
+    return { success: true, project: project as List }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return { success: false, error: message }
@@ -70,7 +70,7 @@ export async function createProjectAction(
 export async function updateProjectAction(
   id: string,
   data: Partial<ProjectInput> & { progress?: number }
-): Promise<{ success: boolean; project?: Project; error?: string }> {
+): Promise<{ success: boolean; project?: List; error?: string }> {
   try {
     const supabase = await createClient()
 
@@ -112,7 +112,7 @@ export async function updateProjectAction(
     revalidatePath(`/lists/${id}`)
     revalidatePath('/dashboard')
 
-    return { success: true, project: project as Project }
+    return { success: true, project: project as List }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return { success: false, error: message }
@@ -202,7 +202,7 @@ export async function deleteProjectAction(
 
 export async function cloneProjectAction(
   id: string
-): Promise<{ success: boolean; project?: Project; error?: string }> {
+): Promise<{ success: boolean; project?: List; error?: string }> {
   try {
     const supabase = await createClient()
     const admin = createAdminClient()
@@ -258,7 +258,7 @@ export async function cloneProjectAction(
 
     revalidatePath('/lists')
     revalidatePath(`/spaces/${original.workspace_id}`)
-    return { success: true, project: cloned as Project }
+    return { success: true, project: cloned as List }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProjectsPage } from '@/components/projects/projects-page'
-import { Project, Profile, Workspace } from '@/types'
+import { List, Profile, Space } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 
 export const metadata = {
@@ -18,7 +18,7 @@ export default async function ProjectsServerPage() {
   const supabase = await createClient()
   const orgId = (profile as Profile).organization_id
 
-  let projects: Project[] = []
+  let projects: List[] = []
 
   const PROJECT_SELECT = `
     *,
@@ -38,7 +38,7 @@ export default async function ProjectsServerPage() {
       ? await supabase.from('projects').select(PROJECT_SELECT).in('workspace_id', orgWorkspaceIds).order('created_at', { ascending: false })
       : await supabase.from('projects').select(PROJECT_SELECT).order('created_at', { ascending: false })
 
-    projects = (data ?? []) as Project[]
+    projects = (data ?? []) as List[]
   } else if (profile.role === 'staff') {
     // Staff: fetch projects in their assigned workspaces
     const { data: assignments } = await supabase
@@ -55,7 +55,7 @@ export default async function ProjectsServerPage() {
         .in('workspace_id', workspaceIds)
         .order('created_at', { ascending: false })
 
-      projects = (data ?? []) as Project[]
+      projects = (data ?? []) as List[]
     }
   } else if (profile.role === 'client') {
     const { data } = await supabase
@@ -64,7 +64,7 @@ export default async function ProjectsServerPage() {
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
 
-    projects = (data ?? []) as Project[]
+    projects = (data ?? []) as List[]
   }
 
   // Fetch actual hours per project from time entries via tasks
@@ -97,7 +97,7 @@ export default async function ProjectsServerPage() {
   }))
 
   // Fetch workspaces for filter
-  let workspaces: Workspace[] = []
+  let workspaces: Space[] = []
   if (profile.role === 'super_admin') {
     const wsQuery = orgId
       ? supabase.from('workspaces').select('*').eq('organization_id', orgId).order('name')
@@ -118,9 +118,9 @@ export default async function ProjectsServerPage() {
 
   return (
     <ProjectsPage
-      initialProjects={projectsWithHours}
+      initialLists={projectsWithHours}
       profile={profile as Profile}
-      workspaces={workspaces}
+      spaces={workspaces}
     />
   )
 }

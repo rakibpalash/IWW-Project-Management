@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import { getProjectTimeReportAction, ProjectTimeRow } from '@/app/actions/reports'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StatCard, ExportButton, ReportLoading, ReportEmpty, HorizontalBar, fmtHours } from './report-shell'
-import { Workspace } from '@/types'
+import { Space } from '@/types'
 import { format, subDays } from 'date-fns'
 
-interface Props { workspaces: Workspace[]; isAdmin: boolean }
+interface Props { workspaces: Space[]; isAdmin: boolean }
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
