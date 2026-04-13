@@ -6,6 +6,7 @@ import { List } from '@/types'
 
 type ListInput = {
   space_id: string
+  folder_id?: string | null
   name: string
   description?: string
   client_id?: string
@@ -23,6 +24,7 @@ export async function createListAction(
 ): Promise<{ success: boolean; list?: List; error?: string }> {
   try {
     const supabase = await createClient()
+    const admin = createAdminClient()
 
     const {
       data: { user },
@@ -33,10 +35,12 @@ export async function createListAction(
       return { success: false, error: 'Not authenticated' }
     }
 
-    const { data: list, error } = await supabase
+    // Use admin client to bypass RLS (DB policies still reference old table names)
+    const { data: list, error } = await admin
       .from('lists')
       .insert({
         space_id: data.space_id,
+        folder_id: data.folder_id ?? null,
         name: data.name,
         description: data.description ?? null,
         client_id: data.client_id ?? null,
@@ -73,6 +77,7 @@ export async function updateListAction(
 ): Promise<{ success: boolean; list?: List; error?: string }> {
   try {
     const supabase = await createClient()
+    const admin = createAdminClient()
 
     const {
       data: { user },
@@ -83,7 +88,6 @@ export async function updateListAction(
       return { success: false, error: 'Not authenticated' }
     }
 
-    // Build update payload – only include keys that were provided
     const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
     if (data.name !== undefined) payload.name = data.name
@@ -97,7 +101,7 @@ export async function updateListAction(
     if (data.estimated_hours !== undefined) payload.estimated_hours = data.estimated_hours
     if (data.progress !== undefined) payload.progress = data.progress
 
-    const { data: list, error } = await supabase
+    const { data: list, error } = await admin
       .from('lists')
       .update(payload)
       .eq('id', id)

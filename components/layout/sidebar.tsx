@@ -27,7 +27,7 @@ import {
   CircleDot,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Profile, Space, List, Task } from '@/types'
+import { Profile, Space, List, Folder } from '@/types'
 import { PermissionSet, can } from '@/lib/permissions'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -40,6 +40,7 @@ import { createClient } from '@/lib/supabase/client'
 import { CreateSpaceDialog } from '@/components/spaces/create-space-dialog'
 import { CreateListDialog } from '@/components/lists/create-list-dialog'
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
+import { CreateFolderDialog } from '@/components/folders/create-folder-dialog'
 import { getSidebarDataAction } from '@/app/actions/sidebar'
 
 // ─── constants ─────────────────────────────────────────────────────────────────
@@ -185,22 +186,113 @@ function NavItem({
   )
 }
 
+// ─── folder item ───────────────────────────────────────────────────────────────
+
+function FolderItem({
+  folder,
+  lists,
+  pathname,
+  onClose,
+  onCreateTask,
+  onCreateList,
+}: {
+  folder: Folder
+  lists: List[]
+  pathname: string
+  onClose: () => void
+  onCreateTask: (listId: string) => void
+  onCreateList: (folderId: string) => void
+}) {
+  const hasActiveList = lists.some(p => pathname.startsWith(`/lists/${p.id}`))
+  const [open, setOpen] = useState(true)
+
+  useEffect(() => {
+    if (hasActiveList) setOpen(true)
+  }, [hasActiveList])
+
+  return (
+    <div>
+      <div className="group/folder flex w-full items-center gap-1 rounded-lg px-2 py-1 transition-colors hover:bg-white/5 pl-3">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="shrink-0 flex items-center justify-center h-5 w-5 rounded text-sidebar-foreground/40 hover:text-white transition-colors"
+        >
+          <ChevronDown className={cn('h-3 w-3 transition-transform duration-150', open ? 'rotate-0' : '-rotate-90')} />
+        </button>
+        <FolderOpen className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/40 group-hover/folder:text-sidebar-foreground/70" />
+        <Link
+          href={`/folders/${folder.id}`}
+          onClick={onClose}
+          className="flex-1 truncate text-[12px] font-semibold text-sidebar-foreground/60 group-hover/folder:text-sidebar-foreground/85 pl-1 hover:text-white transition-colors"
+        >
+          {folder.name}
+        </Link>
+        <span className="flex items-center gap-0.5 opacity-0 group-hover/folder:opacity-100 transition-opacity shrink-0">
+          <button
+            onClick={() => onCreateList(folder.id)}
+            className="h-4 w-4 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+        </span>
+      </div>
+      {open && (
+        <div>
+          {lists.length === 0 ? (
+            <p className="py-1 text-[11px] text-sidebar-foreground/25 font-medium pl-14 pr-3">Empty folder</p>
+          ) : (
+            lists.map(proj => {
+              const active = pathname.startsWith(`/lists/${proj.id}`)
+              return (
+                <div key={proj.id} className="group/list relative flex items-center rounded-lg transition-colors hover:bg-white/5">
+                  <Link
+                    href={`/lists/${proj.id}`}
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-2 flex-1 min-w-0 py-1.5 pl-12 pr-2',
+                      active ? 'text-white' : 'text-sidebar-foreground/55 hover:text-sidebar-foreground/85',
+                    )}
+                  >
+                    {active && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[16px] rounded-r-full bg-sidebar-primary" />
+                    )}
+                    <ListChecks className={cn(
+                      'h-[13px] w-[13px] shrink-0',
+                      active ? 'text-sidebar-primary' : 'text-sidebar-foreground/30 group-hover/list:text-sidebar-foreground/60',
+                    )} />
+                    <span className="truncate text-[11px] font-semibold">{proj.name}</span>
+                  </Link>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── space item ────────────────────────────────────────────────────────────────
 
 function SpaceItem({
   space,
   lists,
+  folders,
   pathname,
   onClose,
   onCreateList,
   onCreateTask,
+  onCreateFolder,
 }: {
   space: Space
   lists: List[]
+  folders: Folder[]
   pathname: string
   onClose: () => void
-  onCreateList: (spaceId: string) => void
+  onCreateList: (spaceId: string, folderId?: string) => void
   onCreateTask: (listId: string) => void
+  onCreateFolder: (spaceId: string) => void
 }) {
   const hasActiveList = lists.some(p => pathname.startsWith(`/lists/${p.id}`))
   const [open, setOpen] = useState(true)
@@ -219,22 +311,38 @@ function SpaceItem({
   return (
     <div>
       {/* Space row */}
-      <div className="group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/5">
+      <div className="group flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/5">
+
+        {/* Colored badge — pure display element, no hover/focus effects */}
+        <span
+          className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md text-[12px] font-black text-white leading-none select-none pointer-events-none"
+          style={{ backgroundColor: color }}
+          aria-hidden
+        >
+          {initial}
+        </span>
+
+        {/* Name — clicking navigates to space detail; chevron toggles collapse */}
+        <Link
+          href={`/spaces/${space.id}`}
+          onClick={onClose}
+          className="flex-1 min-w-0 truncate text-[13px] font-semibold text-sidebar-foreground/80 group-hover:text-white transition-colors"
+        >
+          {space.name}
+        </Link>
         <button
           type="button"
-          onClick={() => setOpen(o => !o)}
-          className="flex items-center gap-2 flex-1 min-w-0 text-left"
+          onClick={(e) => { e.preventDefault(); setOpen(o => !o) }}
+          className="shrink-0 flex items-center justify-center h-5 w-5 rounded text-sidebar-foreground/30 hover:text-white hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
         >
-          <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[12px] font-black text-white leading-none"
-            style={{ backgroundColor: color }}
-          >
-            {initial}
-          </span>
-          <span className="flex-1 truncate text-[13px] font-semibold text-sidebar-foreground/80 group-hover:text-white transition-colors">
-            {space.name}
-          </span>
+          <ChevronDown
+            className={cn(
+              'h-3 w-3 transition-transform duration-150',
+              open ? 'rotate-0' : '-rotate-90'
+            )}
+          />
         </button>
+
         {/* Actions: ... and + */}
         <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
           <button className="h-5 w-5 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
@@ -254,22 +362,35 @@ function SpaceItem({
               onClose={() => setSpaceMenuOpen(false)}
               items={[
                 { icon: ListChecks, label: 'List', description: 'Track tasks, lists, people & more', onClick: () => { setSpaceMenuOpen(false); onCreateList(space.id) } },
-                { icon: FolderOpen, label: 'Folder', description: 'Group Lists, Docs & more', onClick: () => setSpaceMenuOpen(false) },
+                { icon: FolderOpen, label: 'Folder', description: 'Group Lists & more', onClick: () => { setSpaceMenuOpen(false); onCreateFolder(space.id) } },
               ]}
             />
           )}
         </span>
       </div>
 
-      {/* Lists */}
+      {/* Lists + Folders */}
       {open && (
         <div className="pb-0.5">
-          {lists.length === 0 ? (
-            <p className="py-1.5 text-[12px] text-sidebar-foreground/25 font-medium pl-9 pr-3">
-              No lists yet
-            </p>
-          ) : (
-            lists.map(proj => {
+          {/* Folders */}
+          {folders.map(folder => {
+            const folderLists = lists.filter(p => (p as any).folder_id === folder.id)
+            return (
+              <FolderItem
+                key={folder.id}
+                folder={folder}
+                lists={folderLists}
+                pathname={pathname}
+                onClose={onClose}
+                onCreateTask={onCreateTask}
+                onCreateList={(folderId) => onCreateList(space.id, folderId)}
+              />
+            )
+          })}
+          {/* Unfiled lists */}
+          {lists
+            .filter(p => !(p as any).folder_id || !folders.find(f => f.id === (p as any).folder_id))
+            .map(proj => {
               const active = pathname.startsWith(`/lists/${proj.id}`)
               return (
                 <div key={proj.id} className="group/list relative flex items-center rounded-lg transition-colors hover:bg-white/5">
@@ -316,6 +437,11 @@ function SpaceItem({
                 </div>
               )
             })
+          }
+          {lists.length === 0 && folders.length === 0 && (
+            <p className="py-1.5 text-[12px] text-sidebar-foreground/25 font-medium pl-9 pr-3">
+              No lists yet
+            </p>
           )}
         </div>
       )}
@@ -345,19 +471,24 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
 
   const [spaces,        setSpaces]        = useState<Space[]>(initialSpaces)
   const [lists,          setLists]          = useState<List[]>(initialLists)
+  const [folders,        setFolders]        = useState<Folder[]>([])
   const [showCreateSpace,   setShowCreateSpace]   = useState(false)
   const [staffProfiles,     setStaffProfiles]     = useState<Profile[]>([])
   const [showCreateList,    setShowCreateList]    = useState(false)
   const [createListSpaceId, setCreateListSpaceId] = useState<string | null>(null)
+  const [createListFolderId, setCreateListFolderId] = useState<string | null>(null)
   const [showCreateTask,    setShowCreateTask]    = useState(false)
   const [createTaskListId,  setCreateTaskListId]  = useState<string | null>(null)
+  const [showCreateFolder,  setShowCreateFolder]  = useState(false)
+  const [createFolderSpaceId, setCreateFolderSpaceId] = useState<string | null>(null)
 
   // Server-action-based fetch — uses admin client, bypasses RLS restrictions
   async function fetchSidebarData() {
-    const { spaces: ws, lists: proj } = await getSidebarDataAction()
-    if (ws.length > 0 || proj.length > 0) {
+    const { spaces: ws, lists: proj, folders: fols } = await getSidebarDataAction()
+    if (ws.length > 0 || proj.length > 0 || fols.length > 0) {
       setSpaces(ws)
       setLists(proj)
+      setFolders(fols)
     }
   }
 
@@ -383,14 +514,20 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function openCreateList(spaceId: string) {
+  function openCreateList(spaceId: string, folderId?: string) {
     setCreateListSpaceId(spaceId)
+    setCreateListFolderId(folderId ?? null)
     setShowCreateList(true)
   }
 
   function openCreateTask(listId: string) {
     setCreateTaskListId(listId)
     setShowCreateTask(true)
+  }
+
+  function openCreateFolder(spaceId: string) {
+    setCreateFolderSpaceId(spaceId)
+    setShowCreateFolder(true)
   }
 
   function openCreateSpace() {
@@ -563,11 +700,13 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
                     <SpaceItem
                       key={ws.id}
                       space={ws}
-                      lists={lists.filter(p => p.space_id === ws.id)}
+                      lists={lists.filter(p => (p.space_id ?? (p as any).workspace_id) === ws.id)}
+                      folders={folders.filter(f => f.space_id === ws.id)}
                       pathname={pathname}
                       onClose={onClose}
                       onCreateList={openCreateList}
                       onCreateTask={openCreateTask}
+                      onCreateFolder={openCreateFolder}
                     />
                   ))}
 
@@ -663,8 +802,11 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
       {/* ── Create List Dialog ── */}
       <CreateListDialog
         open={showCreateList}
-        onOpenChange={setShowCreateList}
-        spaces={createListSpaceId ? spaces.filter(w => w.id === createListSpaceId) : spaces}
+        onOpenChange={(v) => { setShowCreateList(v); if (!v) { setCreateListSpaceId(null); setCreateListFolderId(null) } }}
+        spaces={spaces}
+        folders={folders}
+        defaultSpaceId={createListFolderId ? null : createListSpaceId}
+        defaultFolderId={createListFolderId}
         onCreated={(newList) => {
           setLists(prev => [...prev, newList].sort((a, b) => a.name.localeCompare(b.name)))
           setShowCreateList(false)
@@ -681,6 +823,18 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
           profile={profile}
           listId={createTaskListId}
           onCreated={() => { setShowCreateTask(false) }}
+        />
+      )}
+
+      {/* ── Create Folder Dialog ── */}
+      {showCreateFolder && createFolderSpaceId && (
+        <CreateFolderDialog
+          open={showCreateFolder}
+          spaceId={createFolderSpaceId}
+          onOpenChange={setShowCreateFolder}
+          onCreated={(folder) => {
+            setFolders(prev => [...prev, folder])
+          }}
         />
       )}
     </TooltipProvider>

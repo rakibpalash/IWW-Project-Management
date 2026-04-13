@@ -65,9 +65,24 @@ export interface SpaceAssignment {
   created_at: string
 }
 
+export interface Folder {
+  id: string
+  space_id: string
+  name: string
+  description?: string | null
+  is_private?: boolean
+  shared_with?: string[]
+  status_type?: 'inherit' | 'custom'
+  custom_statuses?: object[]
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
 export interface List {
   id: string
   space_id: string
+  folder_id?: string | null
   name: string
   description: string | null
   client_id: string | null

@@ -70,52 +70,126 @@ export const getProfile = cache(async (userId: string): Promise<Profile | null> 
   }
 })
 
-export const SIDEBAR_WS_SELECT   = 'id, name, description, created_at, updated_at, created_by'
-export const SIDEBAR_PROJ_SELECT = 'id, name, space_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, actual_hours, estimated_hours, start_date, due_date, description'
+export const SIDEBAR_WS_SELECT = 'id, name, description, created_at, updated_at, created_by'
+
+// Try space_id first (new column name); fall back to workspace_id (old)
+async function fetchLists(admin: ReturnType<typeof createAdminClient>, filter: { spaceIds?: string[]; clientId?: string; partnerId?: string }) {
+  // Minimal safe select — avoids columns that may not exist (e.g. actual_hours)
+  const BASE = 'id, name, space_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, estimated_hours, start_date, due_date, description'
+  // Fallback select — workspace_id is the old column name
+  const FALLBACK = 'id, name, workspace_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, estimated_hours, start_date, due_date, description'
+
+  let q: any
+  if (filter.clientId) {
+    q = admin.from('lists').select(BASE).eq('client_id', filter.clientId)
+  } else if (filter.partnerId) {
+    q = admin.from('lists').select(BASE).eq('partner_id', filter.partnerId)
+  } else if (filter.spaceIds && filter.spaceIds.length > 0) {
+    q = admin.from('lists').select(BASE).in('space_id', filter.spaceIds)
+  } else {
+    q = admin.from('lists').select(BASE)
+  }
+
+  let { data, error } = await q.order('name')
+
+  if (error) {
+    console.error('[fetchLists] space_id query failed, trying workspace_id fallback:', error.message)
+    // space_id column not yet renamed — retry with workspace_id
+    let q2: any
+    if (filter.clientId) {
+      q2 = admin.from('lists').select(FALLBACK).eq('client_id', filter.clientId)
+    } else if (filter.partnerId) {
+      q2 = admin.from('lists').select(FALLBACK).eq('partner_id', filter.partnerId)
+    } else if (filter.spaceIds && filter.spaceIds.length > 0) {
+      q2 = admin.from('lists').select(FALLBACK).in('workspace_id', filter.spaceIds)
+    } else {
+      q2 = admin.from('lists').select(FALLBACK)
+    }
+    const res2 = await q2.order('name')
+    data = (res2.data ?? []).map((l: any) => ({ ...l, space_id: l.workspace_id ?? l.space_id }))
+  }
+
+  return (data ?? []).map((l: any) => ({ ...l, space_id: l.space_id ?? l.workspace_id }))
+}
+
+async function fetchFolders(admin: ReturnType<typeof createAdminClient>, spaceIds: string[]): Promise<any[]> {
+  if (spaceIds.length === 0) return []
+  const { data, error } = await admin
+    .from('folders')
+    .select('id, name, space_id, created_by, created_at, updated_at')
+    .in('space_id', spaceIds)
+    .order('name')
+  if (error) {
+    console.error('[fetchFolders] error:', error.message)
+    return []
+  }
+  return data ?? []
+}
+
+// Fetch space_ids from space_assignments, handling both column names
+async function fetchAssignedSpaceIds(admin: ReturnType<typeof createAdminClient>, userId: string): Promise<string[]> {
+  let { data, error } = await admin.from('space_assignments').select('space_id').eq('user_id', userId)
+  if (error) {
+    const res2 = await admin.from('space_assignments').select('workspace_id').eq('user_id', userId)
+    return (res2.data ?? []).map((a: any) => a.workspace_id as string).filter(Boolean)
+  }
+  return (data ?? []).map((a: any) => a.space_id as string).filter(Boolean)
+}
 
 /**
- * getSidebarData — mirrors the EXACT same query logic as the Lists page.
- * Explicit space_id filtering (not pure RLS) ensures correct results.
+ * getSidebarData — uses admin client to bypass RLS, handles both old/new column names.
  */
 export const getSidebarData = cache(async (userId: string, role: string, orgId: string | null) => {
   try {
-    const supabase = await createClient()
+    const admin = createAdminClient()
 
-    if (role === 'staff') {
-      const { data: assignments } = await supabase
-        .from('space_assignments').select('space_id').eq('user_id', userId)
-      const wsIds = (assignments ?? []).map((a: any) => a.space_id as string)
-      if (wsIds.length === 0) return { spaces: [], lists: [] }
-      const [wsRes, projRes] = await Promise.all([
-        supabase.from('spaces').select(SIDEBAR_WS_SELECT).in('id', wsIds).order('name'),
-        supabase.from('lists').select(SIDEBAR_PROJ_SELECT).in('space_id', wsIds).order('name'),
+    if (role === 'staff' || role === 'project_manager') {
+      const wsIds = await fetchAssignedSpaceIds(admin, userId)
+      if (wsIds.length === 0) return { spaces: [], lists: [], folders: [] }
+      const [wsRes, lists, folders] = await Promise.all([
+        admin.from('spaces').select(SIDEBAR_WS_SELECT).in('id', wsIds).order('name'),
+        fetchLists(admin, { spaceIds: wsIds }),
+        fetchFolders(admin, wsIds),
       ])
-      return { spaces: wsRes.data ?? [], lists: projRes.data ?? [] }
+      return { spaces: wsRes.data ?? [], lists, folders }
     }
 
     if (role === 'client') {
-      const [wsRes, projRes] = await Promise.all([
-        supabase.from('spaces').select(SIDEBAR_WS_SELECT).order('name'),
-        supabase.from('lists').select(SIDEBAR_PROJ_SELECT).eq('client_id', userId).order('name'),
+      const [wsRes, lists] = await Promise.all([
+        admin.from('spaces').select(SIDEBAR_WS_SELECT).order('name'),
+        fetchLists(admin, { clientId: userId }),
       ])
-      return { spaces: wsRes.data ?? [], lists: projRes.data ?? [] }
+      const spaceIds = (wsRes.data ?? []).map((w: any) => w.id as string)
+      const folders = await fetchFolders(admin, spaceIds)
+      return { spaces: wsRes.data ?? [], lists, folders }
     }
 
-    // super_admin / account_manager / others — same explicit logic as Lists page
+    if (role === 'partner') {
+      const [wsRes, lists] = await Promise.all([
+        admin.from('spaces').select(SIDEBAR_WS_SELECT).order('name'),
+        fetchLists(admin, { partnerId: userId }),
+      ])
+      const spaceIds = (wsRes.data ?? []).map((w: any) => w.id as string)
+      const folders = await fetchFolders(admin, spaceIds)
+      return { spaces: wsRes.data ?? [], lists, folders }
+    }
+
+    // super_admin / account_manager — all org spaces
     const wsQuery = orgId
-      ? supabase.from('spaces').select(SIDEBAR_WS_SELECT).eq('organization_id', orgId).order('name')
-      : supabase.from('spaces').select(SIDEBAR_WS_SELECT).order('name')
+      ? admin.from('spaces').select(SIDEBAR_WS_SELECT).eq('organization_id', orgId).order('name')
+      : admin.from('spaces').select(SIDEBAR_WS_SELECT).order('name')
     const { data: wsData } = await wsQuery
     const spaces = wsData ?? []
     const wsIds = spaces.map((w: any) => w.id as string)
+    const [lists, folders] = await Promise.all([
+      fetchLists(admin, { spaceIds: wsIds }),
+      fetchFolders(admin, wsIds),
+    ])
 
-    const { data: projData } = wsIds.length > 0
-      ? await supabase.from('lists').select(SIDEBAR_PROJ_SELECT).in('space_id', wsIds).order('name')
-      : await supabase.from('lists').select(SIDEBAR_PROJ_SELECT).order('name')
-
-    return { spaces, lists: projData ?? [] }
-  } catch {
-    return { spaces: [], lists: [] }
+    return { spaces, lists, folders }
+  } catch (err) {
+    console.error('[getSidebarData] error:', err)
+    return { spaces: [], lists: [], folders: [] }
   }
 })
 
