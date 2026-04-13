@@ -485,7 +485,7 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
                   {/* All Tasks */}
                   <Link href="/tasks" onClick={onClose} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5 transition-colors text-sidebar-foreground/60 hover:text-sidebar-foreground/90">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sidebar-foreground/15">
-                      <ListChecks className="h-4 w-4 text-sidebar-foreground/50" />
+                      <CheckSquare className="h-4 w-4 text-sidebar-foreground/50" />
                     </span>
                     <span className="truncate text-[13px] font-semibold">All Tasks</span>
                   </Link>
