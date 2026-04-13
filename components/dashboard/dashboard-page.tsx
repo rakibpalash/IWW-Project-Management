@@ -19,7 +19,6 @@ import {
   Plus,
   Clock,
   Users,
-  Calendar,
   Hash,
 } from 'lucide-react'
 import { StatCard } from './stat-card'
@@ -233,7 +232,6 @@ function SuperAdminDashboard({
         </div>
         {/* Right */}
         <div className="space-y-5">
-          <AgendaPanel tasks={[]} />
           <TimeLogWidget entries={recentTeamTimeEntries} title="Team Time Logs" showUser router={router} />
         </div>
       </div>
@@ -293,12 +291,6 @@ function StaffDashboard({
   )
 
   const doneTasks = myTasks.filter(t => t.status === 'done')
-
-  // Upcoming tasks for Agenda (next 7 days with due dates)
-  const agendaTasks = myTasks
-    .filter(t => t.due_date && t.status !== 'done' && t.status !== 'cancelled')
-    .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
-    .slice(0, 6)
 
   // Assigned to me — open tasks sorted by priority
   const assignedTasks = myTasks
@@ -416,9 +408,6 @@ function StaffDashboard({
 
         {/* ── Right panel ── */}
         <div className="flex flex-col gap-5">
-
-          {/* Agenda */}
-          <AgendaPanel tasks={agendaTasks} />
 
           {/* Assigned to me */}
           <AssignedToMePanel tasks={assignedTasks} router={router} />
@@ -594,43 +583,6 @@ function WorkTaskRow({ task, color, router }: { task: Task; color: string; route
           <span className="text-[11px] text-muted-foreground/60">{formatDate(task.due_date)}</span>
         )}
         <PriorityDot priority={task.priority} />
-      </div>
-    </div>
-  )
-}
-
-// ─── Agenda Panel ──────────────────────────────────────────────────────────────
-
-function AgendaPanel({ tasks }: { tasks: Task[] }) {
-  const now = new Date()
-  // dateStr unused — agenda header uses inline toLocaleDateString below
-
-  return (
-    <div className="rounded-xl border border-border bg-card shadow-sm">
-      <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground/60" />
-          <span className="text-[13px] font-semibold text-foreground">Agenda</span>
-          <span className="text-[11px] text-muted-foreground/60">{now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })}</span>
-        </div>
-        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">Today</span>
-      </div>
-      <div className="divide-y divide-border/40">
-        {tasks.length === 0 ? (
-          <div className="px-4 py-6 text-center">
-            <p className="text-xs text-muted-foreground/50">No upcoming tasks</p>
-          </div>
-        ) : (
-          tasks.slice(0, 5).map(task => (
-            <div key={task.id} className="flex items-center gap-3 px-4 py-2.5">
-              <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
-              <p className="flex-1 min-w-0 truncate text-[13px] text-foreground/80">{task.title}</p>
-              <span className="shrink-0 text-[11px] text-muted-foreground/50">
-                {task.due_date ? formatDate(task.due_date) : 'All day'}
-              </span>
-            </div>
-          ))
-        )}
       </div>
     </div>
   )
