@@ -111,7 +111,7 @@ export function CreateListDialog({
         is_internal:  true,
         progress:     0,
         created_by:   user.id,
-      }).select(`*, space:spaces(*), client:profiles!lists_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at), partner:profiles!lists_partner_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)`).single()
+      }).select(`*, space:spaces(*), client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at), partner:profiles!projects_partner_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)`).single()
 
       if (error) { toast({ title: 'Failed to create list', description: error.message, variant: 'destructive' }); return }
 
