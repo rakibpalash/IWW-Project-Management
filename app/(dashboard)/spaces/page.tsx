@@ -43,14 +43,14 @@ export default async function SpacesRoute() {
 
     const [{ data: workspaces, error: wsErr }, { data: assignments }, { data: projects }, { data: staffProfiles }] =
       await Promise.all([
-        admin.from('workspaces').select('*').eq('organization_id', orgId).order('created_at', { ascending: false }),
-        admin.from('workspace_assignments').select('workspace_id, user_id').in(
-          'workspace_id',
-          (await admin.from('workspaces').select('id').eq('organization_id', orgId)).data?.map((w) => w.id) ?? []
+        admin.from('spaces').select('*').eq('organization_id', orgId).order('created_at', { ascending: false }),
+        admin.from('space_assignments').select('space_id, user_id').in(
+          'space_id',
+          (await admin.from('spaces').select('id').eq('organization_id', orgId)).data?.map((w) => w.id) ?? []
         ),
-        admin.from('projects').select('workspace_id').in(
-          'workspace_id',
-          (await admin.from('workspaces').select('id').eq('organization_id', orgId)).data?.map((w) => w.id) ?? []
+        admin.from('lists').select('space_id').in(
+          'space_id',
+          (await admin.from('spaces').select('id').eq('organization_id', orgId)).data?.map((w) => w.id) ?? []
         ),
         admin.from('profiles').select('id, full_name, email, avatar_url, role').eq('organization_id', orgId).order('full_name'),
       ])
@@ -62,10 +62,10 @@ export default async function SpacesRoute() {
     const workspacesWithCounts = (workspaces ?? []).map((ws: Space) => ({
       ...ws,
       member_count: (assignments ?? []).filter(
-        (a: { workspace_id: string }) => a.workspace_id === ws.id
+        (a: { space_id: string }) => a.space_id === ws.id
       ).length,
       project_count: (projects ?? []).filter(
-        (p: { workspace_id: string }) => p.workspace_id === ws.id
+        (p: { space_id: string }) => p.space_id === ws.id
       ).length,
     }))
 

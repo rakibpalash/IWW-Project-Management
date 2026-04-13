@@ -130,7 +130,7 @@ export function TeamPage({
     const matchesWorkspace =
       spaceFilter === 'all' ||
       workspaceAssignments.some(
-        (a) => a.user_id === u.id && a.workspace_id === spaceFilter
+        (a) => a.user_id === u.id && a.space_id === spaceFilter
       )
 
     return matchesSearch && matchesRole && matchesWorkspace

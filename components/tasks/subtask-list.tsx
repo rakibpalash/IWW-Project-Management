@@ -117,7 +117,7 @@ export function SubtaskList({
     try {
       const { data: newTask, error } = await supabase.from('tasks').insert({
         title: title.trim(),
-        project_id: parentTask.project_id,
+        list_id: parentTask.list_id,
         parent_task_id: parentTask.id,
         status: defaultStatus || 'todo',
         priority: priority || defaultPriority || 'medium',
@@ -228,7 +228,7 @@ export function SubtaskList({
                   task={subtask}
                   profile={profile}
                   onTaskUpdated={onSubtaskUpdated}
-                  onClick={() => router.push(`/lists/${parentTask.project_id}/tasks/${subtask.id}`)}
+                  onClick={() => router.push(`/lists/${parentTask.list_id}/tasks/${subtask.id}`)}
                   level={1}
                 />
               ))}

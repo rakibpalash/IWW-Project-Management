@@ -23,7 +23,7 @@ export default async function TasksServerPage() {
   const profileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
   const taskSelect = `
     *,
-    project:projects(id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at),
+    project:projects(id, name, space_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at),
     assignees:task_assignees(
       user:profiles(${profileSelect})
     )
@@ -35,22 +35,22 @@ export default async function TasksServerPage() {
     // Super admin sees all tasks in their organisation
     const orgId = (profile as Profile).organization_id
     const { data: orgWorkspaces } = orgId
-      ? await admin.from('workspaces').select('id').eq('organization_id', orgId)
+      ? await admin.from('spaces').select('id').eq('organization_id', orgId)
       : { data: [] }
     const orgWsIds = (orgWorkspaces ?? []).map((w: { id: string }) => w.id)
 
     if (orgWsIds.length > 0) {
       const { data: orgProjects } = await admin
-        .from('projects')
+        .from('lists')
         .select('id')
-        .in('workspace_id', orgWsIds)
+        .in('space_id', orgWsIds)
       const orgProjectIds = (orgProjects ?? []).map((p: { id: string }) => p.id)
 
       if (orgProjectIds.length > 0) {
         const { data: allTasks } = await admin
           .from('tasks')
           .select(taskSelect)
-          .in('project_id', orgProjectIds)
+          .in('list_id', orgProjectIds)
           .is('parent_task_id', null)
           .order('created_at', { ascending: false })
 
@@ -108,12 +108,12 @@ export default async function TasksServerPage() {
   // Fetch all accessible projects for the create task dropdown (scoped to org via workspaces)
   const orgId = (profile as Profile).organization_id
   const { data: orgWorkspaces } = orgId
-    ? await admin.from('workspaces').select('id').eq('organization_id', orgId)
+    ? await admin.from('spaces').select('id').eq('organization_id', orgId)
     : { data: [] }
   const orgWsIds = (orgWorkspaces ?? []).map((w: { id: string }) => w.id)
 
   const { data: projectsData } = orgWsIds.length > 0
-    ? await supabase.from('projects').select('id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at').in('workspace_id', orgWsIds).order('name')
+    ? await supabase.from('lists').select('id, name, space_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at').in('space_id', orgWsIds).order('name')
     : { data: [] }
   const allProjects: List[] = (projectsData ?? []) as List[]
 

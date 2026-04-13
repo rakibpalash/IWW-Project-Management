@@ -49,7 +49,7 @@ export interface DashboardTimeEntry {
   id: string
   task_id: string
   task_title: string
-  project_id: string
+  list_id: string
   project_name: string
   user_full_name: string
   user_avatar_url: string | null
@@ -316,7 +316,7 @@ function StaffDashboard({
           id: t.id,
           name: t.title,
           subtitle: t.project?.name ?? '',
-          href: `/lists/${t.project_id}/tasks/${t.id}`,
+          href: `/lists/${t.list_id}/tasks/${t.id}`,
           type: 'task' as const,
         }))}
         router={router}
@@ -558,7 +558,7 @@ function WorkTaskRow({ task, color, router }: { task: Task; color: string; route
     <div
       className="group flex items-center gap-3 px-5 py-2 hover:bg-muted/20 transition-colors cursor-pointer"
       style={{ borderLeft: `2px solid ${color}40` }}
-      onClick={() => router.push(`/lists/${task.project_id}/tasks/${task.id}`)}
+      onClick={() => router.push(`/lists/${task.list_id}/tasks/${task.id}`)}
     >
       {/* Status dot */}
       <div
@@ -621,7 +621,7 @@ function AssignedToMePanel({
             <div
               key={task.id}
               className="group flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors"
-              onClick={() => router.push(`/lists/${task.project_id}/tasks/${task.id}`)}
+              onClick={() => router.push(`/lists/${task.list_id}/tasks/${task.id}`)}
             >
               <StatusChip status={task.status} />
               <div className="min-w-0 flex-1">

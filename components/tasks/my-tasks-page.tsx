@@ -118,7 +118,7 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
       if (!user) return
       const { data, error } = await supabase.from('tasks').insert({
         title,
-        project_id: newTaskProject,
+        list_id: newTaskProject,
         status:     'todo',
         priority:   defaultPriority || 'medium',
         created_by: user.id,
@@ -140,7 +140,7 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
         task.description?.toLowerCase().includes(search.toLowerCase())
       const matchesStatus   = statusFilter === 'all'   || task.status === statusFilter
       const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter
-      const matchesProject  = projectFilter === 'all'  || task.project_id === projectFilter
+      const matchesProject  = projectFilter === 'all'  || task.list_id === projectFilter
       return matchesSearch && matchesStatus && matchesPriority && matchesProject
     })
   }, [tasks, search, statusFilter, priorityFilter, projectFilter])
@@ -215,7 +215,7 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
   }
 
   function handleTaskClick(task: Task) {
-    router.push(`/lists/${task.project_id}/tasks/${task.id}`)
+    router.push(`/lists/${task.list_id}/tasks/${task.id}`)
   }
 
   const totalCount = tasks.length
@@ -227,7 +227,7 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
     const headers = ['Title', 'Project', 'Status', 'Priority', 'Due Date']
     const rows = filteredTasks.map((t) => `<tr>
       <td>${t.title}</td>
-      <td>${projects.find((p) => p.id === t.project_id)?.name ?? '-'}</td>
+      <td>${projects.find((p) => p.id === t.list_id)?.name ?? '-'}</td>
       <td>${t.status.replace(/_/g, ' ')}</td>
       <td>${t.priority}</td>
       <td>${t.due_date ? format(new Date(t.due_date + 'T00:00:00'), 'MMM d, yyyy') : '-'}</td>
@@ -239,7 +239,7 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
     const headers = ['Title', 'Project', 'Status', 'Priority', 'Due Date']
     const rows = filteredTasks.map((t) => [
       `"${t.title.replace(/"/g, '""')}"`,
-      `"${(projects.find((p) => p.id === t.project_id)?.name ?? '').replace(/"/g, '""')}"`,
+      `"${(projects.find((p) => p.id === t.list_id)?.name ?? '').replace(/"/g, '""')}"`,
       t.status.replace(/_/g, ' '),
       t.priority,
       t.due_date ? format(new Date(t.due_date + 'T00:00:00'), 'MMM d, yyyy') : '',

@@ -33,13 +33,13 @@ export default async function TaskDetailServerPage({ params }: TaskPageProps) {
     .from('tasks')
     .select(`
       *,
-      project:projects(id, name, workspace_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at),
+      project:projects(id, name, space_id, status, priority, description, client_id, start_date, due_date, estimated_hours, progress, created_by, created_at, updated_at),
       assignees:task_assignees(
         user:profiles(${profileSelect})
       )
     `)
     .eq('id', taskId)
-    .eq('project_id', projectId)
+    .eq('list_id', projectId)
     .single()
 
   if (taskError || !taskRaw) {
@@ -130,14 +130,14 @@ export default async function TaskDetailServerPage({ params }: TaskPageProps) {
   const activityLogs = (activityLogsRaw ?? []) as ActivityLog[]
 
   // Fetch workspace members for assignee picker
-  const workspaceId = (taskRaw as any).project?.workspace_id
+  const workspaceId = (taskRaw as any).project?.space_id
   let members: Profile[] = []
 
   if (workspaceId) {
     const { data: assignmentsRaw } = await supabase
-      .from('workspace_assignments')
+      .from('space_assignments')
       .select(`user:profiles(${profileSelect})`)
-      .eq('workspace_id', workspaceId)
+      .eq('space_id', workspaceId)
 
     members = ((assignmentsRaw ?? []) as any[])
       .map((a) => a.user)

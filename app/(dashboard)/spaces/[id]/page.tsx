@@ -9,7 +9,7 @@ import { can } from '@/lib/permissions'
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const admin = createAdminClient()
-  const { data: workspace } = await admin.from('workspaces').select('name').eq('id', id).single()
+  const { data: workspace } = await admin.from('spaces').select('name').eq('id', id).single()
   return { title: workspace ? `${workspace.name} — IWW PM` : 'Space — IWW PM' }
 }
 
@@ -37,7 +37,7 @@ export default async function SpaceDetailRoute({
   const admin = createAdminClient()
 
   const { data: workspace, error: wsError } = await admin
-    .from('workspaces')
+    .from('spaces')
     .select('*')
     .eq('id', id)
     .eq('organization_id', profile.organization_id)
@@ -46,9 +46,9 @@ export default async function SpaceDetailRoute({
   if (wsError || !workspace) notFound()
 
   const { data: assignments } = await admin
-    .from('workspace_assignments')
+    .from('space_assignments')
     .select('user_id')
-    .eq('workspace_id', id)
+    .eq('space_id', id)
 
   const memberIds = (assignments ?? []).map((a: { user_id: string }) => a.user_id)
   let members: Profile[] = []
@@ -62,9 +62,9 @@ export default async function SpaceDetailRoute({
   }
 
   const { data: projects } = await admin
-    .from('projects')
+    .from('lists')
     .select('*')
-    .eq('workspace_id', id)
+    .eq('space_id', id)
     .order('created_at', { ascending: false })
 
   const projectList = (projects as List[]) ?? []
@@ -80,7 +80,7 @@ export default async function SpaceDetailRoute({
         assignees:task_assignees(user:profiles(${profileSelect})),
         creator:profiles!tasks_created_by_fkey(${profileSelect})
       `)
-      .in('project_id', projectIds)
+      .in('list_id', projectIds)
       .order('created_at', { ascending: false })
 
     tasks = (tasksRaw ?? []).map((t: any) => ({

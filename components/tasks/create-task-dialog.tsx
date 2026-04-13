@@ -228,7 +228,7 @@ export function CreateTaskDialog({
       const { data: newTask, error } = await supabase.from('tasks').insert({
         title: title.trim(),
         description: description.trim() || null,
-        project_id: projectId,
+        list_id: projectId,
         parent_task_id: parentTaskId ?? null,
         status, priority,
         due_date: dueDate || null,

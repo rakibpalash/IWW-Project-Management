@@ -30,36 +30,36 @@ export default async function ProjectsServerPage() {
   if (profile.role === 'super_admin') {
     // Get org workspace IDs to scope projects
     const { data: orgWorkspaces } = orgId
-      ? await supabase.from('workspaces').select('id').eq('organization_id', orgId)
-      : await supabase.from('workspaces').select('id')
+      ? await supabase.from('spaces').select('id').eq('organization_id', orgId)
+      : await supabase.from('spaces').select('id')
     const orgWorkspaceIds = (orgWorkspaces ?? []).map((w: any) => w.id)
 
     const { data } = orgWorkspaceIds.length > 0
-      ? await supabase.from('projects').select(PROJECT_SELECT).in('workspace_id', orgWorkspaceIds).order('created_at', { ascending: false })
-      : await supabase.from('projects').select(PROJECT_SELECT).order('created_at', { ascending: false })
+      ? await supabase.from('lists').select(PROJECT_SELECT).in('space_id', orgWorkspaceIds).order('created_at', { ascending: false })
+      : await supabase.from('lists').select(PROJECT_SELECT).order('created_at', { ascending: false })
 
     projects = (data ?? []) as List[]
   } else if (profile.role === 'staff') {
     // Staff: fetch projects in their assigned workspaces
     const { data: assignments } = await supabase
-      .from('workspace_assignments')
-      .select('workspace_id')
+      .from('space_assignments')
+      .select('space_id')
       .eq('user_id', user.id)
 
-    const workspaceIds = (assignments ?? []).map((a) => a.workspace_id)
+    const workspaceIds = (assignments ?? []).map((a) => a.space_id)
 
     if (workspaceIds.length > 0) {
       const { data } = await supabase
-        .from('projects')
+        .from('lists')
         .select(PROJECT_SELECT)
-        .in('workspace_id', workspaceIds)
+        .in('space_id', workspaceIds)
         .order('created_at', { ascending: false })
 
       projects = (data ?? []) as List[]
     }
   } else if (profile.role === 'client') {
     const { data } = await supabase
-      .from('projects')
+      .from('lists')
       .select(PROJECT_SELECT)
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
@@ -74,13 +74,13 @@ export default async function ProjectsServerPage() {
   if (projectIds.length > 0) {
     const { data: timeData } = await supabase
       .from('time_entries')
-      .select('duration_minutes, task:tasks!inner(project_id)')
+      .select('duration_minutes, task:tasks!inner(list_id)')
       .not('duration_minutes', 'is', null)
-      .in('tasks.project_id', projectIds)
+      .in('tasks.list_id', projectIds)
 
     if (timeData) {
       for (const entry of timeData as any[]) {
-        const projectId = entry.task?.project_id
+        const projectId = entry.task?.list_id
         if (projectId) {
           actualHoursMap[projectId] = (actualHoursMap[projectId] ?? 0) + (entry.duration_minutes ?? 0)
         }
@@ -100,18 +100,18 @@ export default async function ProjectsServerPage() {
   let workspaces: Space[] = []
   if (profile.role === 'super_admin') {
     const wsQuery = orgId
-      ? supabase.from('workspaces').select('*').eq('organization_id', orgId).order('name')
-      : supabase.from('workspaces').select('*').order('name')
+      ? supabase.from('spaces').select('*').eq('organization_id', orgId).order('name')
+      : supabase.from('spaces').select('*').order('name')
     const { data } = await wsQuery
     workspaces = data ?? []
   } else if (profile.role === 'staff') {
     const { data: assignments } = await supabase
-      .from('workspace_assignments')
-      .select('workspace_id')
+      .from('space_assignments')
+      .select('space_id')
       .eq('user_id', user.id)
-    const wsIds = (assignments ?? []).map((a) => a.workspace_id)
+    const wsIds = (assignments ?? []).map((a) => a.space_id)
     if (wsIds.length > 0) {
-      const { data } = await supabase.from('workspaces').select('*').in('id', wsIds).order('name')
+      const { data } = await supabase.from('spaces').select('*').in('id', wsIds).order('name')
       workspaces = data ?? []
     }
   }

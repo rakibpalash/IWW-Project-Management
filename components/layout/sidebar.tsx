@@ -371,10 +371,10 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
   useEffect(() => {
     const channel = supabase
       .channel('sidebar-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' },
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lists' },
         () => { fetchSidebarData() }
       )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'workspaces' },
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'spaces' },
         () => { fetchSidebarData() }
       )
       .subscribe()
@@ -563,7 +563,7 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
                     <SpaceItem
                       key={ws.id}
                       workspace={ws}
-                      projects={projects.filter(p => p.workspace_id === ws.id)}
+                      projects={projects.filter(p => p.space_id === ws.id)}
                       pathname={pathname}
                       onClose={onClose}
                       onCreateList={openCreateList}

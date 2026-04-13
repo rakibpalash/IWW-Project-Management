@@ -272,7 +272,7 @@ function ProjectFilter({
   selected,
   onChange,
 }: {
-  projects: { id: string; name: string; workspace_id: string }[]
+  projects: { id: string; name: string; space_id: string }[]
   selected: string[]
   onChange: (ids: string[]) => void
 }) {
@@ -471,7 +471,7 @@ interface TimesheetPageProps {
   initialDateFrom: string
   initialDateTo: string
   allWorkspaces: { id: string; name: string }[]
-  allProjects: { id: string; name: string; workspace_id: string }[]
+  allProjects: { id: string; name: string; space_id: string }[]
   projectWorkspaceMap: Record<string, string>
   allProfiles: { id: string; full_name: string; avatar_url: string | null; role: string }[]
 }
@@ -578,10 +578,10 @@ export function TimesheetPage({
   const filteredEntries = useMemo(() => {
     let result = entries
     if (selectedWorkspaceIds.length > 0) {
-      result = result.filter((e) => selectedWorkspaceIds.includes(projectWorkspaceMap[e.project_id]))
+      result = result.filter((e) => selectedWorkspaceIds.includes(projectWorkspaceMap[e.list_id]))
     }
     if (selectedProjectIds.length > 0) {
-      result = result.filter((e) => selectedProjectIds.includes(e.project_id))
+      result = result.filter((e) => selectedProjectIds.includes(e.list_id))
     }
     return result
   }, [entries, selectedWorkspaceIds, selectedProjectIds, projectWorkspaceMap])

@@ -41,7 +41,7 @@ export async function createWorkspaceAction(data: {
     const admin = createAdminClient()
 
     const { data: workspace, error: wsError } = await admin
-      .from('workspaces')
+      .from('spaces')
       .insert({
         name: data.name.trim(),
         description: data.description?.trim() || null,
@@ -54,8 +54,8 @@ export async function createWorkspaceAction(data: {
     if (wsError || !workspace) return { success: false, error: wsError?.message ?? 'Failed to create workspace' }
 
     if (data.memberIds && data.memberIds.length > 0) {
-      await admin.from('workspace_assignments').insert(
-        data.memberIds.map((user_id) => ({ workspace_id: workspace.id, user_id }))
+      await admin.from('space_assignments').insert(
+        data.memberIds.map((user_id) => ({ space_id: workspace.id, user_id }))
       )
     }
 
@@ -77,7 +77,7 @@ export async function renameWorkspaceAction(
     const { supabase } = await requireAdmin()
 
     const { error } = await supabase
-      .from('workspaces')
+      .from('spaces')
       .update({
         name: name.trim(),
         description: description?.trim() || null,
@@ -107,7 +107,7 @@ export async function deleteWorkspaceAction(
 
     // Collect notification data BEFORE deleting
     const [{ data: members }, { data: deleter }] = await Promise.all([
-      admin.from('workspace_assignments').select('user_id').eq('workspace_id', workspaceId),
+      admin.from('space_assignments').select('user_id').eq('space_id', workspaceId),
       admin.from('profiles').select('full_name, id').eq(
         'id', (await supabase.auth.getUser()).data.user?.id ?? ''
       ).single(),
@@ -116,16 +116,16 @@ export async function deleteWorkspaceAction(
     if (opts?.moveProjectsToWorkspaceId) {
       // Move projects to another workspace instead of deleting
       const { error: moveError } = await admin
-        .from('projects')
-        .update({ workspace_id: opts.moveProjectsToWorkspaceId })
-        .eq('workspace_id', workspaceId)
+        .from('lists')
+        .update({ space_id: opts.moveProjectsToWorkspaceId })
+        .eq('space_id', workspaceId)
       if (moveError) return { success: false, error: moveError.message }
     }
 
     // Delete the workspace — ON DELETE CASCADE handles all child rows automatically:
     // workspace_assignments, projects → project_members, tasks → task_assignees,
     // task_watchers, comments, time_entries, activity_logs
-    const { error } = await admin.from('workspaces').delete().eq('id', workspaceId)
+    const { error } = await admin.from('spaces').delete().eq('id', workspaceId)
     if (error) {
       console.error('[deleteWorkspaceAction] DB error:', error.message, error.code, error.details)
       return { success: false, error: error.message }
@@ -168,7 +168,7 @@ export async function cloneWorkspaceAction(
 
     // 1. Fetch source workspace
     const { data: source, error: srcErr } = await supabase
-      .from('workspaces')
+      .from('spaces')
       .select('*')
       .eq('id', workspaceId)
       .single()
@@ -177,7 +177,7 @@ export async function cloneWorkspaceAction(
 
     // 2. Create new workspace (stamp org_id)
     const { data: newWs, error: wsErr } = await supabase
-      .from('workspaces')
+      .from('spaces')
       .insert({
         name: `${source.name} (Copy)`,
         description: source.description,
@@ -193,27 +193,27 @@ export async function cloneWorkspaceAction(
 
     // 3. Copy workspace member assignments
     const { data: assignments } = await supabase
-      .from('workspace_assignments')
+      .from('space_assignments')
       .select('user_id')
-      .eq('workspace_id', workspaceId)
+      .eq('space_id', workspaceId)
 
     if (assignments && assignments.length > 0) {
-      await supabase.from('workspace_assignments').insert(
-        assignments.map((a) => ({ workspace_id: newWsId, user_id: a.user_id }))
+      await supabase.from('space_assignments').insert(
+        assignments.map((a) => ({ space_id: newWsId, user_id: a.user_id }))
       )
     }
 
     // 4. Copy projects (structure only, no tasks)
     const { data: projects } = await supabase
-      .from('projects')
+      .from('lists')
       .select('name, description, client_id, start_date, due_date, status, priority, estimated_hours')
-      .eq('workspace_id', workspaceId)
+      .eq('space_id', workspaceId)
 
     if (projects && projects.length > 0) {
-      await supabase.from('projects').insert(
+      await supabase.from('lists').insert(
         projects.map((p) => ({
           ...p,
-          workspace_id: newWsId,
+          space_id: newWsId,
           created_by: userId,
           progress: 0,
         }))
@@ -247,26 +247,26 @@ export async function updateWorkspaceMembersAction(
 
     // Verify the workspace belongs to the caller's org
     const { data: profile } = await admin.from('profiles').select('organization_id').eq('id', user.id).single()
-    const { data: workspace } = await admin.from('workspaces').select('organization_id').eq('id', workspaceId).single()
+    const { data: workspace } = await admin.from('spaces').select('organization_id').eq('id', workspaceId).single()
     if (!workspace || workspace.organization_id !== profile?.organization_id) {
       return { success: false, error: 'Unauthorized' }
     }
 
     if (toRemove.length > 0) {
       const { error } = await admin
-        .from('workspace_assignments')
+        .from('space_assignments')
         .delete()
-        .eq('workspace_id', workspaceId)
+        .eq('space_id', workspaceId)
         .in('user_id', toRemove)
       if (error) return { success: false, error: error.message }
     }
 
     if (toAdd.length > 0) {
       const { error } = await admin
-        .from('workspace_assignments')
+        .from('space_assignments')
         .upsert(
-          toAdd.map((user_id) => ({ workspace_id: workspaceId, user_id })),
-          { onConflict: 'workspace_id,user_id' }
+          toAdd.map((user_id) => ({ space_id: workspaceId, user_id })),
+          { onConflict: 'space_id,user_id' }
         )
       if (error) return { success: false, error: error.message }
     }
@@ -324,9 +324,9 @@ export async function getWorkspaceMembersAction(workspaceId: string): Promise<{
 
     const admin = createAdminClient()
     const { data: assignments } = await admin
-      .from('workspace_assignments')
+      .from('space_assignments')
       .select('user_id')
-      .eq('workspace_id', workspaceId)
+      .eq('space_id', workspaceId)
 
     const memberIds = (assignments ?? []).map((a: { user_id: string }) => a.user_id)
     if (memberIds.length === 0) return { success: true, members: [] }

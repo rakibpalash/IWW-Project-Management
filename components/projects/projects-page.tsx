@@ -49,7 +49,7 @@ export function ProjectsPage({ initialLists, profile, spaces: workspaces }: Proj
       const matchesStatus = statusFilter === 'all' || project.status === statusFilter
       const matchesPriority = priorityFilter === 'all' || project.priority === priorityFilter
       const matchesWorkspace =
-        spaceFilter === 'all' || project.workspace_id === spaceFilter
+        spaceFilter === 'all' || project.space_id === spaceFilter
 
       return matchesSearch && matchesStatus && matchesPriority && matchesWorkspace
     })

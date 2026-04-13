@@ -31,10 +31,10 @@ export function ProjectTimeReport({ workspaces, isAdmin }: Props) {
   // Aggregate by project
   const byProject = Object.values(
     data.reduce<Record<string, { name: string; minutes: number; billable: number; entries: number }>>((acc, row) => {
-      if (!acc[row.project_id]) acc[row.project_id] = { name: row.project_name, minutes: 0, billable: 0, entries: 0 }
-      acc[row.project_id].minutes += row.total_minutes
-      acc[row.project_id].billable += row.billable_minutes
-      acc[row.project_id].entries += row.entry_count
+      if (!acc[row.list_id]) acc[row.list_id] = { name: row.project_name, minutes: 0, billable: 0, entries: 0 }
+      acc[row.list_id].minutes += row.total_minutes
+      acc[row.list_id].billable += row.billable_minutes
+      acc[row.list_id].entries += row.entry_count
       return acc
     }, {})
   ).sort((a, b) => b.minutes - a.minutes)

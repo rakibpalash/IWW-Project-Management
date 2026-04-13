@@ -29,7 +29,7 @@ async function fetchTimeEntriesWithMeta(admin: ReturnType<typeof createAdminClie
     id: e.id,
     task_id: e.task_id,
     task_title: e.task?.title ?? 'Deleted task',
-    project_id: e.task?.project?.id ?? '',
+    list_id: e.task?.project?.id ?? '',
     project_name: e.task?.project?.name ?? 'Unknown project',
     user_full_name: (profilesById[e.user_id] as any)?.full_name ?? 'Unknown',
     user_avatar_url: (profilesById[e.user_id] as any)?.avatar_url ?? null,
@@ -64,8 +64,8 @@ export default async function DashboardRoute() {
 
     // Get workspace IDs for this org to scope projects
     const { data: orgWorkspaces } = orgId
-      ? await admin.from('workspaces').select('id').eq('organization_id', orgId)
-      : await admin.from('workspaces').select('id')
+      ? await admin.from('spaces').select('id').eq('organization_id', orgId)
+      : await admin.from('spaces').select('id')
     const orgWorkspaceIds = (orgWorkspaces ?? []).map((w) => w.id)
 
     // If org has no workspaces yet, skip all workspace-scoped queries
@@ -96,9 +96,9 @@ export default async function DashboardRoute() {
       { data: recentProjects },
       recentTeamTimeEntries,
     ] = await Promise.all([
-      admin.from('projects').select('id, status').in('workspace_id', orgWorkspaceIds),
+      admin.from('lists').select('id, status').in('space_id', orgWorkspaceIds),
       // Overdue tasks scoped to org workspaces via project join
-      admin.from('tasks').select('id, project:projects!inner(workspace_id)').lt('due_date', new Date().toISOString()).not('status', 'in', '("done","cancelled")').in('project.workspace_id', orgWorkspaceIds),
+      admin.from('tasks').select('id, project:projects!inner(space_id)').lt('due_date', new Date().toISOString()).not('status', 'in', '("done","cancelled")').in('project.space_id', orgWorkspaceIds),
       orgUserIds.length > 0
         ? admin.from('leave_requests').select('id').eq('status', 'pending').in('user_id', orgUserIds)
         : Promise.resolve({ data: [] }),
@@ -111,7 +111,7 @@ export default async function DashboardRoute() {
       orgUserIds.length > 0
         ? admin.from('activity_logs').select('*, user:profiles(id, full_name, avatar_url)').in('user_id', orgUserIds).order('created_at', { ascending: false }).limit(5)
         : Promise.resolve({ data: [] }),
-      admin.from('projects').select('id, name, status, priority, progress, due_date, created_at').in('workspace_id', orgWorkspaceIds).order('created_at', { ascending: false }).limit(5),
+      admin.from('lists').select('id, name, status, priority, progress, due_date, created_at').in('space_id', orgWorkspaceIds).order('created_at', { ascending: false }).limit(5),
       fetchTimeEntriesWithMeta(admin, orgUserIds.length > 0 ? orgUserIds : undefined, 10),
     ])
 
@@ -171,7 +171,7 @@ export default async function DashboardRoute() {
 
   // ── Client ───────────────────────────────────────────────────────────────────
   const { data: clientProjects } = await supabase
-    .from('projects')
+    .from('lists')
     .select('id, name, description, status, priority, progress, due_date, created_at')
     .eq('client_id', user.id)
     .order('created_at', { ascending: false })

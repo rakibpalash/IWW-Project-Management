@@ -94,7 +94,7 @@ export function ProjectTeamSection({
       const profile = allProfiles.find((p) => p.id === selectedUserId)
       const newMember: ListMember = {
         id: (result.member as any).id,
-        project_id: projectId,
+        list_id: projectId,
         user_id: selectedUserId,
         project_role: selectedRole,
         created_at: (result.member as any).created_at,

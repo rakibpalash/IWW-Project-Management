@@ -20,7 +20,7 @@ export type ProjectProgressRow = {
 }
 
 export type ProjectTimeRow = {
-  project_id: string
+  list_id: string
   project_name: string
   user_id: string
   user_name: string
@@ -146,7 +146,7 @@ export async function getProjectProgressReportAction(filters: {
     const admin = createAdminClient()
 
     // Fetch workspaces scoped to org
-    let workspaceQuery = admin.from('workspaces').select('id').eq('organization_id', orgId)
+    let workspaceQuery = admin.from('spaces').select('id').eq('organization_id', orgId)
     if (filters.workspaceId) workspaceQuery = workspaceQuery.eq('id', filters.workspaceId)
     const { data: workspaces } = await workspaceQuery
     const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
@@ -155,9 +155,9 @@ export async function getProjectProgressReportAction(filters: {
 
     // Fetch projects
     let projectQuery = admin
-      .from('projects')
-      .select('id, name, status, priority, due_date, estimated_hours, progress, workspace_id, workspace:workspaces(name)')
-      .in('workspace_id', workspaceIds)
+      .from('lists')
+      .select('id, name, status, priority, due_date, estimated_hours, progress, space_id, workspace:workspaces(name)')
+      .in('space_id', workspaceIds)
 
     if (filters.status) projectQuery = projectQuery.eq('status', filters.status)
 
@@ -169,25 +169,25 @@ export async function getProjectProgressReportAction(filters: {
     // Fetch task counts per project
     const { data: allTasks } = await admin
       .from('tasks')
-      .select('id, project_id, status')
-      .in('project_id', projectIds)
+      .select('id, list_id, status')
+      .in('list_id', projectIds)
 
     // Fetch time entries via tasks
     const { data: timeEntries } = await admin
       .from('time_entries')
-      .select('task_id, duration_minutes, task:tasks!inner(project_id)')
-      .in('task.project_id', projectIds)
+      .select('task_id, duration_minutes, task:tasks!inner(list_id)')
+      .in('task.list_id', projectIds)
       .not('duration_minutes', 'is', null)
 
     const now = new Date()
 
     const rows: ProjectProgressRow[] = projects.map((p: any) => {
-      const projectTasks = (allTasks ?? []).filter((t: any) => t.project_id === p.id)
+      const projectTasks = (allTasks ?? []).filter((t: any) => t.list_id === p.id)
       const total_tasks = projectTasks.length
       const completed_tasks = projectTasks.filter((t: any) => t.status === 'done').length
 
       const projectTimeEntries = (timeEntries ?? []).filter(
-        (te: any) => te.task?.project_id === p.id
+        (te: any) => te.task?.list_id === p.id
       )
       const logged_minutes = projectTimeEntries.reduce(
         (sum: number, te: any) => sum + (te.duration_minutes ?? 0),
@@ -238,7 +238,7 @@ export async function getProjectTimeReportAction(filters: {
 
     // Get workspace IDs for org
     const { data: workspaces } = await admin
-      .from('workspaces')
+      .from('spaces')
       .select('id')
       .eq('organization_id', orgId)
     const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
@@ -246,9 +246,9 @@ export async function getProjectTimeReportAction(filters: {
 
     // Get project IDs scoped to org
     let projectQuery = admin
-      .from('projects')
+      .from('lists')
       .select('id, name')
-      .in('workspace_id', workspaceIds)
+      .in('space_id', workspaceIds)
     if (filters.projectId) projectQuery = projectQuery.eq('id', filters.projectId)
     const { data: projects } = await projectQuery
     const projectIds = (projects ?? []).map((p: any) => p.id)
@@ -259,10 +259,10 @@ export async function getProjectTimeReportAction(filters: {
     // Fetch time entries in date range via task → project
     const { data: entries, error: entriesError } = await admin
       .from('time_entries')
-      .select('id, user_id, duration_minutes, is_billable, task:tasks!inner(project_id)')
+      .select('id, user_id, duration_minutes, is_billable, task:tasks!inner(list_id)')
       .gte('started_at', `${filters.startDate}T00:00:00`)
       .lte('started_at', `${filters.endDate}T23:59:59`)
-      .in('task.project_id', projectIds)
+      .in('task.list_id', projectIds)
       .not('duration_minutes', 'is', null)
 
     if (entriesError || !entries || entries.length === 0) return { data: [] }
@@ -278,12 +278,12 @@ export async function getProjectTimeReportAction(filters: {
     // Aggregate by project + user
     const aggregated: Record<string, ProjectTimeRow> = {}
     for (const entry of entries) {
-      const projectId = (entry as any).task?.project_id
+      const projectId = (entry as any).task?.list_id
       if (!projectId) continue
       const key = `${projectId}__${entry.user_id}`
       if (!aggregated[key]) {
         aggregated[key] = {
-          project_id: projectId,
+          list_id: projectId,
           project_name: projectMap[projectId] ?? 'Unknown Project',
           user_id: entry.user_id,
           user_name: profileMap[entry.user_id] ?? 'Unknown User',
@@ -320,7 +320,7 @@ export async function getTaskCompletionReportAction(filters: {
 
     // Get workspace + project IDs for org
     const { data: workspaces } = await admin
-      .from('workspaces')
+      .from('spaces')
       .select('id')
       .eq('organization_id', orgId)
     const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
@@ -331,9 +331,9 @@ export async function getTaskCompletionReportAction(filters: {
     }
 
     let projectQuery = admin
-      .from('projects')
+      .from('lists')
       .select('id, name')
-      .in('workspace_id', workspaceIds)
+      .in('space_id', workspaceIds)
     if (filters.projectId) projectQuery = projectQuery.eq('id', filters.projectId)
     const { data: projects } = await projectQuery
     const projectIds = (projects ?? []).map((p: any) => p.id)
@@ -347,8 +347,8 @@ export async function getTaskCompletionReportAction(filters: {
 
     const { data: tasks, error: tasksError } = await admin
       .from('tasks')
-      .select('id, status, due_date, project_id')
-      .in('project_id', projectIds)
+      .select('id, status, due_date, list_id')
+      .in('list_id', projectIds)
       .gte('created_at', `${filters.startDate}T00:00:00`)
       .lte('created_at', `${filters.endDate}T23:59:59`)
 
@@ -380,9 +380,9 @@ export async function getTaskCompletionReportAction(filters: {
     // by_project aggregation
     const byProjectMap: Record<string, { total: number; completed: number }> = {}
     for (const t of tasks) {
-      if (!byProjectMap[t.project_id]) byProjectMap[t.project_id] = { total: 0, completed: 0 }
-      byProjectMap[t.project_id].total += 1
-      if (t.status === 'done') byProjectMap[t.project_id].completed += 1
+      if (!byProjectMap[t.list_id]) byProjectMap[t.list_id] = { total: 0, completed: 0 }
+      byProjectMap[t.list_id].total += 1
+      if (t.status === 'done') byProjectMap[t.list_id].completed += 1
     }
     const by_project = Object.entries(byProjectMap).map(([projectId, counts]) => ({
       project_name: projectMap[projectId] ?? 'Unknown Project',
@@ -408,16 +408,16 @@ export async function getOverdueTasksReportAction(filters: {
     const admin = createAdminClient()
 
     const { data: workspaces } = await admin
-      .from('workspaces')
+      .from('spaces')
       .select('id')
       .eq('organization_id', orgId)
     const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
     if (workspaceIds.length === 0) return { data: [] }
 
     let projectQuery = admin
-      .from('projects')
+      .from('lists')
       .select('id, name')
-      .in('workspace_id', workspaceIds)
+      .in('space_id', workspaceIds)
     if (filters.projectId) projectQuery = projectQuery.eq('id', filters.projectId)
     const { data: projects } = await projectQuery
     const projectIds = (projects ?? []).map((p: any) => p.id)
@@ -429,8 +429,8 @@ export async function getOverdueTasksReportAction(filters: {
 
     let taskQuery = admin
       .from('tasks')
-      .select('id, title, priority, due_date, project_id, task_assignees(user_id)')
-      .in('project_id', projectIds)
+      .select('id, title, priority, due_date, list_id, task_assignees(user_id)')
+      .in('list_id', projectIds)
       .lt('due_date', today)
       .not('status', 'in', '("done","cancelled")')
       .not('due_date', 'is', null)
@@ -472,7 +472,7 @@ export async function getOverdueTasksReportAction(filters: {
       return {
         id: t.id,
         title: t.title,
-        project_name: projectMap[t.project_id] ?? 'Unknown Project',
+        project_name: projectMap[t.list_id] ?? 'Unknown Project',
         priority: t.priority,
         due_date: t.due_date,
         days_overdue,
@@ -515,7 +515,7 @@ export async function getTaskDistributionReportAction(filters: {
     const admin = createAdminClient()
 
     const { data: workspaces } = await admin
-      .from('workspaces')
+      .from('spaces')
       .select('id')
       .eq('organization_id', orgId)
     const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
@@ -524,9 +524,9 @@ export async function getTaskDistributionReportAction(filters: {
     }
 
     let projectQuery = admin
-      .from('projects')
+      .from('lists')
       .select('id')
-      .in('workspace_id', workspaceIds)
+      .in('space_id', workspaceIds)
     if (filters.projectId) projectQuery = projectQuery.eq('id', filters.projectId)
     const { data: projects } = await projectQuery
     const projectIds = (projects ?? []).map((p: any) => p.id)
@@ -538,7 +538,7 @@ export async function getTaskDistributionReportAction(filters: {
     const { data: tasks, error: tasksError } = await admin
       .from('tasks')
       .select('id, status, priority, task_assignees(user_id)')
-      .in('project_id', projectIds)
+      .in('list_id', projectIds)
 
     if (tasksError || !tasks) {
       return { data: { by_status: [], by_priority: [], by_assignee: [] } }
@@ -618,16 +618,16 @@ export async function getTimeLogReportAction(filters: {
     const admin = createAdminClient()
 
     const { data: workspaces } = await admin
-      .from('workspaces')
+      .from('spaces')
       .select('id')
       .eq('organization_id', orgId)
     const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
     if (workspaceIds.length === 0) return { data: [] }
 
     let projectQuery = admin
-      .from('projects')
+      .from('lists')
       .select('id, name')
-      .in('workspace_id', workspaceIds)
+      .in('space_id', workspaceIds)
     if (filters.projectId) projectQuery = projectQuery.eq('id', filters.projectId)
     const { data: projects } = await projectQuery
     const projectIds = (projects ?? []).map((p: any) => p.id)
@@ -638,11 +638,11 @@ export async function getTimeLogReportAction(filters: {
     let entryQuery = admin
       .from('time_entries')
       .select(
-        'id, user_id, started_at, duration_minutes, description, is_billable, task:tasks!inner(id, title, project_id)'
+        'id, user_id, started_at, duration_minutes, description, is_billable, task:tasks!inner(id, title, list_id)'
       )
       .gte('started_at', `${filters.startDate}T00:00:00`)
       .lte('started_at', `${filters.endDate}T23:59:59`)
-      .in('task.project_id', projectIds)
+      .in('task.list_id', projectIds)
       .not('duration_minutes', 'is', null)
       .order('started_at', { ascending: false })
 
@@ -668,7 +668,7 @@ export async function getTimeLogReportAction(filters: {
       id: e.id,
       date: (e.started_at as string).slice(0, 10),
       user_name: profileMap[e.user_id] ?? 'Unknown User',
-      project_name: projectMap[e.task?.project_id] ?? 'Unknown Project',
+      project_name: projectMap[e.task?.list_id] ?? 'Unknown Project',
       task_title: e.task?.title ?? 'Unknown Task',
       duration_minutes: e.duration_minutes ?? 0,
       description: e.description ?? null,

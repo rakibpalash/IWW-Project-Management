@@ -88,7 +88,7 @@ export function ReportsPage({ profile, isAdmin, defaultReport }: Props) {
     async function fetchWorkspaces() {
       const supabase = createClient()
       const { data } = await supabase
-        .from('workspaces')
+        .from('spaces')
         .select('id, name, description, created_by, created_at, updated_at')
         .order('name')
       setWorkspaces(data ?? [])

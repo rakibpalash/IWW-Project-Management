@@ -65,7 +65,7 @@ function avatarColor(id: string) {
 
 const formSchema = z.object({
   name:            z.string().min(1, 'Project name is required').max(255),
-  workspace_id:    z.string().min(1, 'Workspace is required'),
+  space_id:    z.string().min(1, 'Workspace is required'),
   client_id:       z.string().optional(),
   partner_id:      z.string().optional(),
   is_internal:     z.boolean().default(false),
@@ -120,7 +120,7 @@ export function EditProjectDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name:            project.name,
-      workspace_id:    project.workspace_id,
+      space_id:    project.space_id,
       client_id:       project.client_id ?? undefined,
       partner_id:      project.partner_id ?? undefined,
       is_internal:     project.is_internal ?? false,
@@ -142,7 +142,7 @@ export function EditProjectDialog({
   useEffect(() => {
     if (!open) return
 
-    supabase.from('workspaces').select('*').order('name')
+    supabase.from('spaces').select('*').order('name')
       .then(({ data }) => setWorkspaces(data ?? []))
 
     supabase.from('profiles')
@@ -176,9 +176,9 @@ export function EditProjectDialog({
       })
 
     // Load existing project members
-    supabase.from('project_members')
+    supabase.from('list_members')
       .select('id, user_id, project_role')
-      .eq('project_id', project.id)
+      .eq('list_id', project.id)
       .then(({ data }) => {
         if (!data) return
         setExistingMembers(data)
@@ -231,7 +231,7 @@ export function EditProjectDialog({
     try {
       const payload: Record<string, unknown> = {
         name:            values.name,
-        workspace_id:    values.workspace_id,
+        space_id:    values.space_id,
         client_id:       values.is_internal ? null : (values.client_id || null),
         partner_id:      values.is_internal ? null : (values.partner_id || null),
         is_internal:     values.is_internal,
@@ -255,7 +255,7 @@ export function EditProjectDialog({
       }
 
       const { data, error } = await supabase
-        .from('projects')
+        .from('lists')
         .update(payload)
         .eq('id', project.id)
         .select(`
@@ -283,28 +283,28 @@ export function EditProjectDialog({
       const desiredIds = new Set(desired.map(d => d.user_id))
       const toRemove = existingMembers.filter(m => !desiredIds.has(m.user_id)).map(m => m.id)
       if (toRemove.length > 0) {
-        await supabase.from('project_members').delete().in('id', toRemove)
+        await supabase.from('list_members').delete().in('id', toRemove)
       }
 
       // Add new members not already in existingMembers
       const existingUserIds = new Set(existingMembers.map(m => m.user_id))
       const toAdd = desired.filter(d => !existingUserIds.has(d.user_id))
-        .map(d => ({ project_id: project.id, user_id: d.user_id, project_role: d.project_role }))
+        .map(d => ({ list_id: project.id, user_id: d.user_id, project_role: d.project_role }))
       if (toAdd.length > 0) {
-        await supabase.from('project_members').insert(toAdd)
+        await supabase.from('list_members').insert(toAdd)
       }
 
       // Update role if existing lead changed
       const existingLead = existingMembers.find(m => m.project_role === 'lead')
       if (existingLead && projectManager && existingLead.user_id !== projectManager && existingUserIds.has(projectManager)) {
-        await supabase.from('project_members')
+        await supabase.from('list_members')
           .update({ project_role: 'lead' })
-          .eq('project_id', project.id)
+          .eq('list_id', project.id)
           .eq('user_id', projectManager)
       }
       // Demote old lead to member if they're now in selectedStaff
       if (existingLead && existingLead.user_id !== projectManager && selectedStaff.has(existingLead.user_id) && existingUserIds.has(existingLead.user_id)) {
-        await supabase.from('project_members')
+        await supabase.from('list_members')
           .update({ project_role: 'member' })
           .eq('id', existingLead.id)
       }
@@ -338,7 +338,7 @@ export function EditProjectDialog({
             )} />
 
             {/* Workspace */}
-            <FormField control={form.control} name="workspace_id" render={({ field }) => (
+            <FormField control={form.control} name="space_id" render={({ field }) => (
               <FormItem>
                 <FormLabel>Space *</FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>

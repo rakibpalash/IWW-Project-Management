@@ -60,14 +60,14 @@ export interface Space {
 
 export interface SpaceAssignment {
   id: string
-  workspace_id: string
+  space_id: string
   user_id: string
   created_at: string
 }
 
 export interface List {
   id: string
-  workspace_id: string
+  space_id: string
   name: string
   description: string | null
   client_id: string | null
@@ -93,7 +93,7 @@ export interface List {
 
 export interface Task {
   id: string
-  project_id: string
+  list_id: string
   parent_task_id: string | null
   title: string
   description: string | null
@@ -355,7 +355,7 @@ export interface CustomTaskPriority {
 
 export interface ListMember {
   id: string
-  project_id: string
+  list_id: string
   user_id: string
   project_role: 'lead' | 'member'
   created_at: string

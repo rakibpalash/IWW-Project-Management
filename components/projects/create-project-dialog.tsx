@@ -101,9 +101,9 @@ export function CreateProjectDialog({
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { toast({ title: 'Not authenticated', variant: 'destructive' }); return }
 
-      const { data, error } = await supabase.from('projects').insert({
+      const { data, error } = await supabase.from('lists').insert({
         name:         name.trim(),
-        workspace_id: wsId,
+        space_id: wsId,
         description:  description.trim() || null,
         status:       defaultStatus || 'active',
         priority:     defaultPriority || 'medium',
@@ -116,11 +116,11 @@ export function CreateProjectDialog({
       if (error) { toast({ title: 'Failed to create list', description: error.message, variant: 'destructive' }); return }
 
       // Add members
-      const memberInserts: { project_id: string; user_id: string; project_role: 'member' }[] = []
+      const memberInserts: { list_id: string; user_id: string; project_role: 'member' }[] = []
       selectedStaff.forEach(uid => {
-        if (uid !== user.id) memberInserts.push({ project_id: data.id, user_id: uid, project_role: 'member' })
+        if (uid !== user.id) memberInserts.push({ list_id: data.id, user_id: uid, project_role: 'member' })
       })
-      if (memberInserts.length > 0) await supabase.from('project_members').insert(memberInserts)
+      if (memberInserts.length > 0) await supabase.from('list_members').insert(memberInserts)
 
       toast({ title: 'List created', description: `"${data.name}" has been created.` })
       onCreated?.(data as List)

@@ -71,11 +71,11 @@ export const getProfile = cache(async (userId: string): Promise<Profile | null> 
 })
 
 export const SIDEBAR_WS_SELECT   = 'id, name, description, created_at, updated_at, created_by'
-export const SIDEBAR_PROJ_SELECT = 'id, name, workspace_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, actual_hours, estimated_hours, start_date, due_date, description'
+export const SIDEBAR_PROJ_SELECT = 'id, name, space_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, actual_hours, estimated_hours, start_date, due_date, description'
 
 /**
  * getSidebarData — mirrors the EXACT same query logic as the Lists page.
- * Explicit workspace_id filtering (not pure RLS) ensures correct results.
+ * Explicit space_id filtering (not pure RLS) ensures correct results.
  */
 export const getSidebarData = cache(async (userId: string, role: string, orgId: string | null) => {
   try {
@@ -83,35 +83,35 @@ export const getSidebarData = cache(async (userId: string, role: string, orgId: 
 
     if (role === 'staff') {
       const { data: assignments } = await supabase
-        .from('workspace_assignments').select('workspace_id').eq('user_id', userId)
-      const wsIds = (assignments ?? []).map((a: any) => a.workspace_id as string)
+        .from('space_assignments').select('space_id').eq('user_id', userId)
+      const wsIds = (assignments ?? []).map((a: any) => a.space_id as string)
       if (wsIds.length === 0) return { workspaces: [], projects: [] }
       const [wsRes, projRes] = await Promise.all([
-        supabase.from('workspaces').select(SIDEBAR_WS_SELECT).in('id', wsIds).order('name'),
-        supabase.from('projects').select(SIDEBAR_PROJ_SELECT).in('workspace_id', wsIds).order('name'),
+        supabase.from('spaces').select(SIDEBAR_WS_SELECT).in('id', wsIds).order('name'),
+        supabase.from('lists').select(SIDEBAR_PROJ_SELECT).in('space_id', wsIds).order('name'),
       ])
       return { workspaces: wsRes.data ?? [], projects: projRes.data ?? [] }
     }
 
     if (role === 'client') {
       const [wsRes, projRes] = await Promise.all([
-        supabase.from('workspaces').select(SIDEBAR_WS_SELECT).order('name'),
-        supabase.from('projects').select(SIDEBAR_PROJ_SELECT).eq('client_id', userId).order('name'),
+        supabase.from('spaces').select(SIDEBAR_WS_SELECT).order('name'),
+        supabase.from('lists').select(SIDEBAR_PROJ_SELECT).eq('client_id', userId).order('name'),
       ])
       return { workspaces: wsRes.data ?? [], projects: projRes.data ?? [] }
     }
 
     // super_admin / account_manager / others — same explicit logic as Lists page
     const wsQuery = orgId
-      ? supabase.from('workspaces').select(SIDEBAR_WS_SELECT).eq('organization_id', orgId).order('name')
-      : supabase.from('workspaces').select(SIDEBAR_WS_SELECT).order('name')
+      ? supabase.from('spaces').select(SIDEBAR_WS_SELECT).eq('organization_id', orgId).order('name')
+      : supabase.from('spaces').select(SIDEBAR_WS_SELECT).order('name')
     const { data: wsData } = await wsQuery
     const workspaces = wsData ?? []
     const wsIds = workspaces.map((w: any) => w.id as string)
 
     const { data: projData } = wsIds.length > 0
-      ? await supabase.from('projects').select(SIDEBAR_PROJ_SELECT).in('workspace_id', wsIds).order('name')
-      : await supabase.from('projects').select(SIDEBAR_PROJ_SELECT).order('name')
+      ? await supabase.from('lists').select(SIDEBAR_PROJ_SELECT).in('space_id', wsIds).order('name')
+      : await supabase.from('lists').select(SIDEBAR_PROJ_SELECT).order('name')
 
     return { workspaces, projects: projData ?? [] }
   } catch {

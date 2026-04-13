@@ -60,7 +60,7 @@ export function CommandPalette() {
       { data: workspaces },
     ] = await Promise.all([
       supabase
-        .from('projects')
+        .from('lists')
         .select('id, name, status')
         .ilike('name', term)
         .limit(5),
@@ -70,7 +70,7 @@ export function CommandPalette() {
         .ilike('title', term)
         .limit(5),
       supabase
-        .from('workspaces')
+        .from('spaces')
         .select('id, name')
         .ilike('name', term)
         .limit(5),

@@ -150,7 +150,7 @@ function ProjectTaskList({
       if (!user) return
       const { data, error } = await supabase.from('tasks').insert({
         title,
-        project_id:  projectId,
+        list_id:  projectId,
         status:      statusId,
         priority:    defaultPriority || 'medium',
         created_by:  user.id,
@@ -726,7 +726,7 @@ function ProjectBoardView({
       if (!user) return
       const { data, error } = await supabase.from('tasks').insert({
         title,
-        project_id: projectId,
+        list_id: projectId,
         status: statusId,
         priority: defaultPriority || 'medium',
         created_by: user.id,

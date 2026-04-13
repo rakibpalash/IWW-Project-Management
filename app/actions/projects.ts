@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { List } from '@/types'
 
 type ProjectInput = {
-  workspace_id: string
+  space_id: string
   name: string
   description?: string
   client_id?: string
@@ -34,9 +34,9 @@ export async function createProjectAction(
     }
 
     const { data: project, error } = await supabase
-      .from('projects')
+      .from('lists')
       .insert({
-        workspace_id: data.workspace_id,
+        space_id: data.space_id,
         name: data.name,
         description: data.description ?? null,
         client_id: data.client_id ?? null,
@@ -89,7 +89,7 @@ export async function updateProjectAction(
     if (data.name !== undefined) payload.name = data.name
     if (data.description !== undefined) payload.description = data.description
     if (data.client_id !== undefined) payload.client_id = data.client_id
-    if (data.workspace_id !== undefined) payload.workspace_id = data.workspace_id
+    if (data.space_id !== undefined) payload.space_id = data.space_id
     if (data.start_date !== undefined) payload.start_date = data.start_date
     if (data.due_date !== undefined) payload.due_date = data.due_date
     if (data.status !== undefined) payload.status = data.status
@@ -98,7 +98,7 @@ export async function updateProjectAction(
     if (data.progress !== undefined) payload.progress = data.progress
 
     const { data: project, error } = await supabase
-      .from('projects')
+      .from('lists')
       .update(payload)
       .eq('id', id)
       .select('*')
@@ -134,8 +134,8 @@ export async function deleteProjectAction(
 
     // Fetch project name + all affected people before deleting
     const { data: project } = await admin
-      .from('projects')
-      .select('name, workspace_id')
+      .from('lists')
+      .select('name, space_id')
       .eq('id', id)
       .single()
 
@@ -143,13 +143,13 @@ export async function deleteProjectAction(
     const { data: tasks } = await admin
       .from('tasks')
       .select('id, task_assignees(user_id)')
-      .eq('project_id', id)
+      .eq('list_id', id)
 
     // Collect project team members
     const { data: projectMembers } = await admin
-      .from('project_members')
+      .from('list_members')
       .select('user_id')
-      .eq('project_id', id)
+      .eq('list_id', id)
 
     const memberIds = new Set<string>()
     for (const t of tasks ?? []) {
@@ -169,10 +169,10 @@ export async function deleteProjectAction(
 
     if (opts?.moveTasksToProjectId && tasks && tasks.length > 0) {
       const taskIds = tasks.map((t) => t.id)
-      await admin.from('tasks').update({ project_id: opts.moveTasksToProjectId }).in('id', taskIds)
+      await admin.from('tasks').update({ list_id: opts.moveTasksToProjectId }).in('id', taskIds)
     }
 
-    const { error } = await supabase.from('projects').delete().eq('id', id)
+    const { error } = await supabase.from('lists').delete().eq('id', id)
     if (error) return { success: false, error: error.message }
 
     // Notify assignees
@@ -212,7 +212,7 @@ export async function cloneProjectAction(
 
     // Fetch original project
     const { data: original, error: fetchError } = await admin
-      .from('projects')
+      .from('lists')
       .select('*')
       .eq('id', id)
       .single()
@@ -221,9 +221,9 @@ export async function cloneProjectAction(
 
     // Create cloned project
     const { data: cloned, error: insertError } = await admin
-      .from('projects')
+      .from('lists')
       .insert({
-        workspace_id: original.workspace_id,
+        space_id: original.space_id,
         name: `${original.name} (Copy)`,
         description: original.description,
         client_id: original.client_id,
@@ -242,14 +242,14 @@ export async function cloneProjectAction(
 
     // Copy project members
     const { data: members } = await admin
-      .from('project_members')
+      .from('list_members')
       .select('user_id, project_role')
-      .eq('project_id', id)
+      .eq('list_id', id)
 
     if (members && members.length > 0) {
-      await admin.from('project_members').insert(
+      await admin.from('list_members').insert(
         members.map((m) => ({
-          project_id: cloned.id,
+          list_id: cloned.id,
           user_id: m.user_id,
           project_role: m.project_role,
         }))
@@ -257,7 +257,7 @@ export async function cloneProjectAction(
     }
 
     revalidatePath('/lists')
-    revalidatePath(`/spaces/${original.workspace_id}`)
+    revalidatePath(`/spaces/${original.space_id}`)
     return { success: true, project: cloned as List }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }

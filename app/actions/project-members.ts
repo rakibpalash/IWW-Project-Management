@@ -16,9 +16,9 @@ export async function getProjectMembersAction(projectId: string): Promise<{
   const admin = createAdminClient()
 
   const { data: membersData, error: membersErr } = await admin
-    .from('project_members')
+    .from('list_members')
     .select('*')
-    .eq('project_id', projectId)
+    .eq('list_id', projectId)
     .order('created_at', { ascending: true })
 
   if (membersErr) return { error: membersErr.message }
@@ -55,8 +55,8 @@ export async function addProjectMemberAction(
 
   const admin = createAdminClient()
   const { data, error } = await admin
-    .from('project_members')
-    .insert({ project_id: projectId, user_id: userId, project_role: role })
+    .from('list_members')
+    .insert({ list_id: projectId, user_id: userId, project_role: role })
     .select()
     .single()
 
@@ -65,7 +65,7 @@ export async function addProjectMemberAction(
   // Notify the added member (unless they added themselves)
   if (userId !== user.id) {
     const { data: project } = await admin
-      .from('projects')
+      .from('lists')
       .select('name')
       .eq('id', projectId)
       .single()
@@ -95,7 +95,7 @@ export async function updateProjectMemberRoleAction(
 
   const admin = createAdminClient()
   const { error } = await admin
-    .from('project_members')
+    .from('list_members')
     .update({ project_role: role })
     .eq('id', memberId)
 
@@ -115,7 +115,7 @@ export async function removeProjectMemberAction(
 
   const admin = createAdminClient()
   const { error } = await admin
-    .from('project_members')
+    .from('list_members')
     .delete()
     .eq('id', memberId)
 

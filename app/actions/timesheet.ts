@@ -15,7 +15,7 @@ export interface TimesheetRow {
   approval_status: 'pending' | 'approved' | 'rejected'
   approved_by: string | null
   task_title: string
-  project_id: string
+  list_id: string
   project_name: string
   user_full_name: string
   user_avatar_url: string | null
@@ -100,7 +100,7 @@ export async function getTimesheetEntriesAction(filters?: {
     approval_status: e.approval_status ?? 'pending',
     approved_by: e.approved_by ?? null,
     task_title: e.task?.title ?? 'Deleted task',
-    project_id: e.task?.project?.id ?? '',
+    list_id: e.task?.project?.id ?? '',
     project_name: e.task?.project?.name ?? 'Unknown project',
     user_full_name: e.profile?.full_name ?? 'Unknown user',
     user_avatar_url: e.profile?.avatar_url ?? null,

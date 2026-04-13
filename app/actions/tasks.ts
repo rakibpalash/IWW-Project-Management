@@ -6,7 +6,7 @@ import { Task, TimeEntry } from '@/types'
 import { notifyMany, getTaskRecipients } from '@/lib/notifications'
 
 type TaskInput = {
-  project_id: string
+  list_id: string
   parent_task_id?: string
   title: string
   description?: string
@@ -70,7 +70,7 @@ export async function createTaskAction(
     const { data: task, error: taskError } = await supabase
       .from('tasks')
       .insert({
-        project_id: data.project_id,
+        list_id: data.list_id,
         parent_task_id: data.parent_task_id ?? null,
         title: data.title,
         description: data.description ?? null,
@@ -112,7 +112,7 @@ export async function createTaskAction(
     )
 
     revalidatePath('/tasks')
-    revalidatePath(`/lists/${data.project_id}`)
+    revalidatePath(`/lists/${data.list_id}`)
 
     return { success: true, task: task as Task }
   } catch (err) {
@@ -321,7 +321,7 @@ export async function deleteTaskAction(
     // Fetch task title + all assignees before deleting
     const { data: task } = await admin
       .from('tasks')
-      .select('id, title, project_id, task_assignees(user_id)')
+      .select('id, title, list_id, task_assignees(user_id)')
       .eq('id', id)
       .single()
 
@@ -351,11 +351,11 @@ export async function deleteTaskAction(
       'task_deleted',
       'Task deleted',
       `"${taskTitle}" was deleted by ${deleterName}.`,
-      task?.project_id ? `/projects/${task.project_id}` : '/tasks'
+      task?.list_id ? `/projects/${task.list_id}` : '/tasks'
     )
 
     revalidatePath('/tasks')
-    revalidatePath(`/lists/${task?.project_id}`)
+    revalidatePath(`/lists/${task?.list_id}`)
 
     return { success: true }
   } catch (err) {
@@ -464,7 +464,7 @@ async function cloneTaskRecursive(
   const { data: cloned } = await admin
     .from('tasks')
     .insert({
-      project_id: projectId,
+      list_id: projectId,
       parent_task_id: newParentId,
       title: newParentId ? original.title : `${original.title} (Copy)`,
       description: original.description,
@@ -512,20 +512,20 @@ export async function cloneTaskAction(
 
     const { data: original } = await admin
       .from('tasks')
-      .select('project_id, parent_task_id')
+      .select('list_id, parent_task_id')
       .eq('id', taskId)
       .single()
 
     if (!original) return { success: false, error: 'Task not found' }
 
     const newId = await cloneTaskRecursive(
-      admin, taskId, original.parent_task_id, original.project_id, user.id
+      admin, taskId, original.parent_task_id, original.list_id, user.id
     )
 
     if (!newId) return { success: false, error: 'Failed to clone task' }
 
     revalidatePath('/tasks')
-    revalidatePath(`/lists/${original.project_id}`)
+    revalidatePath(`/lists/${original.list_id}`)
     return { success: true, taskId: newId }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }

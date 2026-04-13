@@ -285,7 +285,7 @@ export function SmartDeleteDialog({
                         {impact.tasks.slice(0, 5).map((t) => (
                           <div key={t.id} className="flex items-center justify-between text-xs">
                             <Link
-                              href={`/lists/${t.project_id}/tasks/${t.id}`}
+                              href={`/lists/${t.list_id}/tasks/${t.id}`}
                               target="_blank"
                               className="flex items-center gap-1 truncate max-w-[200px] text-amber-700 hover:text-amber-900 underline underline-offset-2 font-medium"
                             >

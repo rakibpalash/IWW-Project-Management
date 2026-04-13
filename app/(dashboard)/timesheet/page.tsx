@@ -27,19 +27,19 @@ export default async function TimesheetServerPage() {
 
   // Fetch all workspaces for workspace filter (scoped to org)
   const { data: workspaces } = orgId
-    ? await admin.from('workspaces').select('id, name').eq('organization_id', orgId).order('name')
+    ? await admin.from('spaces').select('id, name').eq('organization_id', orgId).order('name')
     : { data: [] }
 
   // Fetch project→workspace mapping (projects are scoped via workspaces)
   const wsIds = (workspaces ?? []).map((w: { id: string }) => w.id)
   const { data: projectsRaw } = wsIds.length > 0
-    ? await admin.from('projects').select('id, name, workspace_id').in('workspace_id', wsIds).order('name')
+    ? await admin.from('lists').select('id, name, space_id').in('space_id', wsIds).order('name')
     : { data: [] }
   const projectWorkspaceMap: Record<string, string> = {}
   for (const p of projectsRaw ?? []) {
-    projectWorkspaceMap[p.id] = p.workspace_id
+    projectWorkspaceMap[p.id] = p.space_id
   }
-  const allProjects = (projectsRaw ?? []).map((p) => ({ id: p.id, name: p.name, workspace_id: p.workspace_id }))
+  const allProjects = (projectsRaw ?? []).map((p) => ({ id: p.id, name: p.name, space_id: p.space_id }))
 
   // For admin: fetch all profiles for people filter (scoped to org)
   let allProfiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url' | 'role'>[] = []

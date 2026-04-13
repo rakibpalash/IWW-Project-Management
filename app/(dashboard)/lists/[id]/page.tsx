@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: ProjectPageProps) {
   const { id } = await params
   const supabase = await createClient()
   const { data } = await supabase
-    .from('projects')
+    .from('lists')
     .select('name')
     .eq('id', id)
     .single()
@@ -32,7 +32,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   // Fetch project with joins
   const { data: project, error: projectError } = await supabase
-    .from('projects')
+    .from('lists')
     .select(`
       *,
       workspace:workspaces(*),
@@ -53,10 +53,10 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   if (profile.role === 'staff') {
     const { data: assignment } = await supabase
-      .from('workspace_assignments')
+      .from('space_assignments')
       .select('id')
       .eq('user_id', user.id)
-      .eq('workspace_id', project.workspace_id)
+      .eq('space_id', project.space_id)
       .single()
 
     if (!assignment) {
@@ -73,7 +73,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         user:profiles(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
       )
     `)
-    .eq('project_id', id)
+    .eq('list_id', id)
     .is('parent_task_id', null)
     .order('created_at', { ascending: true })
 
@@ -115,8 +115,8 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   let actualHours = 0
   const { data: timeEntries } = await supabase
     .from('time_entries')
-    .select('duration_minutes, task:tasks!inner(project_id)')
-    .eq('tasks.project_id', id)
+    .select('duration_minutes, task:tasks!inner(list_id)')
+    .eq('tasks.list_id', id)
     .not('duration_minutes', 'is', null)
 
   if (timeEntries) {
@@ -141,11 +141,11 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   // Fetch workspace members
   const { data: assignments } = await supabase
-    .from('workspace_assignments')
+    .from('space_assignments')
     .select(`
       user:profiles(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
     `)
-    .eq('workspace_id', project.workspace_id)
+    .eq('space_id', project.space_id)
 
   const members: Profile[] = (assignments ?? [])
     .map((a: any) => a.user)
@@ -160,7 +160,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   const [pmResult, allProfilesResult, customRolesResult] =
     await Promise.all([
-      admin.from('project_members').select('*').eq('project_id', id).order('created_at'),
+      admin.from('list_members').select('*').eq('list_id', id).order('created_at'),
       admin.from('profiles').select(pmProfileSelect).neq('role', 'client').order('full_name'),
       admin.from('custom_roles').select('*').order('name'),
     ])
