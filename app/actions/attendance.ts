@@ -756,15 +756,29 @@ export async function getPendingVerificationFinesAction(): Promise<{
     if (!user) return { error: 'Not authenticated' }
 
     const { data: profile } = await supabase
-      .from('profiles').select('role').eq('id', user.id).single()
+      .from('profiles').select('role, organization_id').eq('id', user.id).single()
     if (!profile || profile.role !== 'super_admin') return { error: 'Unauthorized' }
 
+    const orgId = profile.organization_id
+    if (!orgId) return { error: 'No organization' }
+
     const admin = createAdminClient()
+
+    // Fetch org's staff user ids first so we can scope attendance_records
+    const { data: orgUsers } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('organization_id', orgId)
+
+    const orgUserIds = (orgUsers ?? []).map((u: { id: string }) => u.id)
+    if (orgUserIds.length === 0) return { data: [] }
+
     const { data: records, error } = await admin
       .from('attendance_records')
       .select('id, date, fine_amount, fine_reported_txn_id, fine_reported_at, user_id, user:profiles!user_id(full_name, avatar_url)')
       .eq('fine_status', 'pending')
       .not('fine_reported_txn_id', 'is', null)
+      .in('user_id', orgUserIds)
       .order('fine_reported_at', { ascending: false })
 
     if (error) return { error: error.message }
