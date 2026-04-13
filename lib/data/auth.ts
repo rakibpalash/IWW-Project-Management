@@ -75,7 +75,7 @@ export const SIDEBAR_WS_SELECT = 'id, name, description, created_at, updated_at,
 // Try space_id first (new column name); fall back to workspace_id (old)
 async function fetchLists(admin: ReturnType<typeof createAdminClient>, filter: { spaceIds?: string[]; clientId?: string; partnerId?: string }) {
   // Minimal safe select — avoids columns that may not exist (e.g. actual_hours)
-  const BASE = 'id, name, space_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, estimated_hours, start_date, due_date, description'
+  const BASE = 'id, name, space_id, folder_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, estimated_hours, start_date, due_date, description'
   // Fallback select — workspace_id is the old column name
   const FALLBACK = 'id, name, workspace_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, estimated_hours, start_date, due_date, description'
 
