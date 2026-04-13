@@ -1,660 +1,381 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
-import { Project, Workspace, Profile, BillingType } from '@/types'
+import { Project, Workspace, Profile } from '@/types'
 import { toast } from '@/components/ui/use-toast'
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
-} from '@/components/ui/form'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { Checkbox } from '@/components/ui/checkbox'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar } from '@/components/ui/calendar'
-import {
-  CalendarIcon, Loader2, Plus, Search, Users, GitBranch, ChevronDown, DollarSign,
-} from 'lucide-react'
-import { format } from 'date-fns'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { X, Search, Check, ChevronDown } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
-import Link from 'next/link'
 import { useTaskConfig } from '@/hooks/use-task-config'
 
-const AVATAR_COLORS = [
-  'bg-rose-400', 'bg-pink-400', 'bg-fuchsia-400', 'bg-purple-400',
-  'bg-violet-400', 'bg-blue-400', 'bg-cyan-400', 'bg-teal-400',
-  'bg-emerald-400', 'bg-green-400', 'bg-amber-400', 'bg-orange-400',
-]
-function avatarColor(id: string) {
-  let h = 0
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
-  return AVATAR_COLORS[h % AVATAR_COLORS.length]
-}
-
-const BILLING_TYPES: { value: BillingType; label: string; description: string }[] = [
-  { value: 'hourly',       label: 'Hourly',      description: 'Billed by hours worked' },
-  { value: 'fixed',        label: 'Fixed Price',  description: 'Fixed project cost' },
-  { value: 'retainer',     label: 'Retainer',     description: 'Monthly retainer fee' },
-  { value: 'non_billable', label: 'Non-Billable', description: 'Internal / no billing' },
-]
-
-const formSchema = z.object({
-  name:             z.string().min(1, 'Project name is required').max(255),
-  workspace_id:     z.string().min(1, 'Workspace is required'),
-  client_id:        z.string().optional(),
-  partner_id:       z.string().optional(),
-  is_internal:      z.boolean().default(false),
-  billing_type:     z.enum(['hourly', 'fixed', 'retainer', 'non_billable']).default('hourly'),
-  start_date:       z.date().optional(),
-  due_date:         z.date().optional(),
-  status:           z.string().min(1),
-  priority:         z.string().min(1),
-  estimated_hours:  z.coerce.number().min(0).optional().or(z.literal('')),
-  fixed_price:      z.coerce.number().min(0).optional().or(z.literal('')),
-  description:      z.string().max(2000).optional(),
-})
-
-type FormValues = z.infer<typeof formSchema>
+// ─── props ────────────────────────────────────────────────────────────────────
 
 interface CreateProjectDialogProps {
-  open:          boolean
-  onOpenChange:  (open: boolean) => void
-  workspaces:    Workspace[]
-  onCreated?:    (project: Project) => void
-  profile?:      Profile
+  open:         boolean
+  onOpenChange: (open: boolean) => void
+  workspaces:   Workspace[]
+  onCreated?:   (project: Project) => void
+  profile?:     Profile
 }
 
-function Section({
-  label, defaultOpen = true, children,
-}: {
-  label: string; defaultOpen?: boolean; children: React.ReactNode
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-  return (
-    <div className="border-t border-border pt-3">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="flex w-full items-center gap-1.5 mb-3 group"
-      >
-        <ChevronDown
-          className={cn(
-            'h-4 w-4 text-muted-foreground transition-transform duration-200',
-            !open && '-rotate-90'
-          )}
-        />
-        <span className="text-sm font-semibold text-foreground group-hover:text-foreground/80 transition-colors">
-          {label}
-        </span>
-      </button>
-      {open && <div className="space-y-4 pl-1">{children}</div>}
-    </div>
-  )
-}
+// ─── component ────────────────────────────────────────────────────────────────
 
 export function CreateProjectDialog({
-  open, onOpenChange, workspaces, onCreated, profile,
+  open,
+  onOpenChange,
+  workspaces,
+  onCreated,
+  profile,
 }: CreateProjectDialogProps) {
   const router   = useRouter()
   const supabase = createClient()
-  const isSuperAdmin = profile?.role === 'super_admin'
+  const { defaultStatus, defaultPriority } = useTaskConfig()
 
-  const { statuses, priorities, defaultStatus, defaultPriority } = useTaskConfig()
+  // ── Form state ───────────────────────────────────────────────────────────────
+  const [name,        setName]        = useState('')
+  const [description, setDescription] = useState('')
+  const [workspaceId, setWorkspaceId] = useState('')
+  const [isPrivate,   setIsPrivate]   = useState(false)
+  const [nameError,   setNameError]   = useState('')
+  const [wsError,     setWsError]     = useState('')
+  const [loading,     setLoading]     = useState(false)
 
-  const [loading,   setLoading]   = useState(false)
-  const [clients,   setClients]   = useState<Profile[]>([])
-  const [partners,  setPartners]  = useState<Profile[]>([])
-  const [startOpen, setStartOpen] = useState(false)
-  const [dueOpen,   setDueOpen]   = useState(false)
-
-  // All internal users (everyone except client/partner)
-  const [allUsers,       setAllUsers]       = useState<Profile[]>([])
-  const [projectManager, setProjectManager] = useState<string>('')
-  const [pmSearch,       setPmSearch]       = useState('')
-
-  // Assign staff
-  const [staffSearch,   setStaffSearch]   = useState('')
+  // ── People picker ────────────────────────────────────────────────────────────
+  const [allUsers,      setAllUsers]      = useState<Profile[]>([])
+  const [memberSearch,  setMemberSearch]  = useState('')
   const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set())
+  const [shareOpen,     setShareOpen]     = useState(false)
+  const shareRef = useRef<HTMLDivElement>(null)
+  const nameRef  = useRef<HTMLInputElement>(null)
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: '', workspace_id: workspaces.length === 1 ? workspaces[0].id : '',
-      client_id: undefined, partner_id: undefined,
-      is_internal: false, billing_type: 'hourly',
-      status: defaultStatus, priority: defaultPriority,
-      description: '', estimated_hours: '', fixed_price: '',
-    },
-  })
+  // ── Space dropdown ───────────────────────────────────────────────────────────
+  const [wsOpen, setWsOpen] = useState(false)
+  const wsRef   = useRef<HTMLDivElement>(null)
 
-  const isInternal  = form.watch('is_internal')
-  const billingType = form.watch('billing_type')
-
+  // Pre-select first workspace
   useEffect(() => {
-    if (!open) { setSelectedStaff(new Set()); setStaffSearch(''); setPmSearch(''); setProjectManager(''); return }
-
-    // Reset status/priority to org defaults each time dialog opens
-    form.setValue('status', defaultStatus)
-    form.setValue('priority', defaultPriority)
-
-    const baseSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
-
-    // Clients — only role='client'
-    supabase.from('profiles').select(baseSelect).eq('role', 'client').order('full_name')
-      .then(({ data }) => setClients((data as Profile[]) ?? []))
-
-    // Partners — only role='partner'
-    supabase.from('profiles').select(baseSelect).eq('role', 'partner').order('full_name')
-      .then(({ data }) => setPartners((data as Profile[]) ?? []))
-
-    // Try with manager_id first, fall back to base fields
-    supabase.from('profiles')
-      .select(`${baseSelect}, manager_id`)
-      .order('full_name')
-      .then(({ data, error }) => {
-        if (error || !data) {
-          supabase.from('profiles').select(baseSelect).order('full_name')
-            .then(({ data: fallback }) => setAllUsers((fallback as Profile[]) ?? []))
-        } else {
-          setAllUsers((data as Profile[]) ?? [])
-        }
-      })
-  }, [open, defaultStatus, defaultPriority])
-
-  useEffect(() => {
-    if (isInternal) {
-      form.setValue('billing_type', 'non_billable')
-      form.setValue('client_id', undefined)
-      form.setValue('partner_id', undefined)
+    if (open) {
+      if (workspaces.length === 1) setWorkspaceId(workspaces[0].id)
+      setTimeout(() => nameRef.current?.focus(), 80)
+      // Fetch members lazily
+      const baseSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+      supabase.from('profiles').select(baseSelect).not('role', 'in', '("client","partner")').order('full_name')
+        .then(({ data }) => setAllUsers((data as Profile[]) ?? []))
+    } else {
+      setName(''); setDescription(''); setWorkspaceId('')
+      setIsPrivate(false); setNameError(''); setWsError('')
+      setMemberSearch(''); setSelectedStaff(new Set())
+      setShareOpen(false); setWsOpen(false)
     }
-  }, [isInternal])
+  }, [open])
 
-  function toggleStaff(id: string) {
-    setSelectedStaff(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  // Click-outside handlers
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (shareRef.current && !shareRef.current.contains(e.target as Node)) setShareOpen(false)
+      if (wsRef.current && !wsRef.current.contains(e.target as Node)) setWsOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function toggleMember(id: string) {
+    setSelectedStaff(prev => {
+      const n = new Set(prev)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
   }
 
-  // Users available as project manager — exclude client/partner roles
-  const filteredPm = allUsers.filter(u =>
-    u.role !== 'client' && u.role !== 'partner' && (
-      u.full_name.toLowerCase().includes(pmSearch.toLowerCase()) ||
-      u.email.toLowerCase().includes(pmSearch.toLowerCase())
-    )
-  )
-  const selectedPmUser = allUsers.find(u => u.id === projectManager)
+  async function handleCreate() {
+    let valid = true
+    if (!name.trim()) { setNameError('List name is required'); nameRef.current?.focus(); valid = false }
+    const wsId = workspaceId || (workspaces.length === 1 ? workspaces[0].id : '')
+    if (!wsId) { setWsError('Please select a space'); valid = false }
+    if (!valid) return
 
-  // Team members = staff only, excluding selected PM
-  const teamCandidates = allUsers.filter(u => u.role === 'staff' && u.id !== projectManager)
-
-  const staffByManager = teamCandidates.reduce<Record<string, Profile[]>>((acc, s) => {
-    const key = s.manager_id ?? '__none__'
-    if (!acc[key]) acc[key] = []
-    acc[key].push(s)
-    return acc
-  }, {})
-
-  const filteredStaff = teamCandidates.filter(s =>
-    s.full_name.toLowerCase().includes(staffSearch.toLowerCase()) ||
-    s.email.toLowerCase().includes(staffSearch.toLowerCase())
-  )
-  const showGrouped = !staffSearch.trim()
-
-  async function onSubmit(values: FormValues) {
     setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { toast({ title: 'Not authenticated', variant: 'destructive' }); return }
 
       const { data, error } = await supabase.from('projects').insert({
-        name: values.name,
-        workspace_id: values.workspace_id,
-        client_id: values.is_internal ? null : (values.client_id || null),
-        partner_id: values.is_internal ? null : (values.partner_id || null),
-        is_internal: values.is_internal,
-        billing_type: values.billing_type,
-        start_date: values.start_date ? format(values.start_date, 'yyyy-MM-dd') : null,
-        due_date: values.due_date ? format(values.due_date, 'yyyy-MM-dd') : null,
-        status: values.status,
-        priority: values.priority,
-        estimated_hours: values.estimated_hours === '' || values.estimated_hours === undefined ? null : Number(values.estimated_hours),
-        ...(values.billing_type === 'fixed' && values.fixed_price !== '' && values.fixed_price !== undefined
-          ? { fixed_price: Number(values.fixed_price) }
-          : {}),
-        description: values.description || null,
-        progress: 0,
-        created_by: user.id,
+        name:         name.trim(),
+        workspace_id: wsId,
+        description:  description.trim() || null,
+        status:       defaultStatus || 'active',
+        priority:     defaultPriority || 'medium',
+        billing_type: 'non_billable',
+        is_internal:  true,
+        progress:     0,
+        created_by:   user.id,
       }).select(`*, workspace:workspaces(*), client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at), partner:profiles!projects_partner_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)`).single()
 
-      if (error) { toast({ title: 'Failed to create project', description: error.message, variant: 'destructive' }); return }
+      if (error) { toast({ title: 'Failed to create list', description: error.message, variant: 'destructive' }); return }
 
-      const memberInserts: { project_id: string; user_id: string; project_role: 'lead' | 'member' }[] = []
-      if (projectManager) memberInserts.push({ project_id: data.id, user_id: projectManager, project_role: 'lead' })
+      // Add members
+      const memberInserts: { project_id: string; user_id: string; project_role: 'member' }[] = []
       selectedStaff.forEach(uid => {
-        if (uid !== projectManager) memberInserts.push({ project_id: data.id, user_id: uid, project_role: 'member' })
+        if (uid !== user.id) memberInserts.push({ project_id: data.id, user_id: uid, project_role: 'member' })
       })
       if (memberInserts.length > 0) await supabase.from('project_members').insert(memberInserts)
 
-      toast({ title: 'Project created', description: `"${data.name}" has been created successfully.` })
+      toast({ title: 'List created', description: `"${data.name}" has been created.` })
       onCreated?.(data as Project)
-      form.reset()
       onOpenChange(false)
       router.push(`/projects/${data.id}`)
     } finally { setLoading(false) }
   }
 
+  const selectedWs      = workspaces.find(w => w.id === workspaceId)
+  const selectedMembers = allUsers.filter(u => selectedStaff.has(u.id))
+  const filteredUsers   = allUsers.filter(u =>
+    !memberSearch ||
+    u.full_name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+    u.email.toLowerCase().includes(memberSearch.toLowerCase())
+  )
+
+  // Space icon color
+  function wsColor(id: string) {
+    const COLORS = ['#7c3aed','#0891b2','#0284c7','#059669','#d97706','#dc2626','#db2777','#4f46e5']
+    let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+    return COLORS[h % COLORS.length]
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Create New Project</DialogTitle>
-          <DialogDescription>Fill in the details below to create a new project.</DialogDescription>
-        </DialogHeader>
+      <DialogContent className="p-0 gap-0 max-w-[500px] overflow-hidden rounded-xl border border-border shadow-2xl">
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        {/* ── Header ── */}
+        <div className="px-6 pt-6 pb-4 border-b border-border/50">
+          <div className="flex items-start justify-between mb-1">
+            <h2 className="text-[18px] font-bold text-foreground">Create List</h2>
+            <button
+              onClick={() => onOpenChange(false)}
+              className="rounded-md p-1 text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors -mt-0.5"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="text-[13px] text-muted-foreground">
+            All Lists are located within a Space. Lists can house any type of task.
+          </p>
+        </div>
 
-            {/* Project Name + Workspace */}
-            <FormField control={form.control} name="name" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Project Name *</FormLabel>
-                <FormControl><Input placeholder="e.g. Website Redesign" {...field} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+        {/* ── Body ── */}
+        <div className="px-6 py-5 space-y-4">
 
-            <FormField control={form.control} name="workspace_id" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Workspace *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl><SelectTrigger><SelectValue placeholder="Select a workspace" /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    {workspaces.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
+          {/* Name */}
+          <div>
+            <label className="text-[13px] font-semibold text-foreground block mb-1.5">Name</label>
+            <input
+              ref={nameRef}
+              value={name}
+              onChange={e => { setName(e.target.value); if (e.target.value.trim()) setNameError('') }}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreate() } }}
+              placeholder="e.g. Project, List of items, Campaign"
+              className={cn(
+                'w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-colors',
+                'placeholder:text-muted-foreground/50',
+                nameError
+                  ? 'border-red-400 focus:border-red-400'
+                  : 'border-border focus:border-primary focus:ring-1 focus:ring-primary/30',
+              )}
+            />
+            {nameError && <p className="text-xs text-red-500 mt-1">{nameError}</p>}
+          </div>
 
-            {/* ── Status & Priority ── */}
-            <Section label="Status & Priority">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="status" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        {statuses.map(s => (
-                          <SelectItem key={s.slug} value={s.slug}>
-                            <div className="flex items-center gap-2">
-                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                              {s.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                        <div className="border-t mt-1 pt-1">
-                          <Link href="/settings?tab=statuses" onClick={() => onOpenChange(false)}
-                            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded w-full">
-                            <Plus className="h-3 w-3" />Create new status
-                          </Link>
-                        </div>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+          {/* Description */}
+          <div>
+            <label className="text-[13px] font-semibold text-foreground block mb-1.5">Description</label>
+            <input
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Tell us a bit about your List (optional)"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors placeholder:text-muted-foreground/40"
+            />
+          </div>
 
-                <FormField control={form.control} name="priority" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Priority</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        {priorities.map(p => (
-                          <SelectItem key={p.slug} value={p.slug}>
-                            <div className="flex items-center gap-2">
-                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                              {p.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                        <div className="border-t mt-1 pt-1">
-                          <Link href="/settings?tab=priorities" onClick={() => onOpenChange(false)}
-                            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded w-full">
-                            <Plus className="h-3 w-3" />Create new priority
-                          </Link>
-                        </div>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-            </Section>
+          {/* Space (location) */}
+          <div>
+            <label className="text-[13px] font-semibold text-foreground block mb-1.5">Space (location)</label>
+            <div className="relative" ref={wsRef}>
+              <button
+                type="button"
+                onClick={() => setWsOpen(v => !v)}
+                className={cn(
+                  'w-full flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm transition-colors text-left',
+                  wsError ? 'border-red-400' : 'border-border hover:border-muted-foreground/50',
+                )}
+              >
+                {selectedWs ? (
+                  <>
+                    <span
+                      className="h-5 w-5 shrink-0 rounded flex items-center justify-center text-white text-[10px] font-bold"
+                      style={{ backgroundColor: wsColor(selectedWs.id) }}
+                    >
+                      {selectedWs.name.slice(0,1).toUpperCase()}
+                    </span>
+                    <span className="flex-1 truncate">{selectedWs.name}</span>
+                  </>
+                ) : (
+                  <span className="flex-1 text-muted-foreground/50">Select a space</span>
+                )}
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              </button>
 
-            {/* ── Timeline ── */}
-            <Section label="Timeline">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="start_date" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Start Date</FormLabel>
-                    <Popover open={startOpen} onOpenChange={setStartOpen}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {field.value ? format(field.value, 'PPP') : 'Pick a date'}
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value}
-                          onSelect={date => { field.onChange(date); setStartOpen(false) }}
-                          disabled={date => { const due = form.getValues('due_date'); return due ? date > due : false }}
-                          initialFocus />
-                      </PopoverContent>
-                    </Popover>
-                  </FormItem>
-                )} />
-
-                <FormField control={form.control} name="due_date" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Due Date</FormLabel>
-                    <Popover open={dueOpen} onOpenChange={setDueOpen}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {field.value ? format(field.value, 'PPP') : 'Pick a date'}
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value}
-                          onSelect={date => { field.onChange(date); setDueOpen(false) }}
-                          disabled={date => { const start = form.getValues('start_date'); return start ? date < start : false }}
-                          initialFocus />
-                      </PopoverContent>
-                    </Popover>
-                  </FormItem>
-                )} />
-              </div>
-
-              <FormField control={form.control} name="estimated_hours" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Estimated Hours</FormLabel>
-                  <FormControl>
-                    <Input type="number" min={0} step={0.5} placeholder="e.g. 40" {...field} value={field.value ?? ''} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-            </Section>
-
-            {/* ── Client & Billing ── */}
-            <Section label="Client & Billing" defaultOpen={false}>
-              <FormField control={form.control} name="is_internal" render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <FormLabel className="text-sm font-medium">Internal Project</FormLabel>
-                    <p className="text-xs text-muted-foreground mt-0.5">No client or billing — internal work only</p>
-                  </div>
-                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                </FormItem>
-              )} />
-
-              {!isInternal && (
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="client_id" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Client</FormLabel>
-                      <Select onValueChange={v => field.onChange(v === '__none__' ? undefined : v)} defaultValue={field.value ?? '__none__'}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="No client" /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="__none__">No client</SelectItem>
-                          {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="partner_id" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Partner / Reseller</FormLabel>
-                      <Select onValueChange={v => field.onChange(v === '__none__' ? undefined : v)} defaultValue={field.value ?? '__none__'}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="No partner" /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="__none__">No partner</SelectItem>
-                          {partners.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )} />
+              {wsOpen && (
+                <div className="absolute left-0 top-full mt-1 z-50 w-full rounded-lg border border-border bg-background shadow-xl py-1">
+                  {workspaces.map(ws => (
+                    <button
+                      key={ws.id}
+                      onClick={() => { setWorkspaceId(ws.id); setWsError(''); setWsOpen(false) }}
+                      className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left"
+                    >
+                      <span
+                        className="h-5 w-5 shrink-0 rounded flex items-center justify-center text-white text-[10px] font-bold"
+                        style={{ backgroundColor: wsColor(ws.id) }}
+                      >
+                        {ws.name.slice(0,1).toUpperCase()}
+                      </span>
+                      <span className="flex-1 truncate">{ws.name}</span>
+                      {workspaceId === ws.id && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                    </button>
+                  ))}
+                  {workspaces.length === 0 && (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">No spaces found</p>
+                  )}
                 </div>
               )}
+            </div>
+            {wsError && <p className="text-xs text-red-500 mt-1">{wsError}</p>}
+          </div>
 
-              <FormField control={form.control} name="billing_type" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Billing Type</FormLabel>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {BILLING_TYPES.map(bt => (
-                      <button key={bt.value} type="button"
-                        disabled={isInternal && bt.value !== 'non_billable'}
-                        onClick={() => field.onChange(bt.value)}
-                        className={cn(
-                          'flex flex-col items-start rounded-lg border p-2.5 text-left transition-colors',
-                          field.value === bt.value ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50',
-                          isInternal && bt.value !== 'non_billable' && 'opacity-40 cursor-not-allowed'
-                        )}>
-                        <span className="text-xs font-semibold">{bt.label}</span>
-                        <span className="text-xs text-muted-foreground mt-0.5">{bt.description}</span>
+          {/* Make Private */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[13px] font-medium text-foreground">Make private</p>
+                <p className="text-[12px] text-muted-foreground mt-0.5">Only you and invited members have access</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isPrivate}
+                onClick={() => setIsPrivate(v => !v)}
+                className={cn(
+                  'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
+                  isPrivate ? 'bg-primary' : 'bg-muted-foreground/30'
+                )}
+              >
+                <span className={cn(
+                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200',
+                  isPrivate ? 'translate-x-5' : 'translate-x-0'
+                )} />
+              </button>
+            </div>
+
+            {/* Share only with — shown when private */}
+            {isPrivate && (
+              <div>
+                <p className="text-[12px] font-medium text-muted-foreground mb-2">Share only with</p>
+                <div className="relative" ref={shareRef}>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {selectedMembers.map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => toggleMember(m.id)}
+                        title={`Remove ${m.full_name}`}
+                        className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-[10px] font-bold text-primary-foreground hover:opacity-80 transition-opacity border-2 border-background"
+                      >
+                        {getInitials(m.full_name)}
                       </button>
                     ))}
-                  </div>
-                </FormItem>
-              )} />
-
-              {billingType === 'fixed' && (
-                <FormField control={form.control} name="fixed_price" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                      Fixed Price Amount
-                    </FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                        <Input
-                          type="number" min={0} step={0.01}
-                          placeholder="0.00"
-                          className="pl-7"
-                          {...field}
-                          value={field.value ?? ''}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              )}
-
-            </Section>
-
-            {/* ── Team ── */}
-            <Section label="Team">
-              {/* Project Manager — searchable picker */}
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">
-                  Project Manager <span className="text-xs text-muted-foreground font-normal">(lead)</span>
-                </label>
-
-                {selectedPmUser && (
-                  <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
-                      {getInitials(selectedPmUser.full_name)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{selectedPmUser.full_name}</p>
-                      <p className="truncate text-xs text-muted-foreground capitalize">{selectedPmUser.role.replace(/_/g, ' ')}</p>
-                    </div>
-                    <button type="button" onClick={() => setProjectManager('')}
-                      className="text-xs text-muted-foreground hover:text-destructive transition-colors px-1">
-                      Remove
+                    <button
+                      onClick={() => setShareOpen(v => !v)}
+                      className="h-7 w-7 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors text-lg leading-none"
+                    >
+                      +
                     </button>
                   </div>
-                )}
 
-                <div className="rounded-lg border border-border">
-                  <div className="p-2 border-b">
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                      <Input placeholder="Search for project manager…" value={pmSearch} onChange={e => setPmSearch(e.target.value)} className="pl-8 h-8 text-sm" />
-                    </div>
-                  </div>
-                  {allUsers.length === 0 ? (
-                    <div className="py-4 text-center text-sm text-muted-foreground">No users found</div>
-                  ) : (
-                    <ScrollArea className="h-36">
-                      <ul className="p-1">
-                        {filteredPm.map(u => (
-                          <li key={u.id}>
-                            <button type="button" onClick={() => { setProjectManager(u.id); setPmSearch('') }}
-                              className={cn(
-                                'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors',
-                                projectManager === u.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50'
-                              )}>
-                              <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', avatarColor(u.id))}>
-                                {getInitials(u.full_name)}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-medium">{u.full_name}</p>
-                                <p className="truncate text-xs text-muted-foreground">{u.email}</p>
-                              </div>
-                              <span className="shrink-0 text-[10px] text-muted-foreground capitalize bg-muted rounded px-1.5 py-0.5">
-                                {u.role.replace(/_/g, ' ')}
-                              </span>
-                            </button>
-                          </li>
+                  {shareOpen && (
+                    <div className="absolute left-0 top-full mt-1 z-50 w-64 rounded-xl border border-border bg-background shadow-xl overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/60">
+                        <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <input
+                          autoFocus
+                          value={memberSearch}
+                          onChange={e => setMemberSearch(e.target.value)}
+                          placeholder="Search or enter email..."
+                          className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+                        />
+                      </div>
+                      {/* People section */}
+                      <div className="max-h-52 overflow-y-auto py-1">
+                        <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">People</p>
+                        {/* Me first */}
+                        {profile && (
+                          <button
+                            onClick={() => { toggleMember(profile.id); setMemberSearch('') }}
+                            className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-primary-foreground shrink-0">
+                              {getInitials(profile.full_name)}
+                            </div>
+                            <span className="flex-1">Me</span>
+                            {selectedStaff.has(profile.id) && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                          </button>
+                        )}
+                        {filteredUsers.filter(u => u.id !== profile?.id).map(u => (
+                          <button
+                            key={u.id}
+                            onClick={() => { toggleMember(u.id); setMemberSearch('') }}
+                            className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-[9px] font-bold text-foreground shrink-0">
+                              {getInitials(u.full_name)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="truncate font-medium">{u.full_name}</p>
+                              <p className="truncate text-[11px] text-muted-foreground">{u.email}</p>
+                            </div>
+                            {selectedStaff.has(u.id) && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                          </button>
                         ))}
-                      </ul>
-                    </ScrollArea>
-                  )}
-                </div>
-              </div>
-
-              {/* Assign Team Members */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Assign Team Members</span>
-                </div>
-                <div className="rounded-lg border border-border">
-                  <div className="p-2 border-b">
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                      <Input placeholder="Search staffs…" value={staffSearch} onChange={e => setStaffSearch(e.target.value)} className="pl-8 h-8 text-sm bg-background" />
+                        {filteredUsers.length === 0 && (
+                          <p className="px-3 py-2 text-xs text-muted-foreground">No members found</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-
-                  {allUsers.length === 0 ? (
-                    <div className="py-5 text-center text-sm text-muted-foreground">No users found</div>
-                  ) : teamCandidates.length === 0 ? (
-                    <div className="py-5 text-center text-sm text-muted-foreground">No other members to assign</div>
-                  ) : (
-                    <ScrollArea className="h-52">
-                      {showGrouped ? (
-                        <div className="p-1">
-                          {Object.entries(staffByManager).map(([managerId, members]) => {
-                            const manager = managerId === '__none__' ? null : allUsers.find(m => m.id === managerId)
-                            return (
-                              <div key={managerId}>
-                                <div className="flex items-center gap-1.5 px-3 py-1.5 mt-1">
-                                  <GitBranch className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                    {manager ? `Reports to: ${manager.full_name}` : 'No manager assigned'}
-                                  </span>
-                                </div>
-                                {members.map(staff => (
-                                  <label key={staff.id} className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
-                                    <Checkbox checked={selectedStaff.has(staff.id)} onCheckedChange={() => toggleStaff(staff.id)} />
-                                    <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', avatarColor(staff.id))}>
-                                      {getInitials(staff.full_name)}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="truncate text-sm font-medium">{staff.full_name}</p>
-                                      <p className="truncate text-xs text-muted-foreground">{staff.email}</p>
-                                    </div>
-                                  </label>
-                                ))}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <ul className="p-1">
-                          {filteredStaff.length === 0 ? (
-                            <li className="py-4 text-center text-sm text-muted-foreground">No members match your search</li>
-                          ) : filteredStaff.map(staff => (
-                            <li key={staff.id}>
-                              <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
-                                <Checkbox checked={selectedStaff.has(staff.id)} onCheckedChange={() => toggleStaff(staff.id)} />
-                                <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', avatarColor(staff.id))}>
-                                  {getInitials(staff.full_name)}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-medium">{staff.full_name}</p>
-                                  <p className="truncate text-xs text-muted-foreground">{staff.email}</p>
-                                </div>
-                              </label>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </ScrollArea>
                   )}
-
-                  {/* Selected counter */}
-                  <div className="border-t px-3 py-2">
-                    <p className="text-xs text-muted-foreground">
-                      {selectedStaff.size} member{selectedStaff.size !== 1 ? 's' : ''} selected in total
-                    </p>
-                  </div>
                 </div>
               </div>
-            </Section>
+            )}
+          </div>
+        </div>
 
-            {/* ── Description ── */}
-            <Section label="Description" defaultOpen={false}>
-              <FormField control={form.control} name="description" render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Textarea placeholder="Describe the project goals, scope, and any relevant details…" rows={3} {...field} value={field.value ?? ''} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-            </Section>
+        {/* ── Footer ── */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border/60">
+          <button className="text-[13px] text-muted-foreground hover:text-foreground transition-colors">
+            Use Templates
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={loading}
+            className={cn(
+              'rounded-lg px-5 py-2 text-[13px] font-semibold transition-colors',
+              name.trim()
+                ? 'bg-foreground text-background hover:bg-foreground/90'
+                : 'bg-muted text-muted-foreground cursor-not-allowed',
+            )}
+          >
+            {loading ? 'Creating…' : 'Create'}
+          </button>
+        </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Cancel</Button>
-              <Button type="submit" disabled={loading}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Project
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
       </DialogContent>
     </Dialog>
   )

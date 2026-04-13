@@ -27,7 +27,7 @@ export function DashboardShell({ profile, permissions, children }: DashboardShel
   if (!mounted) {
     return (
       <div className="flex h-screen overflow-hidden bg-background">
-        <div className="hidden lg:flex lg:w-60 lg:shrink-0 border-r bg-sidebar" />
+        <div className="hidden lg:flex lg:w-[220px] lg:shrink-0 border-r bg-sidebar" />
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
           <div className="h-14 border-b bg-background" />
           <div className="flex-1 overflow-y-auto scrollbar-thin">{children}</div>

@@ -214,10 +214,10 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
           {isAdmin && workspaces.length > 0 && (
             <Select value={workspaceFilter} onValueChange={setWorkspaceFilter}>
               <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Workspace" />
+                <SelectValue placeholder="Space" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Workspaces</SelectItem>
+                <SelectItem value="all">All Spaces</SelectItem>
                 {workspaces.map((w) => (
                   <SelectItem key={w.id} value={w.id}>
                     {w.name}

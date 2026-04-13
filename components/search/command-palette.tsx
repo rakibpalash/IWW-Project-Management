@@ -81,7 +81,7 @@ export function CommandPalette() {
         id: w.id,
         label: w.name,
         type: 'workspace' as const,
-        href: `/workspaces/${w.id}`,
+        href: `/spaces/${w.id}`,
       })),
       ...(projects ?? []).map((p) => ({
         id: p.id,
@@ -130,7 +130,7 @@ export function CommandPalette() {
   return (
     <CommandDialog open={commandPaletteOpen} onOpenChange={handleOpenChange}>
       <CommandInput
-        placeholder="Search projects, tasks, workspaces…"
+        placeholder="Search projects, tasks, spaces…"
         value={query}
         onValueChange={setQuery}
       />
@@ -152,7 +152,7 @@ export function CommandPalette() {
 
         {workspaceResults.length > 0 && (
           <>
-            <CommandGroup heading="Workspaces">
+            <CommandGroup heading="Spaces">
               {workspaceResults.map((r) => (
                 <CommandItem
                   key={r.id}

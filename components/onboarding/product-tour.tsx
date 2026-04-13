@@ -12,7 +12,7 @@ const SUPER_ADMIN_STEPS: DriveStep[] = [
     popover: {
       title: 'Navigation Sidebar',
       description:
-        'Use the sidebar to move between Workspaces, Projects, Tasks, Attendance, and Settings.',
+        'Use the sidebar to move between Spaces, Projects, Tasks, Attendance, and Settings.',
       side: 'right',
       align: 'start',
     },
@@ -30,9 +30,9 @@ const SUPER_ADMIN_STEPS: DriveStep[] = [
   {
     element: '[data-tour="nav-workspaces"]',
     popover: {
-      title: 'Workspaces',
+      title: 'Spaces',
       description:
-        'Create and manage workspaces to organise projects by client, department, or team.',
+        'Create and manage spaces to organise projects by client, department, or team.',
       side: 'right',
       align: 'start',
     },

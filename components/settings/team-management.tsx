@@ -270,7 +270,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
               <TableHead className="text-xs font-semibold text-muted-foreground">Role</TableHead>
               <TableHead className="text-xs font-semibold text-muted-foreground">Reports To</TableHead>
               <TableHead className="text-xs font-semibold text-muted-foreground">Job Title</TableHead>
-              <TableHead className="text-xs font-semibold text-muted-foreground">Workspaces</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground">Spaces</TableHead>
               <TableHead className="w-[50px]" />
             </TableRow>
           </TableHeader>

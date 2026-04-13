@@ -513,7 +513,7 @@ export function WorkspaceDetailPage({
                         toast({ title: 'Clone failed', description: result.error, variant: 'destructive' })
                       } else {
                         toast({ title: 'Workspace cloned', description: `"${workspaceName} (Copy)" created.` })
-                        router.push('/workspaces')
+                        router.push('/spaces')
                       }
                     } finally {
                       setIsCloning(false)

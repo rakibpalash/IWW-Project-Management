@@ -340,9 +340,9 @@ export function EditProjectDialog({
             {/* Workspace */}
             <FormField control={form.control} name="workspace_id" render={({ field }) => (
               <FormItem>
-                <FormLabel>Workspace *</FormLabel>
+                <FormLabel>Space *</FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl><SelectTrigger><SelectValue placeholder="Select a workspace" /></SelectTrigger></FormControl>
+                  <FormControl><SelectTrigger><SelectValue placeholder="Select a space" /></SelectTrigger></FormControl>
                   <SelectContent>
                     {workspaces.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
                   </SelectContent>

@@ -55,7 +55,7 @@ interface SmartDeleteDialogProps {
 }
 
 const ENTITY_LABELS: Record<EntityType, { label: string }> = {
-  workspace: { label: 'Workspace' },
+  workspace: { label: 'Space' },
   project:   { label: 'Project' },
   task:      { label: 'Task' },
   staff:     { label: 'Staff Member' },
@@ -373,7 +373,7 @@ export function SmartDeleteDialog({
             <div className="px-5 py-4 space-y-4">
               {entityType === 'workspace' && impact.projectCount > 0 && impact.otherWorkspaces.length > 0 && (
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Move projects to another workspace</label>
+                  <label className="text-sm font-medium">Move projects to another space</label>
                   <Select value={moveToWorkspace} onValueChange={setMoveToWorkspace}>
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue placeholder="Delete all projects" />

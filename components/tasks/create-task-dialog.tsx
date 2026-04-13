@@ -1,37 +1,18 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Task, Profile, Project, TaskStatus, Priority } from '@/types'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Task, Profile, Project } from '@/types'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
 import {
   X, Check, AlertCircle, Search, ChevronDown,
-  Bold, List, AlignLeft, Code2, Link2, Minus,
+  Flag, Calendar, Tag, MoreHorizontal, Paperclip,
+  Plus, ChevronRight, Hash, User, Users,
 } from 'lucide-react'
 import { MAX_SUBTASKS, MAX_SUBTASK_DEPTH } from '@/lib/constants'
-import { getInitials, cn } from '@/lib/utils'
+import { getInitials, cn, formatDate } from '@/lib/utils'
 import { useTaskConfig } from '@/hooks/use-task-config'
 
 interface CreateTaskDialogProps {
@@ -46,6 +27,108 @@ interface CreateTaskDialogProps {
   currentSubtaskCount?: number
 }
 
+// Quick date options
+const QUICK_DATES = [
+  { label: 'Today',        days: 0 },
+  { label: 'Tomorrow',     days: 1 },
+  { label: 'This weekend', days: null, fn: () => { const d = new Date(); d.setDate(d.getDate() + (6 - d.getDay())); return d } },
+  { label: 'Next week',    days: 7 },
+  { label: 'Next weekend', days: null, fn: () => { const d = new Date(); d.setDate(d.getDate() + (13 - d.getDay())); return d } },
+  { label: '2 weeks',      days: 14 },
+  { label: '4 weeks',      days: 28 },
+]
+
+function toDateStr(d: Date) {
+  return d.toISOString().slice(0, 10)
+}
+function addDays(days: number) {
+  const d = new Date(); d.setDate(d.getDate() + days); return d
+}
+
+// ─── Predefined tags ──────────────────────────────────────────────────────────
+const PRESET_TAGS = [
+  { name: 'brainstorm',     color: '#6366f1' },
+  { name: 'component',      color: '#06b6d4' },
+  { name: 'dark mode',      color: '#8b5cf6' },
+  { name: 'dashboard',      color: '#3b82f6' },
+  { name: 'design system',  color: '#0ea5e9' },
+  { name: 'feedback',       color: '#f97316' },
+  { name: 'form',           color: '#14b8a6' },
+  { name: 'handoff',        color: '#ec4899' },
+  { name: 'ideas',          color: '#84cc16' },
+  { name: 'illustration',   color: '#a855f7' },
+  { name: 'meeting',        color: '#f59e0b' },
+  { name: 'ui design',      color: '#22c55e' },
+]
+
+// ─── Month calendar ───────────────────────────────────────────────────────────
+function MiniCalendar({ selected, onSelect }: { selected: string; onSelect: (d: string) => void }) {
+  const [viewDate, setViewDate] = useState(() => selected ? new Date(selected + 'T00:00:00') : new Date())
+  const year  = viewDate.getFullYear()
+  const month = viewDate.getMonth()
+
+  const firstDay = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const cells: (number | null)[] = Array(firstDay).fill(null)
+  for (let i = 1; i <= daysInMonth; i++) cells.push(i)
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  const todayStr = toDateStr(new Date())
+
+  return (
+    <div className="select-none">
+      {/* Month nav */}
+      <div className="flex items-center justify-between mb-2 px-1">
+        <button
+          onClick={() => setViewDate(new Date(year, month - 1, 1))}
+          className="h-6 w-6 rounded hover:bg-muted flex items-center justify-center text-muted-foreground"
+        >
+          <ChevronRight className="h-3.5 w-3.5 rotate-180" />
+        </button>
+        <span className="text-xs font-semibold">
+          {viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        </span>
+        <button
+          onClick={() => setViewDate(new Date(year, month + 1, 1))}
+          className="h-6 w-6 rounded hover:bg-muted flex items-center justify-center text-muted-foreground"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {/* Day headers */}
+      <div className="grid grid-cols-7 mb-1">
+        {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+          <div key={d} className="text-center text-[10px] font-medium text-muted-foreground py-0.5">{d}</div>
+        ))}
+      </div>
+      {/* Days */}
+      <div className="grid grid-cols-7">
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} />
+          const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+          const isSelected = dateStr === selected
+          const isToday    = dateStr === todayStr
+          return (
+            <button
+              key={i}
+              onClick={() => onSelect(dateStr)}
+              className={cn(
+                'flex items-center justify-center h-7 w-7 mx-auto rounded-full text-xs transition-colors',
+                isSelected && 'bg-primary text-primary-foreground font-semibold',
+                !isSelected && isToday && 'border border-primary text-primary font-semibold',
+                !isSelected && !isToday && 'hover:bg-muted text-foreground',
+              )}
+            >
+              {day}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function CreateTaskDialog({
   open,
@@ -61,255 +144,123 @@ export function CreateTaskDialog({
   const { toast } = useToast()
   const supabase = createClient()
   const titleRef = useRef<HTMLInputElement>(null)
-  const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const { statuses, priorities, defaultStatus, defaultPriority } = useTaskConfig()
 
-  const [title, setTitle] = useState('')
-  const [titleTouched, setTitleTouched] = useState(false)
-  const [description, setDescription] = useState('')
-  const [selectedProjectId, setSelectedProjectId] = useState(defaultProjectId ?? '')
-  const [startDate, setStartDate] = useState('')
-  const [dueDate, setDueDate] = useState('')
-  const [estimatedHours, setEstimatedHours] = useState('')
-  const [priority, setPriority] = useState<string>('medium')
-  const [status, setStatus] = useState<string>('todo')
-  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([])
-  const [reporterId, setReporterId] = useState<string>(profile.id)
-  const [reporterSearch, setReporterSearch] = useState('')
-  const [reporterOpen, setReporterOpen] = useState(false)
-  const [members, setMembers] = useState<Profile[]>([])
-  const [allStaff, setAllStaff] = useState<Profile[]>([])
-  const [mentionableUsers, setMentionableUsers] = useState<Profile[]>([])
-  const [loadingMembers, setLoadingMembers] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [createAnother, setCreateAnother] = useState(false)
-  const [assigneeSearch, setAssigneeSearch] = useState('')
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
-  const [mentionOpen, setMentionOpen] = useState(false)
-
   const isSubtask = !!parentTaskId
-  const depth = isSubtask ? (parentTaskDepth ?? 0) + 1 : 0
+  const depth     = isSubtask ? (parentTaskDepth ?? 0) + 1 : 0
   const canCreate = !isSubtask || (currentSubtaskCount < MAX_SUBTASKS && depth <= MAX_SUBTASK_DEPTH)
 
-  const currentProject = projects.find((p) => p.id === (selectedProjectId || defaultProjectId))
-  const titleError = titleTouched && !title.trim()
-  const projectError = titleTouched && !selectedProjectId && !defaultProjectId
+  // ── Core state ──────────────────────────────────────────────────────────────
+  const [title,             setTitle]             = useState('')
+  const [titleTouched,      setTitleTouched]      = useState(false)
+  const [description,       setDescription]       = useState('')
+  const [selectedProjectId, setSelectedProjectId] = useState(defaultProjectId ?? '')
+  const [dueDate,           setDueDate]           = useState('')
+  const [startDate,         setStartDate]         = useState('')
+  const [priority,          setPriority]          = useState(defaultPriority || 'medium')
+  const [status,            setStatus]            = useState(defaultStatus || 'todo')
+  const [assigneeIds,       setAssigneeIds]       = useState<string[]>([])
+  const [tags,              setTags]              = useState<string[]>([])
+  const [members,           setMembers]           = useState<Profile[]>([])
+  const [submitting,        setSubmitting]        = useState(false)
 
-  // Fetch members based on selected project + all staff for reporter + all users for @ mention
+  // ── Popover state ───────────────────────────────────────────────────────────
+  const [listOpen,        setListOpen]        = useState(false)
+  const [assigneeOpen,    setAssigneeOpen]    = useState(false)
+  const [dateOpen,        setDateOpen]        = useState(false)
+  const [priorityOpen,    setPriorityOpen]    = useState(false)
+  const [tagsOpen,        setTagsOpen]        = useState(false)
+  const [listSearch,      setListSearch]      = useState('')
+  const [assigneeSearch,  setAssigneeSearch]  = useState('')
+  const [tagSearch,       setTagSearch]       = useState('')
+
+  const titleError = titleTouched && !title.trim()
+  const currentProject = projects.find(p => p.id === (selectedProjectId || defaultProjectId))
+  const selectedStatusCfg   = statuses.find(s => s.slug === status)
+  const selectedPriorityCfg = priorities.find(p => p.slug === priority)
+  const assignedMembers     = members.filter(m => assigneeIds.includes(m.id))
+
+  // ── Fetch members ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return
-    const projectId = selectedProjectId || defaultProjectId
-    const project = projects.find((p) => p.id === projectId)
+    ;(async () => {
+      const profileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+      const { data } = await supabase.from('profiles').select(profileSelect).neq('role', 'client').order('full_name')
+      setMembers((data ?? []) as Profile[])
+    })()
+  }, [open])
 
-    setLoadingMembers(true)
-    const fetchMembers = async () => {
-      const profileSelect =
-        'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
+  useEffect(() => {
+    if (open) setTimeout(() => titleRef.current?.focus(), 50)
+  }, [open])
 
-      // Assignee list: project team members (workspace members + admins)
-      let projectMembers: Profile[] = []
-      if (project?.workspace_id) {
-        const [{ data: assignmentsRaw }, { data: admins }] = await Promise.all([
-          supabase
-            .from('workspace_assignments')
-            .select(`user:profiles(${profileSelect})`)
-            .eq('workspace_id', project.workspace_id),
-          supabase.from('profiles').select(profileSelect).eq('role', 'super_admin'),
-        ])
-        const wsMems: Profile[] = ((assignmentsRaw ?? []) as any[]).map((a) => a.user).filter(Boolean) as Profile[]
-        const memberIds = new Set(wsMems.map((m) => m.id))
-        for (const a of (admins ?? []) as Profile[]) {
-          if (!memberIds.has(a.id)) wsMems.push(a)
-        }
-        projectMembers = wsMems
-      }
-
-      // All non-client staff for reporter dropdown
-      const { data: staffData } = await supabase
-        .from('profiles')
-        .select(profileSelect)
-        .neq('role', 'client')
-        .order('full_name')
-
-      // All profiles (incl. clients) for @ mention
-      const { data: allData } = await supabase
-        .from('profiles')
-        .select(profileSelect)
-        .order('full_name')
-
-      // Assignee: all non-client staff (not restricted to project/workspace)
-      setMembers((staffData ?? []) as Profile[])
-      setAllStaff((staffData ?? []) as Profile[])
-      setMentionableUsers((allData ?? []) as Profile[])
-      setLoadingMembers(false)
-    }
-    fetchMembers()
-  }, [open, selectedProjectId, defaultProjectId, projects])
-
-  function handleDescriptionChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    const val = e.target.value
-    setDescription(val)
-    const cursor = e.target.selectionStart ?? val.length
-    const textBefore = val.slice(0, cursor)
-    const match = textBefore.match(/@([^\s@]*)$/)
-    if (match) {
-      setMentionQuery(match[1])
-      setMentionOpen(true)
-    } else {
-      setMentionOpen(false)
-      setMentionQuery(null)
-    }
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function closeAllPopovers() {
+    setListOpen(false); setAssigneeOpen(false)
+    setDateOpen(false); setPriorityOpen(false); setTagsOpen(false)
   }
 
-  function handleDescriptionKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Escape' && mentionOpen) {
-      e.preventDefault()
-      setMentionOpen(false)
-      setMentionQuery(null)
-    }
+  function toggleAssignee(id: string) {
+    setAssigneeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
-
-  function insertMention(member: Profile) {
-    const textarea = descriptionRef.current
-    if (!textarea) return
-    const cursor = textarea.selectionStart ?? description.length
-    const textBefore = description.slice(0, cursor)
-    const match = textBefore.match(/@([^\s@]*)$/)
-    if (match) {
-      const start = cursor - match[0].length
-      const newText = description.slice(0, start) + `@${member.full_name} ` + description.slice(cursor)
-      setDescription(newText)
-    }
-    setMentionOpen(false)
-    setMentionQuery(null)
-    setTimeout(() => textarea.focus(), 0)
-  }
-
-  const mentionMembers = mentionableUsers.filter((m) =>
-    !mentionQuery || m.full_name.toLowerCase().includes(mentionQuery.toLowerCase())
-  )
-
-  function toggleAssignee(userId: string) {
-    setSelectedAssigneeIds((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
-    )
-  }
-
-  function assignToMe() {
-    if (!selectedAssigneeIds.includes(profile.id)) {
-      setSelectedAssigneeIds([profile.id])
-    }
+  function toggleTag(name: string) {
+    setTags(prev => prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name])
   }
 
   function reset() {
-    setTitle('')
-    setTitleTouched(false)
-    setDescription('')
+    setTitle(''); setTitleTouched(false); setDescription('')
     if (!defaultProjectId) setSelectedProjectId('')
-    setStartDate('')
-    setDueDate('')
-    setEstimatedHours('')
-    setPriority(defaultPriority)
-    setStatus(defaultStatus)
-    setSelectedAssigneeIds([])
-    setAssigneeSearch('')
-    setReporterId(profile.id)
-    setReporterSearch('')
-    setReporterOpen(false)
-    setMentionOpen(false)
-    setMentionQuery(null)
+    setDueDate(''); setStartDate('')
+    setPriority(defaultPriority || 'medium')
+    setStatus(defaultStatus || 'todo')
+    setAssigneeIds([]); setTags([])
+    closeAllPopovers()
   }
 
   async function handleSubmit() {
     setTitleTouched(true)
-    if (!title.trim()) {
-      titleRef.current?.focus()
-      return
-    }
+    if (!title.trim()) { titleRef.current?.focus(); return }
     const projectId = selectedProjectId || defaultProjectId
-    if (!projectId) return
-    if (!canCreate) {
-      toast({
-        title: 'Cannot create subtask',
-        description: `Maximum ${MAX_SUBTASKS} subtasks or depth ${MAX_SUBTASK_DEPTH} reached.`,
-        variant: 'destructive',
-      })
-      return
-    }
+    if (!projectId) { setListOpen(true); return }
 
     setSubmitting(true)
     try {
-      const { data: newTask, error: taskError } = await supabase
-        .from('tasks')
-        .insert({
-          project_id: projectId,
-          parent_task_id: parentTaskId ?? null,
-          title: title.trim(),
-          description: description.trim() || null,
-          start_date: startDate || null,
-          due_date: dueDate || null,
-          estimated_hours: estimatedHours ? parseFloat(estimatedHours) : null,
-          priority,
-          status,
-          created_by: reporterId,
-          depth,
-        })
-        .select('*')
-        .single()
+      const { data: newTask, error } = await supabase.from('tasks').insert({
+        title: title.trim(),
+        description: description.trim() || null,
+        project_id: projectId,
+        parent_task_id: parentTaskId ?? null,
+        status, priority,
+        due_date: dueDate || null,
+        start_date: startDate || null,
+        created_by: profile.id,
+        depth,
+      }).select('*').single()
 
-      if (taskError || !newTask) throw taskError ?? new Error('Failed to create task')
+      if (error || !newTask) throw error ?? new Error('Failed to create task')
 
-      if (selectedAssigneeIds.length > 0) {
-        await supabase.from('task_assignees').insert(
-          selectedAssigneeIds.map((userId) => ({ task_id: newTask.id, user_id: userId }))
-        )
-      }
+      if (assigneeIds.length > 0)
+        await supabase.from('task_assignees').insert(assigneeIds.map(uid => ({ task_id: newTask.id, user_id: uid })))
 
       await supabase.from('activity_logs').insert({
-        task_id: newTask.id,
-        user_id: profile.id,
-        action: 'task_created',
-        old_value: null,
-        new_value: newTask.title,
+        task_id: newTask.id, user_id: profile.id,
+        action: 'task_created', old_value: null, new_value: newTask.title,
       })
 
-      if (isSubtask) {
-        await supabase.from('activity_logs').insert({
-          task_id: parentTaskId,
-          user_id: profile.id,
-          action: 'subtask_created',
-          old_value: null,
-          new_value: newTask.title,
-        })
-      }
+      const toNotify = assigneeIds.filter(id => id !== profile.id)
+      if (toNotify.length > 0)
+        await supabase.from('notifications').insert(toNotify.map(uid => ({
+          user_id: uid, type: 'task_assigned',
+          title: 'Task assigned to you',
+          message: `You have been assigned to "${newTask.title}"`,
+          link: `/projects/${projectId}/tasks/${newTask.id}`, is_read: false,
+        })))
 
-      const assigneesToNotify = selectedAssigneeIds.filter((id) => id !== profile.id)
-      if (assigneesToNotify.length > 0) {
-        await supabase.from('notifications').insert(
-          assigneesToNotify.map((userId) => ({
-            user_id: userId,
-            type: isSubtask ? 'subtask_assigned' : 'task_assigned',
-            title: isSubtask ? 'Subtask assigned to you' : 'Task assigned to you',
-            message: `You have been assigned to "${newTask.title}"`,
-            link: `/projects/${projectId}/tasks/${newTask.id}`,
-            is_read: false,
-          }))
-        )
-      }
-
-      const assigneeProfiles = members.filter((m) => selectedAssigneeIds.includes(m.id))
-      const fullTask: Task = { ...newTask, assignees: assigneeProfiles, subtasks: [] }
-
-      toast({ title: isSubtask ? 'Subtask created' : 'Task created' })
-      onCreated(fullTask)
-
-      if (createAnother) {
-        reset()
-        setTimeout(() => titleRef.current?.focus(), 50)
-      } else {
-        onOpenChange(false)
-        reset()
-      }
+      const assigneeProfiles = members.filter(m => assigneeIds.includes(m.id))
+      onCreated({ ...newTask, assignees: assigneeProfiles, subtasks: [] })
+      toast({ title: 'Task created', description: `"${newTask.title}" has been created.` })
+      onOpenChange(false)
+      reset()
     } catch (err) {
       console.error(err)
       toast({ title: 'Failed to create task', variant: 'destructive' })
@@ -318,487 +269,545 @@ export function CreateTaskDialog({
     }
   }
 
+  // ── Guard ────────────────────────────────────────────────────────────────────
   if (!canCreate && isSubtask) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cannot Add Subtask</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
+        <DialogContent className="sm:max-w-md p-5">
+          <h2 className="font-semibold mb-2">Cannot Add Subtask</h2>
+          <p className="text-sm text-muted-foreground mb-4">
             {currentSubtaskCount >= MAX_SUBTASKS
-              ? `This task already has the maximum of ${MAX_SUBTASKS} subtasks.`
+              ? `Maximum of ${MAX_SUBTASKS} subtasks reached.`
               : `Maximum subtask depth of ${MAX_SUBTASK_DEPTH} reached.`}
           </p>
           <div className="flex justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+            <button onClick={() => onOpenChange(false)} className="rounded-md bg-muted px-4 py-1.5 text-sm font-medium">Close</button>
           </div>
         </DialogContent>
       </Dialog>
     )
   }
 
-  const selectedStatusCfg = statuses.find((s) => s.slug === status)
-  const selectedPriorityCfg = priorities.find((p) => p.slug === priority)
-  const assignedMembers = members.filter((m) => selectedAssigneeIds.includes(m.id))
+  const filteredProjects = projects.filter(p =>
+    !listSearch || p.name.toLowerCase().includes(listSearch.toLowerCase())
+  )
+  const filteredMembers = members.filter(m =>
+    !assigneeSearch ||
+    m.full_name.toLowerCase().includes(assigneeSearch.toLowerCase()) ||
+    m.email.toLowerCase().includes(assigneeSearch.toLowerCase())
+  )
+  const filteredTags = PRESET_TAGS.filter(t =>
+    !tagSearch || t.name.toLowerCase().includes(tagSearch.toLowerCase())
+  )
+
+  // Priority colors
+  const PRIORITY_CFG: Record<string, { label: string; color: string }> = {
+    urgent: { label: 'Urgent',  color: '#ef4444' },
+    high:   { label: 'High',    color: '#f97316' },
+    medium: { label: 'Normal',  color: '#3b82f6' },
+    low:    { label: 'Low',     color: '#94a3b8' },
+  }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v) }}>
-      <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden max-h-[92vh] flex flex-col">
+    <Dialog open={open} onOpenChange={v => { if (!v) { reset(); onOpenChange(false) } else onOpenChange(true) }}>
+      <DialogContent className="max-w-[560px] p-0 gap-0 overflow-visible" onClick={() => closeAllPopovers()}>
+        <div className="flex flex-col rounded-lg overflow-hidden">
 
-        {/* ── Header ── */}
-        <div className="flex items-center px-6 py-4 border-b shrink-0">
-          <h2 className="text-base font-semibold">
-            {isSubtask ? 'Add Subtask' : 'Create Task'}
-          </h2>
-        </div>
+          {/* ── Header ────────────────────────────────────────────────────── */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-semibold text-foreground">Task</span>
+              <div className="h-4 w-px bg-border" />
 
-        {/* ── Scrollable body ── */}
-        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
-          <p className="text-xs text-muted-foreground">
-            Required fields are marked with an asterisk <span className="text-red-500 font-semibold">*</span>
-          </p>
-
-          {/* Project (Space) */}
-          {!defaultProjectId && (
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-foreground">
-                Project <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={selectedProjectId}
-                onValueChange={(v) => { setSelectedProjectId(v); setTitleTouched(false) }}
-              >
-                <SelectTrigger className={cn('text-sm', projectError && 'border-red-500')}>
-                  {currentProject ? (
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary text-[10px] font-bold shrink-0">
-                        {currentProject.name.slice(0, 2).toUpperCase()}
-                      </span>
-                      <span className="truncate">{currentProject.name}</span>
-                    </div>
-                  ) : (
-                    <SelectValue placeholder="Select a project" />
-                  )}
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary text-[10px] font-bold">
-                          {p.name.slice(0, 2).toUpperCase()}
-                        </span>
-                        {p.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {projectError && (
-                <p className="text-xs text-red-500 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" /> Project is required
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Task Name */}
-          <div className="space-y-1.5">
-            <Label htmlFor="task-title" className="text-xs font-semibold text-foreground">
-              Task Name <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="task-title"
-              ref={titleRef}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={() => setTitleTouched(true)}
-              placeholder="Enter task name"
-              className={cn(
-                'text-sm transition-colors',
-                titleError ? 'border-red-500 focus-visible:ring-red-300' : ''
-              )}
-              autoFocus
-            />
-            {titleError && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> Task name is required
-              </p>
-            )}
-          </div>
-
-          {/* Status pill */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-foreground">Status</Label>
-            <div className="flex items-center gap-2 flex-wrap">
-              {statuses.map((s) => (
+              {/* Select List dropdown */}
+              <div className="relative" onClick={e => e.stopPropagation()}>
                 <button
-                  key={s.slug}
-                  type="button"
-                  onClick={() => setStatus(s.slug)}
+                  onClick={() => { setListOpen(o => !o); setListSearch('') }}
                   className={cn(
-                    'inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-all',
-                    status === s.slug
-                      ? 'ring-2 ring-offset-1 ring-primary/30'
-                      : 'bg-muted/40 text-muted-foreground hover:bg-muted border-transparent'
+                    'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                    currentProject
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted',
                   )}
-                  style={status === s.slug ? {
-                    backgroundColor: s.color + '20',
-                    color: s.color,
-                    borderColor: s.color + '60',
-                  } : {}}
                 >
-                  {s.name}
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] text-muted-foreground">This is the initial status upon creation</p>
-          </div>
-
-          {/* Description */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-foreground">Description</Label>
-            <Popover open={mentionOpen && mentionMembers.length > 0}>
-              <div className="rounded-md border overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0">
-                {/* Toolbar */}
-                <div className="flex items-center gap-0.5 border-b bg-muted/30 px-2 py-1.5">
-                  <ToolbarBtn icon={<AlignLeft className="h-3.5 w-3.5" />} title="Paragraph" />
-                  <div className="w-px h-4 bg-border mx-1" />
-                  <ToolbarBtn icon={<Bold className="h-3.5 w-3.5" />} title="Bold" />
-                  <ToolbarBtn icon={<List className="h-3.5 w-3.5" />} title="Bullet list" />
-                  <ToolbarBtn icon={<Code2 className="h-3.5 w-3.5" />} title="Code" />
-                  <ToolbarBtn icon={<Link2 className="h-3.5 w-3.5" />} title="Link" />
-                  <div className="w-px h-4 bg-border mx-1" />
-                  <ToolbarBtn icon={<Minus className="h-3.5 w-3.5" />} title="Divider" />
-                </div>
-                <PopoverAnchor asChild>
-                  <Textarea
-                    ref={descriptionRef}
-                    value={description}
-                    onChange={handleDescriptionChange}
-                    onKeyDown={handleDescriptionKeyDown}
-                    placeholder="Add a description… Use @ to mention someone"
-                    rows={4}
-                    className="resize-none border-0 rounded-none focus-visible:ring-0 text-sm"
-                  />
-                </PopoverAnchor>
-              </div>
-              <PopoverContent
-                className="w-56 p-0"
-                align="start"
-                onOpenAutoFocus={(e) => e.preventDefault()}
-                onInteractOutside={(e) => {
-                  // Don't close if interacting within the popover (e.g. scrolling)
-                  const target = e.target as Node
-                  const content = document.querySelector('[data-mention-popover]')
-                  if (content?.contains(target)) { e.preventDefault(); return }
-                  setMentionOpen(false); setMentionQuery(null)
-                }}
-              >
-                <ScrollArea className="h-44" data-mention-popover>
-                  <div className="py-1">
-                    {mentionMembers.map((member) => (
-                      <button
-                        key={member.id}
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); insertMention(member) }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
-                      >
-                        <Avatar className="h-6 w-6 shrink-0">
-                          <AvatarImage src={member.avatar_url ?? undefined} />
-                          <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
-                        </Avatar>
-                        <span className="truncate">{member.full_name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Assignee */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold text-foreground">Assignee</Label>
-              <button
-                type="button"
-                onClick={assignToMe}
-                className="text-xs text-primary hover:underline font-medium"
-              >
-                Assign to me
-              </button>
-            </div>
-
-            <div className="rounded-lg border border-border">
-              {/* Search */}
-              <div className="p-2 border-b">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                  <Input
-                    placeholder="Search members…"
-                    value={assigneeSearch}
-                    onChange={(e) => setAssigneeSearch(e.target.value)}
-                    className="pl-8 h-8 text-sm bg-background"
-                  />
-                </div>
-              </div>
-
-              {/* List */}
-              {loadingMembers ? (
-                <div className="py-5 text-center text-sm text-muted-foreground">Loading…</div>
-              ) : members.length === 0 ? (
-                <div className="py-5 text-center text-sm text-muted-foreground">
-                  No staff members found.
-                </div>
-              ) : (
-                <ScrollArea className="h-44">
-                  <ul className="p-1">
-                    {members
-                      .filter((m) =>
-                        !assigneeSearch ||
-                        m.full_name.toLowerCase().includes(assigneeSearch.toLowerCase()) ||
-                        m.email.toLowerCase().includes(assigneeSearch.toLowerCase())
-                      )
-                      .map((member) => {
-                        const selected = selectedAssigneeIds.includes(member.id)
-                        return (
-                          <li key={member.id}>
-                            <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors">
-                              <Checkbox
-                                checked={selected}
-                                onCheckedChange={() => toggleAssignee(member.id)}
-                              />
-                              <Avatar className="h-7 w-7 shrink-0">
-                                <AvatarImage src={member.avatar_url ?? undefined} />
-                                <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-medium">{member.full_name}</p>
-                                <p className="truncate text-xs text-muted-foreground">{member.email}</p>
-                              </div>
-                              {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                            </label>
-                          </li>
-                        )
-                      })}
-                  </ul>
-                </ScrollArea>
-              )}
-
-              {/* Counter */}
-              <div className="border-t px-3 py-2">
-                <p className="text-xs text-muted-foreground">
-                  {assignedMembers.length} member{assignedMembers.length !== 1 ? 's' : ''} selected
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Reporter */}
-          {(() => {
-            const selectedReporter = allStaff.find((m) => m.id === reporterId)
-            const filteredReporters = allStaff.filter((m) =>
-              !reporterSearch ||
-              m.full_name.toLowerCase().includes(reporterSearch.toLowerCase()) ||
-              m.email.toLowerCase().includes(reporterSearch.toLowerCase())
-            )
-            return (
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-foreground">
-                  Reporter <span className="text-red-500">*</span>
-                </Label>
-                {/* Collapsed trigger */}
-                <button
-                  type="button"
-                  onClick={() => { setReporterOpen((v) => !v); setReporterSearch('') }}
-                  className="w-full flex items-center gap-2 h-10 rounded-md border border-border bg-background px-3 text-sm hover:bg-muted/30 transition-colors"
-                >
-                  {selectedReporter ? (
-                    <>
-                      <Avatar className="h-6 w-6 shrink-0">
-                        <AvatarImage src={selectedReporter.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-[10px]">{getInitials(selectedReporter.full_name)}</AvatarFallback>
-                      </Avatar>
-                      <span className="flex-1 text-left font-medium">{selectedReporter.full_name}</span>
-                    </>
-                  ) : (
-                    <span className="flex-1 text-left text-muted-foreground">Select reporter…</span>
-                  )}
-                  <ChevronDown className={cn('h-4 w-4 text-muted-foreground/70 transition-transform', reporterOpen && 'rotate-180')} />
+                  <Hash className="h-3 w-3" />
+                  {currentProject ? currentProject.name : 'Select List...'}
+                  <ChevronDown className="h-3 w-3 opacity-60" />
                 </button>
 
-                {/* Expanded list */}
-                {reporterOpen && (
-                  <div className="rounded-lg border border-border shadow-sm">
-                    <div className="p-2 border-b">
-                      <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                        <Input
-                          placeholder="Search reporter…"
-                          value={reporterSearch}
-                          onChange={(e) => setReporterSearch(e.target.value)}
-                          className="pl-8 h-8 text-sm bg-background"
-                          autoFocus
-                        />
-                      </div>
+                {listOpen && (
+                  <div className="absolute left-0 top-full mt-1 z-50 w-72 rounded-lg border border-border bg-background shadow-xl overflow-hidden">
+                    {/* Search */}
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
+                      <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <input
+                        autoFocus
+                        value={listSearch}
+                        onChange={e => setListSearch(e.target.value)}
+                        placeholder="Search..."
+                        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+                      />
                     </div>
-                    <ScrollArea className="h-40">
-                      <ul className="p-1">
-                        {filteredReporters.map((member) => {
-                          const selected = reporterId === member.id
-                          return (
-                            <li key={member.id}>
-                              <button
-                                type="button"
-                                onClick={() => { setReporterId(member.id); setReporterOpen(false); setReporterSearch('') }}
-                                className="w-full flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50 transition-colors text-left"
-                              >
-                                <Avatar className="h-7 w-7 shrink-0">
-                                  <AvatarImage src={member.avatar_url ?? undefined} />
-                                  <AvatarFallback className="text-[10px]">{getInitials(member.full_name)}</AvatarFallback>
-                                </Avatar>
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-medium">{member.full_name}</p>
-                                  <p className="truncate text-xs text-muted-foreground">{member.email}</p>
-                                </div>
-                                {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                              </button>
-                            </li>
-                          )
-                        })}
-                        {filteredReporters.length === 0 && (
-                          <li className="py-4 text-center text-sm text-muted-foreground">No results</li>
-                        )}
-                      </ul>
-                    </ScrollArea>
+
+                    <div className="max-h-64 overflow-y-auto py-1">
+                      {/* Personal List */}
+                      <button
+                        onClick={() => { setSelectedProjectId(''); setListOpen(false) }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left"
+                      >
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">Personal List</span>
+                      </button>
+
+                      {/* Recents */}
+                      {projects.slice(0, 2).length > 0 && (
+                        <>
+                          <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Recents</p>
+                          {projects.slice(0, 2).map(p => (
+                            <button
+                              key={p.id}
+                              onClick={() => { setSelectedProjectId(p.id); setListOpen(false) }}
+                              className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left"
+                            >
+                              <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="truncate">{p.name}</span>
+                              {selectedProjectId === p.id && <Check className="h-3.5 w-3.5 text-primary ml-auto shrink-0" />}
+                            </button>
+                          ))}
+                        </>
+                      )}
+
+                      {/* All spaces */}
+                      {filteredProjects.length > 0 && (
+                        <>
+                          <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Spaces</p>
+                          {filteredProjects.map(p => (
+                            <button
+                              key={p.id}
+                              onClick={() => { setSelectedProjectId(p.id); setListOpen(false) }}
+                              className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left"
+                            >
+                              <div className="h-5 w-5 rounded shrink-0 flex items-center justify-center bg-blue-100 text-blue-700 text-[9px] font-bold">
+                                {p.name.slice(0,2).toUpperCase()}
+                              </div>
+                              <span className="truncate flex-1">{p.name}</span>
+                              {selectedProjectId === p.id && <Check className="h-3.5 w-3.5 text-primary ml-auto shrink-0" />}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
-            )
-          })()}
 
-          {/* Priority */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-foreground">Priority</Label>
-            <Select value={priority} onValueChange={setPriority}>
-              <SelectTrigger className="text-sm">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="h-2.5 w-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: selectedPriorityCfg?.color ?? '#f59e0b' }}
-                  />
-                  <span>{selectedPriorityCfg?.name ?? priority}</span>
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {priorities.map((p) => (
-                  <SelectItem key={p.slug} value={p.slug}>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                      {p.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="task-start" className="text-xs font-semibold text-foreground">
-                Start date
-              </Label>
-              <Input
-                id="task-start"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="text-sm"
-              />
-              <p className="text-[11px] text-muted-foreground leading-tight">
-                Allows the planned start date to be set.
-              </p>
+              {/* Task type badge */}
+              <button className="flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors">
+                <Check className="h-3 w-3" />
+                Task
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </button>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="task-due" className="text-xs font-semibold text-foreground">
-                Due date
-              </Label>
-              <Input
-                id="task-due"
-                type="date"
-                value={dueDate}
-                min={startDate || undefined}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="text-sm"
-              />
-            </div>
-          </div>
 
-          {/* Estimated hours */}
-          <div className="space-y-1.5">
-            <Label htmlFor="task-hours" className="text-xs font-semibold text-foreground">
-              Estimated hours
-            </Label>
-            <Input
-              id="task-hours"
-              type="number"
-              min="0"
-              step="0.5"
-              value={estimatedHours}
-              onChange={(e) => setEstimatedHours(e.target.value)}
-              placeholder="e.g. 4"
-              className="text-sm"
-            />
-          </div>
-        </div>
-
-        {/* ── Footer ── */}
-        <div className="flex items-center justify-between border-t px-6 py-3 bg-muted/20 shrink-0">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <Checkbox
-              id="create-another"
-              checked={createAnother}
-              onCheckedChange={(v) => setCreateAnother(!!v)}
-            />
-            <span className="text-sm text-foreground">Create another</span>
-          </label>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={() => { reset(); onOpenChange(false) }}
-              disabled={submitting}
+              className="rounded-md p-1 text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
             >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="min-w-[72px]"
-            >
-              {submitting ? 'Creating…' : 'Create'}
-            </Button>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* ── Body ──────────────────────────────────────────────────────── */}
+          <div className="px-5 pt-4 pb-2 flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+            {/* Title */}
+            <input
+              ref={titleRef}
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onBlur={() => setTitleTouched(true)}
+              onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
+              placeholder="Task Name"
+              className={cn(
+                'w-full text-[22px] font-semibold bg-transparent border-0 outline-none placeholder:text-muted-foreground/30 leading-snug py-1',
+                titleError && 'placeholder:text-red-300'
+              )}
+            />
+            {titleError && (
+              <p className="text-xs text-red-500 flex items-center gap-1 -mt-1">
+                <AlertCircle className="h-3 w-3" /> Task name is required
+              </p>
+            )}
+
+            {/* Description */}
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Add description, or write with ✨ AI"
+              rows={3}
+              className="w-full bg-transparent text-sm text-foreground/80 border-0 outline-none resize-none placeholder:text-muted-foreground/40 leading-relaxed py-1"
+            />
+
+            {/* ── Inline pill toolbar ────────────────────────────────────── */}
+            <div className="flex items-center gap-1 flex-wrap pt-1 pb-2 border-t border-border/40 mt-1">
+
+              {/* Status */}
+              <div className="relative">
+                <button
+                  onClick={e => { e.stopPropagation(); closeAllPopovers() }}
+                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-bold tracking-wide transition-colors"
+                  style={{
+                    backgroundColor: (selectedStatusCfg?.color ?? '#94a3b8') + '25',
+                    color: selectedStatusCfg?.color ?? '#94a3b8',
+                  }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: selectedStatusCfg?.color ?? '#94a3b8' }} />
+                  {selectedStatusCfg?.name.toUpperCase() ?? 'OPEN'}
+                  {/* Status change inline */}
+                  <select
+                    value={status}
+                    onChange={e => setStatus(e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                  >
+                    {statuses.map(s => <option key={s.slug} value={s.slug}>{s.name}</option>)}
+                  </select>
+                </button>
+              </div>
+
+              {/* Assignee */}
+              <div className="relative" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => { closeAllPopovers(); setAssigneeOpen(o => !o); setAssigneeSearch('') }}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
+                    assigneeIds.length > 0
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  )}
+                >
+                  {assignedMembers.length > 0 ? (
+                    <>
+                      <div className="flex -space-x-1">
+                        {assignedMembers.slice(0,2).map(m => (
+                          <div key={m.id} className="h-4 w-4 rounded-full bg-primary/20 flex items-center justify-center text-[8px] font-bold text-primary border border-background">
+                            {getInitials(m.full_name)}
+                          </div>
+                        ))}
+                      </div>
+                      <span>{assignedMembers.length === 1 ? assignedMembers[0].full_name.split(' ')[0] : `${assignedMembers.length} people`}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Users className="h-3.5 w-3.5" />
+                      Assignee
+                    </>
+                  )}
+                </button>
+
+                {assigneeOpen && (
+                  <div className="absolute left-0 top-full mt-1 z-50 w-64 rounded-lg border border-border bg-background shadow-xl overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
+                      <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <input
+                        autoFocus
+                        value={assigneeSearch}
+                        onChange={e => setAssigneeSearch(e.target.value)}
+                        placeholder="Search or enter email..."
+                        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+                      />
+                    </div>
+                    <div className="py-1 max-h-56 overflow-y-auto">
+                      {/* People section */}
+                      <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">People</p>
+                      {/* Me first */}
+                      <button
+                        onClick={() => toggleAssignee(profile.id)}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 hover:bg-muted/50 text-sm text-left transition-colors"
+                      >
+                        <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-primary-foreground shrink-0">
+                          {getInitials(profile.full_name)}
+                        </div>
+                        <span className="flex-1 font-medium">Me</span>
+                        {assigneeIds.includes(profile.id) && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                      </button>
+                      {filteredMembers.filter(m => m.id !== profile.id).map(m => (
+                        <button
+                          key={m.id}
+                          onClick={() => toggleAssignee(m.id)}
+                          className="flex items-center gap-2.5 w-full px-3 py-2 hover:bg-muted/50 text-sm text-left transition-colors"
+                        >
+                          <Avatar className="h-6 w-6 shrink-0">
+                            <AvatarImage src={m.avatar_url ?? undefined} />
+                            <AvatarFallback className="text-[9px]">{getInitials(m.full_name)}</AvatarFallback>
+                          </Avatar>
+                          <span className="flex-1 truncate">{m.full_name}</span>
+                          {assigneeIds.includes(m.id) && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                    {assigneeIds.length > 0 && (
+                      <div className="border-t border-border/60 px-3 py-2 flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">{assigneeIds.length} selected</span>
+                        <button onClick={() => setAssigneeIds([])} className="text-xs text-red-500 hover:text-red-600">Clear</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Due Date */}
+              <div className="relative" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => { closeAllPopovers(); setDateOpen(o => !o) }}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
+                    dueDate
+                      ? 'bg-blue-50 text-blue-600'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  )}
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  {dueDate
+                    ? new Date(dueDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                    : 'Due date'}
+                  {dueDate && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setDueDate('') }}
+                      className="ml-0.5 rounded-full hover:bg-blue-100 p-0.5"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  )}
+                </button>
+
+                {dateOpen && (
+                  <div className="absolute left-0 top-full mt-1 z-50 w-72 rounded-lg border border-border bg-background shadow-xl overflow-hidden">
+                    {/* Start / Due tabs */}
+                    <div className="flex border-b border-border/60">
+                      <div className="flex-1 px-3 py-2 text-xs font-medium text-muted-foreground border-r border-border/60">
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground/60 block mb-0.5">Start date</span>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={e => setStartDate(e.target.value)}
+                          className="bg-transparent text-xs outline-none text-foreground w-full"
+                        />
+                      </div>
+                      <div className="flex-1 px-3 py-2 text-xs font-medium">
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground/60 block mb-0.5">Due date</span>
+                        <input
+                          type="date"
+                          value={dueDate}
+                          onChange={e => setDueDate(e.target.value)}
+                          className="bg-transparent text-xs outline-none text-foreground w-full"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Quick options */}
+                    <div className="flex border-b border-border/60">
+                      <div className="flex-1 py-1">
+                        {QUICK_DATES.map(q => {
+                          const d = q.fn ? q.fn() : addDays(q.days ?? 0)
+                          const str = toDateStr(d)
+                          return (
+                            <button
+                              key={q.label}
+                              onClick={() => { setDueDate(str); setDateOpen(false) }}
+                              className="flex items-center justify-between w-full px-3 py-1.5 text-xs hover:bg-muted/50 transition-colors"
+                            >
+                              <span className="text-foreground">{q.label}</span>
+                              <span className="text-muted-foreground/60">
+                                {d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                              </span>
+                            </button>
+                          )
+                        })}
+                        <button className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-muted/50 transition-colors text-muted-foreground">
+                          <ChevronRight className="h-3 w-3" /> Set Recurring
+                        </button>
+                      </div>
+
+                      {/* Mini calendar */}
+                      <div className="w-[180px] border-l border-border/60 p-2">
+                        <MiniCalendar selected={dueDate} onSelect={d => { setDueDate(d); setDateOpen(false) }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Priority */}
+              <div className="relative" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => { closeAllPopovers(); setPriorityOpen(o => !o) }}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
+                    priority
+                      ? 'text-foreground hover:bg-muted/60'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  )}
+                >
+                  <Flag className="h-3.5 w-3.5" style={{ color: PRIORITY_CFG[priority]?.color ?? '#94a3b8' }} />
+                  {PRIORITY_CFG[priority]?.label ?? 'Priority'} priority
+                </button>
+
+                {priorityOpen && (
+                  <div className="absolute left-0 top-full mt-1 z-50 w-44 rounded-lg border border-border bg-background shadow-xl py-1 overflow-hidden">
+                    <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Task Priority</p>
+                    {Object.entries(PRIORITY_CFG).map(([slug, cfg]) => (
+                      <button
+                        key={slug}
+                        onClick={() => { setPriority(slug); setPriorityOpen(false) }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left"
+                      >
+                        <Flag className="h-4 w-4 shrink-0" style={{ color: cfg.color }} />
+                        <span className="flex-1">{cfg.label}</span>
+                        {priority === slug && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                      </button>
+                    ))}
+                    <div className="border-t border-border/60 mt-1">
+                      <button
+                        onClick={() => { setPriority('medium'); setPriorityOpen(false) }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-muted-foreground"
+                      >
+                        <X className="h-4 w-4 shrink-0" />
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Tags */}
+              <div className="relative" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => { closeAllPopovers(); setTagsOpen(o => !o); setTagSearch('') }}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
+                    tags.length > 0
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  )}
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                  {tags.length > 0 ? `${tags.length} tag${tags.length > 1 ? 's' : ''}` : 'Tags'}
+                </button>
+
+                {tagsOpen && (
+                  <div className="absolute left-0 top-full mt-1 z-50 w-64 rounded-lg border border-border bg-background shadow-xl overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
+                      <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <input
+                        autoFocus
+                        value={tagSearch}
+                        onChange={e => setTagSearch(e.target.value)}
+                        placeholder="Search or add tags..."
+                        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+                      />
+                    </div>
+                    <div className="p-2 max-h-56 overflow-y-auto">
+                      <div className="flex flex-wrap gap-1.5">
+                        {filteredTags.map(t => (
+                          <button
+                            key={t.name}
+                            onClick={() => toggleTag(t.name)}
+                            className={cn(
+                              'rounded-md px-2.5 py-1 text-[12px] font-medium transition-all border',
+                              tags.includes(t.name)
+                                ? 'ring-2 ring-offset-1'
+                                : 'hover:opacity-80'
+                            )}
+                            style={{
+                              backgroundColor: t.color + '20',
+                              color: t.color,
+                              borderColor: t.color + '40',
+                              ...(tags.includes(t.name) ? { ringColor: t.color } : {}),
+                            }}
+                          >
+                            {t.name}
+                          </button>
+                        ))}
+                        {tagSearch && !PRESET_TAGS.find(t => t.name === tagSearch) && (
+                          <button
+                            onClick={() => { toggleTag(tagSearch); setTagSearch('') }}
+                            className="flex items-center gap-1 rounded-md px-2.5 py-1 text-[12px] font-medium bg-muted text-foreground hover:bg-muted/80 border border-dashed border-border"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Add &quot;{tagSearch}&quot;
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {tags.length > 0 && (
+                      <div className="border-t border-border/60 px-3 py-1.5 flex items-center justify-between">
+                        <div className="flex flex-wrap gap-1">
+                          {tags.map(t => {
+                            const cfg = PRESET_TAGS.find(p => p.name === t)
+                            return (
+                              <span
+                                key={t}
+                                className="rounded px-1.5 py-0.5 text-[11px] font-medium"
+                                style={{ backgroundColor: (cfg?.color ?? '#94a3b8') + '20', color: cfg?.color ?? '#94a3b8' }}
+                              >
+                                {t}
+                              </span>
+                            )
+                          })}
+                        </div>
+                        <button onClick={() => setTags([])} className="text-[11px] text-red-500 hover:text-red-600 shrink-0 ml-2">Clear</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* More */}
+              <button className="flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* ── Footer ────────────────────────────────────────────────────── */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-border/60 bg-muted/20" onClick={e => e.stopPropagation()}>
+            {/* Left */}
+            <div className="flex items-center gap-1">
+              <button className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <Paperclip className="h-3.5 w-3.5" />
+                Templates
+              </button>
+            </div>
+
+            {/* Right */}
+            <div className="flex items-center gap-2">
+              <button className="flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <Paperclip className="h-3.5 w-3.5" />
+              </button>
+              {/* Count badge */}
+              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">1</span>
+
+              {/* Split Create Task button */}
+              <div className="flex items-center rounded-lg overflow-hidden border border-primary">
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="px-3.5 py-1.5 text-[13px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? 'Creating…' : 'Create Task'}
+                </button>
+                <div className="w-px h-full bg-primary-foreground/20" />
+                <button
+                  className="px-2 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  onClick={e => { e.stopPropagation() }}
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-// Small toolbar button helper
-function ToolbarBtn({ icon, title }: { icon: React.ReactNode; title: string }) {
-  return (
-    <button
-      type="button"
-      title={title}
-      className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-      onMouseDown={(e) => e.preventDefault()} // prevent textarea blur
-    >
-      {icon}
-    </button>
   )
 }

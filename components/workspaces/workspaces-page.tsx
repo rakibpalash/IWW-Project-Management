@@ -77,7 +77,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles, c
         },
         ...prev,
       ])
-      toast({ title: 'Workspace cloned', description: `"${workspace.name} (Copy)" created.` })
+      toast({ title: 'Space cloned', description: `"${workspace.name} (Copy)" created.` })
     } finally {
       setCloningId(null)
     }
@@ -94,7 +94,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles, c
     }
     setWorkspaces((prev) => prev.filter((w) => w.id !== targetId))
     setDeleteTarget(null)
-    toast({ title: 'Workspace deleted', description: `"${targetName}" was deleted.` })
+    toast({ title: 'Space deleted', description: `"${targetName}" was deleted.` })
   }
 
   return (
@@ -102,15 +102,15 @@ export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles, c
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Workspaces</h1>
+          <h1 className="text-2xl font-bold text-foreground">Spaces</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {workspaces.length} workspace{workspaces.length !== 1 ? 's' : ''}
+            {workspaces.length} space{workspaces.length !== 1 ? 's' : ''}
           </p>
         </div>
         {canCreate && (
           <Button onClick={() => setShowCreate(true)} className="gap-2 sm:w-auto w-full">
             <Plus className="h-4 w-4" />
-            New Workspace
+            New Space
           </Button>
         )}
       </div>
@@ -119,7 +119,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles, c
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
         <Input
-          placeholder="Search workspaces…"
+          placeholder="Search spaces…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -131,12 +131,12 @@ export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles, c
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 py-16">
           <Building2 className="h-10 w-10 text-gray-300" />
           <p className="mt-3 text-sm font-medium text-muted-foreground">
-            {search ? 'No workspaces match your search' : 'No workspaces yet'}
+            {search ? 'No spaces match your search' : 'No spaces yet'}
           </p>
           {!search && canCreate && (
             <Button variant="outline" size="sm" className="mt-4 gap-2" onClick={() => setShowCreate(true)}>
               <Plus className="h-4 w-4" />
-              Create your first workspace
+              Create your first space
             </Button>
           )}
         </div>
@@ -154,7 +154,7 @@ export function WorkspacesPage({ workspaces: initialWorkspaces, staffProfiles, c
               )}
               <WorkspaceCard
                 workspace={workspace}
-                onClick={() => router.push(`/workspaces/${workspace.id}`)}
+                onClick={() => router.push(`/spaces/${workspace.id}`)}
                 onRename={(ws) => setRenameTarget(ws)}
                 onClone={(ws) => handleClone(ws)}
                 onDelete={(ws) => setDeleteTarget(ws)}

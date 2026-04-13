@@ -41,6 +41,13 @@ import {
   Copy,
   UserPlus,
   X,
+  Flag,
+  Zap,
+  FolderOpen,
+  Hash,
+  ChevronDown,
+  Timer,
+  Users,
 } from 'lucide-react'
 import {
   Dialog,
@@ -745,47 +752,21 @@ export function TaskDetailPage({
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-2xl mx-auto px-8 py-8 space-y-8">
 
-              {/* Header: meta chips + title ─────────────────── */}
+              {/* Header: breadcrumb chips + title ─────────── */}
               <div className="space-y-3">
 
-                {/* Meta row */}
+                {/* Status + priority chips (quick-glance, top of content) */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* Status */}
-                  {canEdit ? (
-                    <Select value={task.status} onValueChange={handleStatusChange}>
-                      <SelectTrigger
-                        className="h-6 gap-1 border-0 px-2.5 text-xs font-semibold rounded-full w-auto shadow-none focus:ring-0"
-                        style={{
-                          backgroundColor: (statusCfg?.color ?? '#94a3b8') + '20',
-                          color: statusCfg?.color ?? '#94a3b8',
-                        }}
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {statuses.map((s) => (
-                          <SelectItem key={s.slug} value={s.slug}>
-                            <div className="flex items-center gap-1.5">
-                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                              {s.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <span
-                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                      style={{
-                        backgroundColor: (statusCfg?.color ?? '#94a3b8') + '20',
-                        color: statusCfg?.color ?? '#94a3b8',
-                      }}
-                    >
-                      {statusCfg?.name ?? task.status}
-                    </span>
-                  )}
-
-                  {/* Priority chip */}
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                    style={{
+                      backgroundColor: (statusCfg?.color ?? '#94a3b8') + '20',
+                      color: statusCfg?.color ?? '#94a3b8',
+                    }}
+                  >
+                    <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: statusCfg?.color ?? '#94a3b8' }} />
+                    {statusCfg?.name ?? task.status}
+                  </span>
                   <span
                     className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border"
                     style={{
@@ -794,32 +775,24 @@ export function TaskDetailPage({
                       borderColor: (priorityCfg?.color ?? '#f59e0b') + '40',
                     }}
                   >
-                    <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: priorityCfg?.color ?? '#f59e0b' }} />
+                    <Flag className="h-2.5 w-2.5 shrink-0" />
                     {priorityCfg?.name ?? task.priority}
                   </span>
-
-                  {/* Assignee avatars */}
                   {(task.assignees ?? []).length > 0 && (
-                    <div className="flex items-center -space-x-1.5 ml-0.5">
-                      {(task.assignees ?? []).slice(0, 5).map((a) => (
+                    <div className="flex -space-x-1.5 ml-0.5">
+                      {(task.assignees ?? []).slice(0, 4).map((a) => (
                         <Tooltip key={a.id}>
                           <TooltipTrigger asChild>
-                            <Avatar className="h-6 w-6 border-2 border-background cursor-default">
+                            <Avatar className="h-5 w-5 border-2 border-background cursor-default">
                               <AvatarImage src={a.avatar_url ?? undefined} />
-                              <AvatarFallback className="text-[10px]">
-                                {getInitials(a.full_name)}
-                              </AvatarFallback>
+                              <AvatarFallback className="text-[9px]">{getInitials(a.full_name)}</AvatarFallback>
                             </Avatar>
                           </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{a.full_name}</p>
-                          </TooltipContent>
+                          <TooltipContent className="text-xs">{a.full_name}</TooltipContent>
                         </Tooltip>
                       ))}
-                      {(task.assignees ?? []).length > 5 && (
-                        <span className="text-xs text-muted-foreground ml-2">
-                          +{(task.assignees ?? []).length - 5}
-                        </span>
+                      {(task.assignees ?? []).length > 4 && (
+                        <span className="text-xs text-muted-foreground ml-1.5">+{(task.assignees ?? []).length - 4}</span>
                       )}
                     </div>
                   )}
@@ -1019,23 +992,23 @@ export function TaskDetailPage({
             </div>
           </div>
 
-          {/* ── Right sidebar ── */}
-          <div className="w-72 shrink-0 border-l">
-            <div className="sticky top-[49px] h-[calc(100vh-49px)] overflow-y-auto bg-card/30 p-5 space-y-6">
+          {/* ── Right sidebar ── ClickUp-style property panel ── */}
+          <div className="w-[280px] shrink-0 border-l bg-card/20">
+            <div className="sticky top-[49px] h-[calc(100vh-49px)] overflow-y-auto">
 
-              {/* Timer ─── hidden for client role ──────────── */}
+              {/* ── Timer card ── */}
               {canTrackTime && (
-                <div className="rounded-xl border bg-card p-4 space-y-3">
-                  <div className="flex items-center gap-2.5">
+                <div className="border-b px-4 py-3">
+                  <div className="flex items-center gap-3 mb-2.5">
                     {timerRunning && runningEntry ? (
-                      <span className="relative flex h-2.5 w-2.5 shrink-0">
+                      <span className="relative flex h-2 w-2 shrink-0">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
                       </span>
                     ) : (
-                      <Circle className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                      <Circle className="h-2 w-2 text-muted-foreground/40 shrink-0" />
                     )}
-                    <span className="text-3xl font-mono font-bold tabular-nums tracking-tight">
+                    <span className="text-xl font-mono font-bold tabular-nums tracking-tight">
                       {timerRunning && runningEntry ? (
                         <ElapsedTimer startedAt={runningEntry.started_at} clientBase={timerClientBase} />
                       ) : (
@@ -1043,233 +1016,189 @@ export function TaskDetailPage({
                       )}
                     </span>
                   </div>
-                  {/* Only the timer owner can stop it; observers see a read-only label */}
                   {timerRunning && runningEntry && runningEntry.user_id !== profile.id ? (
-                    <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground w-full py-2">
-                      <span className="truncate">
-                        {(() => {
-                          const teammate = members.find((m) => m.id === runningEntry.user_id)
-                          return teammate
-                            ? `Timer running by ${teammate.full_name}`
-                            : 'Timer running by teammate'
-                        })()}
-                      </span>
-                    </div>
+                    <p className="text-xs text-muted-foreground text-center py-1">
+                      {(() => {
+                        const teammate = members.find((m) => m.id === runningEntry.user_id)
+                        return teammate ? `Running by ${teammate.full_name}` : 'Running by teammate'
+                      })()}
+                    </p>
                   ) : (
                     <button
                       onClick={timerRunning ? stopTimer : startTimer}
                       disabled={timerLoading}
                       className={cn(
-                        'flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors w-full',
+                        'flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-colors w-full',
                         timerRunning
-                          ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
-                          : 'bg-primary text-primary-foreground hover:bg-primary/90',
+                          ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 dark:bg-red-950/30 dark:border-red-900'
+                          : 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20',
                         timerLoading && 'opacity-50 cursor-not-allowed',
                       )}
                     >
                       {timerRunning ? (
-                        <>
-                          <Square className="h-3.5 w-3.5 fill-current" />
-                          Stop Timer
-                        </>
+                        <><Square className="h-3 w-3 fill-current" />Stop Timer</>
                       ) : (
-                        <>
-                          <Play className="h-3.5 w-3.5 fill-current" />
-                          Start Timer
-                        </>
+                        <><Play className="h-3 w-3 fill-current" />Start Timer</>
                       )}
                     </button>
                   )}
                 </div>
               )}
 
-              {/* Time summary ────────────────────────────────── */}
-              <div className="space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Time
+              {/* ── Property rows ── */}
+              <div className="px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 px-1">
+                  Properties
                 </p>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Logged</span>
-                  <span className="text-sm font-semibold tabular-nums">
-                    {formatHours(totalLoggedMinutes / 60)}
-                  </span>
+
+                {/* Status */}
+                <div className="flex items-center gap-2 py-1.5 rounded-md hover:bg-muted/30 px-1 group transition-colors">
+                  <Zap className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground w-[80px] shrink-0">Status</span>
+                  {canEdit ? (
+                    <Select value={task.status} onValueChange={handleStatusChange}>
+                      <SelectTrigger className="h-6 border-0 shadow-none bg-transparent p-0 text-xs font-medium focus:ring-0 hover:bg-muted/50 rounded px-1.5 gap-1 w-auto flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: statusCfg?.color ?? '#94a3b8' }} />
+                          <span style={{ color: statusCfg?.color ?? '#94a3b8' }}>{statusCfg?.name ?? task.status}</span>
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statuses.map((s) => (
+                          <SelectItem key={s.slug} value={s.slug} className="text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                              {s.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="text-xs font-medium" style={{ color: statusCfg?.color ?? '#94a3b8' }}>
+                      {statusCfg?.name ?? task.status}
+                    </span>
+                  )}
                 </div>
-                {task.estimated_hours ? (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Estimated</span>
-                      <span className="text-sm font-medium text-muted-foreground tabular-nums">
-                        {task.estimated_hours}h
-                      </span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={cn(
-                          'h-full rounded-full transition-all duration-300',
-                          timeProgress >= 100 ? 'bg-destructive' : 'bg-primary',
+
+                {/* Priority */}
+                <div className="flex items-center gap-2 py-1.5 rounded-md hover:bg-muted/30 px-1 group transition-colors">
+                  <Flag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground w-[80px] shrink-0">Priority</span>
+                  {canEdit ? (
+                    <Select value={task.priority} onValueChange={handlePriorityChange}>
+                      <SelectTrigger className="h-6 border-0 shadow-none bg-transparent p-0 text-xs font-medium focus:ring-0 hover:bg-muted/50 rounded px-1.5 gap-1 w-auto flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: priorityCfg?.color ?? '#f59e0b' }} />
+                          <span style={{ color: priorityCfg?.color ?? '#f59e0b' }}>{priorityCfg?.name ?? task.priority}</span>
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {priorities.map((p) => (
+                          <SelectItem key={p.slug} value={p.slug} className="text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                              {p.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="text-xs font-medium" style={{ color: priorityCfg?.color ?? '#f59e0b' }}>
+                      {priorityCfg?.name ?? task.priority}
+                    </span>
+                  )}
+                </div>
+
+                {/* Assignees */}
+                <div className="flex items-start gap-2 py-1.5 rounded-md hover:bg-muted/30 px-1 group transition-colors">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                  <span className="text-xs text-muted-foreground w-[80px] shrink-0 mt-0.5">Assignees</span>
+                  <div className="flex-1 min-w-0">
+                    {(task.assignees ?? []).length === 0 ? (
+                      <button
+                        onClick={canEdit ? openAssignDialog : undefined}
+                        className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                      >
+                        Unassigned
+                      </button>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {(task.assignees ?? []).map((a) => (
+                          <Tooltip key={a.id}>
+                            <TooltipTrigger asChild>
+                              <Avatar className="h-5 w-5 border border-background cursor-default">
+                                <AvatarImage src={a.avatar_url ?? undefined} />
+                                <AvatarFallback className="text-[8px]">{getInitials(a.full_name)}</AvatarFallback>
+                              </Avatar>
+                            </TooltipTrigger>
+                            <TooltipContent className="text-xs">{a.full_name}</TooltipContent>
+                          </Tooltip>
+                        ))}
+                        {canEdit && (
+                          <button
+                            onClick={openAssignDialog}
+                            className="h-5 w-5 rounded-full border border-dashed border-muted-foreground/40 flex items-center justify-center hover:border-primary hover:text-primary transition-colors"
+                          >
+                            <UserPlus className="h-2.5 w-2.5 text-muted-foreground" />
+                          </button>
                         )}
-                        style={{ width: `${timeProgress}%` }}
-                      />
-                    </div>
-                    <p className="text-[10px] text-muted-foreground text-right">
-                      {Math.round(timeProgress)}% of estimate
-                    </p>
-                  </>
-                ) : null}
-              </div>
-
-              <Separator />
-
-              {/* Status ──────────────────────────────────────── */}
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Status
-                </p>
-                {canEdit ? (
-                  <Select value={task.status} onValueChange={handleStatusChange}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: statusCfg?.color ?? '#94a3b8' }} />
-                        <span>{statusCfg?.name ?? task.status}</span>
                       </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statuses.map((s) => (
-                        <SelectItem key={s.slug} value={s.slug} className="text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                            {s.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <span
-                    className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium"
-                    style={{
-                      backgroundColor: (statusCfg?.color ?? '#94a3b8') + '20',
-                      color: statusCfg?.color ?? '#94a3b8',
-                    }}
-                  >
-                    {statusCfg?.name ?? task.status}
-                  </span>
-                )}
-              </div>
-
-              {/* Priority ────────────────────────────────────── */}
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Priority
-                </p>
-                {canEdit ? (
-                  <Select value={task.priority} onValueChange={handlePriorityChange}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: priorityCfg?.color ?? '#f59e0b' }} />
-                        <span>{priorityCfg?.name ?? task.priority}</span>
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {priorities.map((p) => (
-                        <SelectItem key={p.slug} value={p.slug} className="text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                            {p.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <span
-                    className="inline-flex items-center gap-1.5 text-xs font-medium"
-                    style={{ color: priorityCfg?.color ?? '#f59e0b' }}
-                  >
-                    <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: priorityCfg?.color ?? '#f59e0b' }} />
-                    {priorityCfg?.name ?? task.priority}
-                  </span>
-                )}
-              </div>
-
-              {/* Assignees ───────────────────────────────────── */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    Assignees
-                  </p>
-                  {canEdit && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                    )}
+                  </div>
+                  {(task.assignees ?? []).length === 0 && canEdit && (
+                    <button
                       onClick={openAssignDialog}
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all"
                     >
                       <UserPlus className="h-3.5 w-3.5" />
-                    </Button>
+                    </button>
                   )}
                 </div>
-                {(task.assignees ?? []).length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Unassigned</p>
-                ) : (
-                  <div className="space-y-2">
-                    {(task.assignees ?? []).map((a) => (
-                      <div key={a.id} className="flex items-center gap-2">
-                        <Avatar className="h-7 w-7 shrink-0">
-                          <AvatarImage src={a.avatar_url ?? undefined} />
-                          <AvatarFallback className="text-xs">
-                            {getInitials(a.full_name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium truncate">{a.full_name}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{a.email}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
 
-              <Separator />
-
-              {/* Dates ───────────────────────────────────────── */}
-              <div className="space-y-3">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Dates
-                </p>
-                <div className="space-y-1">
-                  <p className="text-[10px] text-muted-foreground">Start</p>
-                  {canEdit ? (
-                    <input
-                      type="date"
-                      value={task.start_date ?? ''}
-                      onChange={(e) => handleDateOrHoursChange('start_date', e.target.value)}
-                      disabled={savingDates}
-                      className="w-full text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-                    />
-                  ) : (
-                    <p className="text-xs font-medium">{task.start_date ? formatDate(task.start_date) : '—'}</p>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] text-muted-foreground">Due</p>
+                {/* Due Date */}
+                <div className="flex items-center gap-2 py-1.5 rounded-md hover:bg-muted/30 px-1 group transition-colors">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground w-[80px] shrink-0">Due Date</span>
                   {canEdit ? (
                     <input
                       type="date"
                       value={task.due_date ?? ''}
                       onChange={(e) => handleDateOrHoursChange('due_date', e.target.value)}
                       disabled={savingDates}
-                      className="w-full text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                      className="flex-1 text-xs bg-transparent border-0 outline-none focus:ring-0 p-0 text-foreground disabled:opacity-50 cursor-pointer"
                     />
                   ) : (
-                    <p className={cn('text-xs font-medium', !task.due_date && 'text-muted-foreground')}>
-                      {task.due_date ? formatDate(task.due_date) : '—'}
-                    </p>
+                    <span className="text-xs font-medium">
+                      {task.due_date ? formatDate(task.due_date) : <span className="text-muted-foreground/40">None</span>}
+                    </span>
                   )}
                 </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] text-muted-foreground">Estimated Hours</p>
+
+                {/* Start Date */}
+                <div className="flex items-center gap-2 py-1.5 rounded-md hover:bg-muted/30 px-1 group transition-colors">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground w-[80px] shrink-0">Start Date</span>
+                  {canEdit ? (
+                    <input
+                      type="date"
+                      value={task.start_date ?? ''}
+                      onChange={(e) => handleDateOrHoursChange('start_date', e.target.value)}
+                      disabled={savingDates}
+                      className="flex-1 text-xs bg-transparent border-0 outline-none focus:ring-0 p-0 text-foreground disabled:opacity-50 cursor-pointer"
+                    />
+                  ) : (
+                    <span className="text-xs font-medium">
+                      {task.start_date ? formatDate(task.start_date) : <span className="text-muted-foreground/40">None</span>}
+                    </span>
+                  )}
+                </div>
+
+                {/* Time Estimate */}
+                <div className="flex items-center gap-2 py-1.5 rounded-md hover:bg-muted/30 px-1 group transition-colors">
+                  <Timer className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground w-[80px] shrink-0">Estimate</span>
                   {canEdit ? (
                     <input
                       type="number"
@@ -1279,42 +1208,69 @@ export function TaskDetailPage({
                       onChange={(e) => handleDateOrHoursChange('estimated_hours', e.target.value)}
                       onKeyDown={(e) => { if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault() }}
                       disabled={savingDates}
-                      placeholder="e.g. 4"
-                      className="w-full text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                      placeholder="e.g. 4h"
+                      className="flex-1 text-xs bg-transparent border-0 outline-none focus:ring-0 p-0 text-foreground placeholder:text-muted-foreground/40 disabled:opacity-50"
                     />
                   ) : (
-                    <p className="text-xs font-medium">{task.estimated_hours ? `${task.estimated_hours}h` : '—'}</p>
+                    <span className="text-xs font-medium">
+                      {task.estimated_hours ? `${task.estimated_hours}h` : <span className="text-muted-foreground/40">None</span>}
+                    </span>
                   )}
                 </div>
-              </div>
 
-              <Separator />
+                {/* Time Logged */}
+                <div className="flex items-center gap-2 py-1.5 rounded-md hover:bg-muted/30 px-1 group transition-colors">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground w-[80px] shrink-0">Time Logged</span>
+                  <div className="flex-1 flex items-center gap-2">
+                    <span className="text-xs font-medium tabular-nums">
+                      {formatHours(totalLoggedMinutes / 60)}
+                    </span>
+                    {task.estimated_hours && totalLoggedMinutes > 0 && (
+                      <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={cn('h-full rounded-full', timeProgress >= 100 ? 'bg-destructive' : 'bg-primary')}
+                          style={{ width: `${timeProgress}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {canTrackTime && (
+                    <button
+                      onClick={() => setShowTimeLogDialog(true)}
+                      className="opacity-0 group-hover:opacity-100 text-xs text-muted-foreground hover:text-foreground transition-all"
+                      title="Log time"
+                    >
+                      <Clock className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
 
-              {/* Details ─────────────────────────────────────── */}
-              <div className="space-y-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Details
-                </p>
+                {/* Project */}
                 {task.project && (
-                  <div>
-                    <p className="text-[10px] text-muted-foreground">Project</p>
-                    <p className="text-xs font-medium truncate">{task.project.name}</p>
+                  <div className="flex items-center gap-2 py-1.5 rounded-md hover:bg-muted/30 px-1 transition-colors">
+                    <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-xs text-muted-foreground w-[80px] shrink-0">Project</span>
+                    <span className="text-xs font-medium truncate flex-1">{task.project.name}</span>
                   </div>
                 )}
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Created</p>
-                  <p className="text-xs text-muted-foreground">
-                    {task.created_at
-                      ? format(parseISO(task.created_at), 'dd MMM yyyy')
-                      : '—'}
-                  </p>
+
+                {/* Task ID */}
+                <div className="flex items-center gap-2 py-1.5 rounded-md px-1">
+                  <Hash className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground w-[80px] shrink-0">Task ID</span>
+                  <span className="text-xs text-muted-foreground font-mono">{task.id.slice(0, 8)}</span>
                 </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Task ID</p>
-                  <p className="text-xs text-muted-foreground font-mono">{task.id.slice(0, 8)}</p>
+
+                {/* Created */}
+                <div className="flex items-center gap-2 py-1.5 rounded-md px-1">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground w-[80px] shrink-0">Created</span>
+                  <span className="text-xs text-muted-foreground">
+                    {task.created_at ? format(parseISO(task.created_at), 'dd MMM yyyy') : '—'}
+                  </span>
                 </div>
               </div>
-
             </div>
           </div>
 

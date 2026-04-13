@@ -31,7 +31,7 @@ import { Workspace } from '@/types'
 const formSchema = z.object({
   name: z
     .string()
-    .min(1, 'Workspace name is required')
+    .min(1, 'Space name is required')
     .max(100, 'Name must be 100 characters or less')
     .trim(),
   description: z.string().max(500, 'Description must be 500 characters or less').optional(),
@@ -85,7 +85,7 @@ export function RenameWorkspaceDialog({
         return
       }
 
-      toast({ title: 'Workspace renamed', description: `Renamed to "${values.name}"` })
+      toast({ title: 'Space renamed', description: `Renamed to "${values.name}"` })
       onOpenChange(false)
       onSuccess(workspace.id, values.name, values.description?.trim() || null)
     } finally {
@@ -102,7 +102,7 @@ export function RenameWorkspaceDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Rename Workspace</DialogTitle>
+          <DialogTitle>Rename Space</DialogTitle>
           <DialogDescription>
             Update the name and description for this workspace.
           </DialogDescription>

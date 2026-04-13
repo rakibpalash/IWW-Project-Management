@@ -77,7 +77,7 @@ function UserCard({
 
           {workspaces.length > 0 && (
             <div className="w-full">
-              <p className="text-xs text-muted-foreground mb-1.5">Workspaces</p>
+              <p className="text-xs text-muted-foreground mb-1.5">Spaces</p>
               <div className="flex flex-wrap justify-center gap-1">
                 {workspaces.map((ws) => (
                   <Badge key={ws.id} variant="outline" className="text-xs">
@@ -176,10 +176,10 @@ export function TeamPage({
         {workspaces.length > 0 && (
           <Select value={workspaceFilter} onValueChange={setWorkspaceFilter}>
             <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="All Workspaces" />
+              <SelectValue placeholder="All Spaces" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Workspaces</SelectItem>
+              <SelectItem value="all">All Spaces</SelectItem>
               {workspaces.map((ws) => (
                 <SelectItem key={ws.id} value={ws.id}>
                   {ws.name}

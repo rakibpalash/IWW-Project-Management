@@ -1,11 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import {
-  LayoutDashboard,
-  Building2,
-  FolderKanban,
+  LayoutGrid,
   CheckSquare,
   Clock,
   CalendarDays,
@@ -16,11 +15,18 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   X,
-  LucideIcon,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Hash,
+  ListChecks,
+  CalendarClock,
+  Bell,
+  Inbox,
+  User,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { NAV_ITEMS } from '@/lib/constants'
-import { Profile } from '@/types'
+import { Profile, Workspace, Project } from '@/types'
 import { PermissionSet, can } from '@/lib/permissions'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -29,19 +35,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { createClient } from '@/lib/supabase/client'
+import { CreateWorkspaceDialog } from '@/components/workspaces/create-workspace-dialog'
 
-const ICON_MAP: Record<string, LucideIcon> = {
-  LayoutDashboard,
-  Building2,
-  FolderKanban,
-  CheckSquare,
-  Clock,
-  CalendarDays,
-  Users,
-  Settings,
-  Timer,
-  BarChart2,
-}
+// ─── constants ─────────────────────────────────────────────────────────────────
 
 const ROLE_LABELS: Record<Profile['role'], string> = {
   super_admin:     'CEO',
@@ -52,9 +49,167 @@ const ROLE_LABELS: Record<Profile['role'], string> = {
   partner:         'Partner',
 }
 
-function getInitials(name: string) {
-  return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
+const SPACE_COLORS = [
+  '#7c3aed','#0891b2','#0284c7','#059669',
+  '#d97706','#dc2626','#db2777','#4f46e5',
+]
+function getSpaceColor(id: string) {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  return SPACE_COLORS[h % SPACE_COLORS.length]
 }
+function getInitials(name: string) {
+  return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+}
+
+// ─── nav item ──────────────────────────────────────────────────────────────────
+
+function NavItem({
+  href,
+  icon: Icon,
+  label,
+  active,
+  onClick,
+  indent = false,
+}: {
+  href: string
+  icon: React.ElementType
+  label: string
+  active: boolean
+  onClick: () => void
+  indent?: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className={cn(
+        'group relative flex items-center gap-3 rounded-lg transition-colors select-none',
+        indent ? 'pl-9 pr-3 py-2' : 'px-3 py-2.5',
+        active
+          ? 'bg-sidebar-primary/15 text-white'
+          : 'text-sidebar-foreground/60 hover:bg-white/5 hover:text-sidebar-foreground/90',
+      )}
+    >
+      {/* Left active bar */}
+      {active && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[4px] h-[22px] rounded-r-full bg-sidebar-primary" />
+      )}
+      <Icon className={cn(
+        'shrink-0 transition-colors',
+        indent ? 'h-[17px] w-[17px]' : 'h-5 w-5',
+        active
+          ? 'text-sidebar-primary'
+          : 'text-sidebar-foreground/40 group-hover:text-sidebar-foreground/70',
+      )} />
+      <span className={cn(
+        'truncate font-semibold leading-tight',
+        indent ? 'text-[13px]' : 'text-[15px]',
+        active ? 'text-white' : '',
+      )}>
+        {label}
+      </span>
+    </Link>
+  )
+}
+
+// ─── space item ────────────────────────────────────────────────────────────────
+
+function SpaceItem({
+  workspace,
+  projects,
+  pathname,
+  onClose,
+}: {
+  workspace: Workspace
+  projects: Project[]
+  pathname: string
+  onClose: () => void
+}) {
+  const hasActiveProject = projects.some(p => pathname.startsWith(`/projects/${p.id}`))
+  const [open, setOpen] = useState(hasActiveProject || projects.length <= 5)
+  const color = getSpaceColor(workspace.id)
+  const initial = workspace.name.slice(0, 1).toUpperCase()
+
+  return (
+    <div>
+      {/* Space row */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-white/5"
+      >
+        {/* Colored badge */}
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[13px] font-black text-white leading-none"
+          style={{ backgroundColor: color }}
+        >
+          {initial}
+        </span>
+        <span className="flex-1 truncate text-[15px] font-semibold text-sidebar-foreground/80 group-hover:text-white transition-colors">
+          {workspace.name}
+        </span>
+        <span className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          {open
+            ? <ChevronDown className="h-4 w-4 text-sidebar-foreground/40" />
+            : <ChevronRight className="h-4 w-4 text-sidebar-foreground/40" />
+          }
+        </span>
+      </button>
+
+      {/* Projects list */}
+      {open && (
+        <div className="space-y-0.5 pb-1">
+          {projects.length === 0 ? (
+            <p className="py-2 text-[13px] text-sidebar-foreground/25 font-medium" style={{ paddingLeft: '52px' }}>
+              No lists yet
+            </p>
+          ) : (
+            projects.map(proj => {
+              const active = pathname.startsWith(`/projects/${proj.id}`)
+              return (
+                <Link
+                  key={proj.id}
+                  href={`/projects/${proj.id}`}
+                  onClick={onClose}
+                  className={cn(
+                    'group relative flex items-center gap-3 rounded-lg py-2 transition-colors',
+                    active
+                      ? 'bg-sidebar-primary/15 text-white'
+                      : 'text-sidebar-foreground/55 hover:bg-white/5 hover:text-sidebar-foreground/85',
+                  )}
+                  style={{ paddingLeft: '44px', paddingRight: '12px' }}
+                >
+                  {active && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[4px] h-[18px] rounded-r-full bg-sidebar-primary" />
+                  )}
+                  <Hash className={cn(
+                    'h-[15px] w-[15px] shrink-0',
+                    active ? 'text-sidebar-primary' : 'text-sidebar-foreground/30 group-hover:text-sidebar-foreground/60',
+                  )} />
+                  <span className="truncate text-[13px] font-semibold">{proj.name}</span>
+                </Link>
+              )
+            })
+          )}
+
+          {/* Add List */}
+          <Link
+            href="/projects"
+            onClick={onClose}
+            className="flex items-center gap-2 rounded-lg py-2 text-[13px] font-medium text-sidebar-foreground/25 hover:text-sidebar-foreground/55 hover:bg-white/5 transition-colors"
+            style={{ paddingLeft: '44px', paddingRight: '12px' }}
+          >
+            <Plus className="h-[15px] w-[15px] shrink-0" />
+            <span>Add List</span>
+          </Link>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── props ─────────────────────────────────────────────────────────────────────
 
 interface SidebarProps {
   profile: Profile
@@ -65,281 +220,288 @@ interface SidebarProps {
   onToggleCollapse: () => void
 }
 
-// Maps nav hrefs to driver.js data-tour attribute values used by product-tour.tsx
-const NAV_TOUR_IDS: Record<string, string> = {
-  '/dashboard':  'nav-dashboard',
-  '/workspaces': 'nav-workspaces',
-  '/projects':   'nav-projects',
-  '/tasks':      'nav-tasks',
-  '/timesheet':  'nav-time-tracking',
-  '/attendance': 'nav-attendance',
-  '/leave':      'nav-leave',
-  '/team':       'nav-team',
-  '/reports':    'nav-reports',
-  '/settings':   'nav-settings',
-}
-
-// Master nav catalogue — defines every possible item and what permission gates it.
-// Items are shown if: (a) no permissions loaded → fall back to role-default nav,
-// or (b) permissions loaded → show only items where the check passes.
-const ALL_NAV: { href: string; label: string; icon: string; check: (p: PermissionSet) => boolean }[] = [
-  { href: '/workspaces', label: 'Workspaces', icon: 'Building2',      check: (p) => can(p, 'workspaces', 'view') },
-  { href: '/projects',   label: 'Projects',   icon: 'FolderKanban',   check: (p) => can(p, 'projects',   'view') },
-  { href: '/tasks',      label: 'My Tasks',   icon: 'CheckSquare',    check: (p) => can(p, 'tasks',      'view') },
-  { href: '/timesheet',  label: 'Timesheet',  icon: 'Timer',          check: (p) => can(p, 'timesheet',  'view_own') || can(p, 'timesheet', 'view_all') },
-  { href: '/attendance', label: 'Attendance', icon: 'Clock',          check: (p) => can(p, 'attendance', 'view_own') || can(p, 'attendance', 'view_all') },
-  { href: '/leave',      label: 'Leave',      icon: 'CalendarDays',   check: (p) => can(p, 'leave',      'view_own') || can(p, 'leave', 'view_all') },
-  { href: '/team',       label: 'Team',       icon: 'Users',          check: (p) => can(p, 'team',       'view') },
-  { href: '/reports',    label: 'Reports',    icon: 'BarChart2',      check: (p) => can(p, 'settings',   'manage') },
-  { href: '/settings',   label: 'Settings',   icon: 'Settings',       check: (p) => can(p, 'settings',   'manage') },
-]
+// ─── component ─────────────────────────────────────────────────────────────────
 
 export function Sidebar({ profile, permissions, isOpen, isCollapsed, onClose, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname()
-  const baseNavItems = NAV_ITEMS[profile.role] ?? []
+  const searchParams = useSearchParams()
+  const supabase = createClient()
 
-  // Only apply permission-based filtering when permissions are actually loaded
-  const permsLoaded = permissions && Object.keys(permissions).length > 0
+  const [workspaces,      setWorkspaces]      = useState<Workspace[]>([])
+  const [projects,        setProjects]        = useState<Project[]>([])
+  const [myTasksOpen,     setMyTasksOpen]     = useState(pathname.startsWith('/tasks'))
+  const [showCreateSpace, setShowCreateSpace] = useState(false)
+  const [staffProfiles,   setStaffProfiles]   = useState<Profile[]>([])
 
-  let navItems: typeof baseNavItems
-  if (!permsLoaded) {
-    // No permissions yet — use the role-default nav as-is
-    navItems = baseNavItems
-  } else {
-    // Build nav from the master catalogue filtered by actual permissions
-    const dynamicItems = ALL_NAV
-      .filter((item) => item.check(permissions!))
-      .map(({ href, label, icon }) => ({ href, label, icon }))
+  useEffect(() => {
+    supabase.from('workspaces')
+      .select('id, name, description, created_at, updated_at, created_by')
+      .order('name')
+      .then(({ data }) => setWorkspaces((data as Workspace[]) ?? []))
 
-    // Dashboard is always first
-    navItems = [
-      { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-      ...dynamicItems,
-    ]
+    supabase.from('projects')
+      .select('id, name, workspace_id, status, priority, created_at, updated_at, created_by, is_internal, billing_type, progress, actual_hours, estimated_hours, start_date, due_date, description')
+      .order('name')
+      .then(({ data }) => setProjects((data as Project[]) ?? []))
+  }, [])
+
+  function openCreateSpace() {
+    if (staffProfiles.length === 0) {
+      supabase.from('profiles')
+        .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at')
+        .neq('role', 'client')
+        .order('full_name')
+        .then(({ data }) => setStaffProfiles((data as Profile[]) ?? []))
+    }
+    setShowCreateSpace(true)
   }
+
+  const permsLoaded    = permissions && Object.keys(permissions).length > 0
+  const showTimesheet  = !permsLoaded || can(permissions!, 'timesheet',  'view_own') || can(permissions!, 'timesheet',  'view_all')
+  const showAttendance = !permsLoaded || can(permissions!, 'attendance', 'view_own') || can(permissions!, 'attendance', 'view_all')
+  const showLeave      = !permsLoaded || can(permissions!, 'leave',      'view_own') || can(permissions!, 'leave',      'view_all')
+  const showTeam       = !permsLoaded || can(permissions!, 'team',       'view')
+  const showReports    = !permsLoaded || can(permissions!, 'settings',   'manage')
+  const showSettings   = !permsLoaded || can(permissions!, 'settings',   'manage')
+
+  const isTasksActive = pathname.startsWith('/tasks')
 
   return (
     <TooltipProvider delayDuration={0}>
-      {/* Mobile overlay */}
       {isOpen && (
-        <div
-          className="fixed inset-0 z-20 bg-black/60 backdrop-blur-sm lg:hidden"
-          onClick={onClose}
-          aria-hidden
-        />
+        <div className="fixed inset-0 z-20 bg-black/60 backdrop-blur-sm lg:hidden" onClick={onClose} aria-hidden />
       )}
 
-      <aside
-        className={cn(
-          'fixed inset-y-0 left-0 z-30 flex flex-col',
-          'bg-sidebar border-r border-sidebar-border',
-          'transition-all duration-300 ease-in-out',
-          // Desktop
-          'lg:relative lg:translate-x-0',
-          isCollapsed ? 'lg:w-[68px]' : 'lg:w-60',
-          // Mobile
-          isOpen ? 'translate-x-0 w-60 shadow-2xl' : '-translate-x-full w-60 lg:translate-x-0',
-        )}
-      >
-        {/* ── Logo ── */}
+      <aside className={cn(
+        'fixed inset-y-0 left-0 z-30 flex flex-col',
+        'bg-sidebar border-r border-sidebar-border',
+        'transition-all duration-300 ease-in-out',
+        'lg:relative lg:translate-x-0',
+        isCollapsed ? 'lg:w-[60px]' : 'lg:w-[240px]',
+        isOpen ? 'translate-x-0 w-[240px] shadow-2xl' : '-translate-x-full w-[240px] lg:translate-x-0',
+      )}>
+
+
+        {/* ── Logo bar ── */}
         <div className={cn(
-          'flex h-14 shrink-0 items-center border-b border-sidebar-border px-3',
-          isCollapsed ? 'lg:justify-center lg:px-2' : 'justify-between',
+          'flex h-[60px] shrink-0 items-center border-b border-sidebar-border',
+          isCollapsed ? 'lg:justify-center px-2' : 'px-4 gap-3',
         )}>
-          {/* Expanded logo */}
-          <Link
-            href="/dashboard"
-            className={cn(
-              'flex items-center gap-3 outline-none min-w-0',
-              isCollapsed && 'lg:hidden',
-            )}
-            onClick={onClose}
-          >
-            {/* High-contrast white logo mark */}
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#1a1a2e] text-[14px] font-black select-none tracking-tight shadow-sm">
-              IW
-            </div>
-            <div className="min-w-0">
-              <p className="text-[14px] font-bold text-white leading-none truncate">
-                IWW PM
-              </p>
-              <p className="text-[11px] text-sidebar-foreground/60 leading-none mt-1">
-                Project Management
-              </p>
-            </div>
+          {/* Logo badge */}
+          <Link href="/dashboard" onClick={onClose}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-white text-[15px] font-black select-none shadow-lg shadow-sidebar-primary/30">
+            IW
           </Link>
 
-          {/* Collapsed logo */}
-          {isCollapsed && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  href="/dashboard"
-                  className="hidden lg:flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#1a1a2e] text-[14px] font-black hover:opacity-90 transition-opacity shadow-sm"
-                >
-                  IW
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="font-medium">IWW PM</TooltipContent>
-            </Tooltip>
-          )}
-
-          {/* Right side: desktop collapse toggle + mobile close */}
-          <div className={cn('flex items-center gap-1', isCollapsed && 'lg:hidden')}>
-            {/* Desktop collapse button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={onToggleCollapse}
-                  className="hidden lg:flex h-8 w-8 items-center justify-center rounded-lg text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-                  aria-label="Collapse sidebar"
-                >
+          {!isCollapsed && (
+            <>
+              <p className="flex-1 text-[15px] font-bold text-white leading-none truncate">IWW PM</p>
+              <div className="flex items-center gap-1">
+                <button onClick={onToggleCollapse}
+                  className="hidden lg:flex h-7 w-7 items-center justify-center rounded-md text-sidebar-foreground/30 hover:bg-white/10 hover:text-white transition-colors"
+                  aria-label="Collapse">
                   <PanelLeftClose className="h-4 w-4" />
                 </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Collapse</TooltipContent>
-            </Tooltip>
+                <button onClick={onClose}
+                  className="lg:hidden h-7 w-7 flex items-center justify-center rounded-md text-sidebar-foreground/40 hover:bg-white/10 hover:text-white transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </>
+          )}
 
-            {/* Mobile close */}
-            <button
-              onClick={onClose}
-              className="lg:hidden p-1.5 rounded-md text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-              aria-label="Close menu"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Desktop expand button when collapsed */}
           {isCollapsed && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  onClick={onToggleCollapse}
-                  className="hidden lg:flex h-8 w-8 items-center justify-center rounded-lg text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-                  aria-label="Expand sidebar"
-                >
+                <button onClick={onToggleCollapse}
+                  className="hidden lg:flex h-7 w-7 items-center justify-center rounded-md text-sidebar-foreground/30 hover:bg-white/10 hover:text-white transition-colors">
                   <PanelLeftOpen className="h-4 w-4" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right">Expand</TooltipContent>
+              <TooltipContent side="right" className="text-xs">Expand</TooltipContent>
             </Tooltip>
           )}
         </div>
 
-        {/* ── Nav ── */}
-        <nav data-tour="sidebar-nav" className="flex-1 overflow-y-auto scrollbar-hide py-4">
-          <ul className="space-y-1 px-3">
-            {navItems.map((item) => {
-              const Icon = ICON_MAP[item.icon] ?? LayoutDashboard
-              const isActive =
-                pathname === item.href ||
-                (item.href !== '/dashboard' && pathname.startsWith(item.href))
+        {/* ── Scrollable nav ── */}
+        <nav className="flex-1 overflow-y-auto scrollbar-hide" data-tour="sidebar-nav">
 
-              const inner = (
-                <Link
-                  href={item.href}
-                  onClick={onClose}
+          {/* ────── COLLAPSED icon strip ────── */}
+          {isCollapsed && (
+            <div className="flex flex-col items-center gap-1 py-3 px-2">
+              {[
+                { href: '/dashboard',    Icon: LayoutGrid,   label: 'Home' },
+                { href: '/notifications',Icon: Inbox,        label: 'Inbox' },
+                { href: '/tasks',        Icon: CheckSquare,  label: 'My Tasks' },
+                { href: '/timesheet',    Icon: Timer,        label: 'Timesheet' },
+                { href: '/attendance',   Icon: Clock,        label: 'Attendance' },
+                { href: '/leave',        Icon: CalendarDays, label: 'Leave' },
+                { href: '/team',         Icon: Users,        label: 'Team' },
+                { href: '/reports',      Icon: BarChart2,    label: 'Reports' },
+                { href: '/settings',     Icon: Settings,     label: 'Settings' },
+              ].map(({ href, Icon, label }) => {
+                const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+                return (
+                  <Tooltip key={href}>
+                    <TooltipTrigger asChild>
+                      <Link href={href} onClick={onClose}
+                        className={cn(
+                          'flex h-10 w-10 items-center justify-center rounded-lg transition-colors relative',
+                          active ? 'bg-sidebar-primary/20 text-sidebar-primary' : 'text-sidebar-foreground/45 hover:bg-white/8 hover:text-white'
+                        )}>
+                        {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-sidebar-primary" />}
+                        <Icon className="h-5 w-5" />
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs font-medium">{label}</TooltipContent>
+                  </Tooltip>
+                )
+              })}
+            </div>
+          )}
+
+          {/* ────── EXPANDED layout ────── */}
+          {!isCollapsed && (
+            <div className="px-3 py-3 space-y-0.5">
+
+              {/* Home */}
+              <NavItem href="/dashboard" icon={LayoutGrid} label="Home"
+                active={pathname === '/dashboard'} onClick={onClose} />
+
+              {/* My Tasks (collapsible) */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setMyTasksOpen(o => !o)}
                   className={cn(
-                    'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
-                    'transition-colors duration-100 relative',
-                    isActive
-                      ? 'bg-sidebar-accent text-white'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-white',
-                    isCollapsed && 'lg:justify-center lg:px-0 lg:py-3',
+                    'group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors select-none',
+                    isTasksActive ? 'bg-sidebar-primary/15 text-white' : 'text-sidebar-foreground/60 hover:bg-white/5 hover:text-sidebar-foreground/90',
                   )}
                 >
-                  {/* Active left bar */}
-                  {isActive && (
-                    <span className={cn(
-                      'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-sidebar-primary',
-                      isCollapsed && 'lg:hidden',
-                    )} />
+                  {isTasksActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[4px] h-[22px] rounded-r-full bg-sidebar-primary" />
                   )}
+                  <CheckSquare className={cn('h-5 w-5 shrink-0', isTasksActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/40 group-hover:text-sidebar-foreground/70')} />
+                  <span className="flex-1 text-[15px] font-semibold">My Tasks</span>
+                  {myTasksOpen
+                    ? <ChevronDown className="h-4 w-4 text-sidebar-foreground/30 shrink-0" />
+                    : <ChevronRight className="h-4 w-4 text-sidebar-foreground/30 shrink-0" />
+                  }
+                </button>
 
-                  <Icon className={cn(
-                    'h-[18px] w-[18px] shrink-0 transition-colors',
-                    isActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/60 group-hover:text-white',
-                  )} />
+                {myTasksOpen && (
+                  <div className="space-y-0.5 pt-0.5">
+                    <NavItem href="/tasks"             icon={User}         label="Assigned to me"  active={pathname === '/tasks' && !searchParams.get('filter')} onClick={onClose} indent />
+                    <NavItem href="/tasks?filter=today" icon={CalendarClock} label="Today & Overdue" active={pathname === '/tasks' && searchParams.get('filter') === 'today'} onClick={onClose} indent />
+                  </div>
+                )}
+              </div>
 
-                  <span className={cn('truncate', isCollapsed && 'lg:hidden')}>
-                    {item.label}
+              {/* ── SPACES ── */}
+              <div className="pt-4">
+                <div className="flex items-center justify-between px-1 mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
+                    Spaces
                   </span>
+                  <button
+                    onClick={openCreateSpace}
+                    className="flex h-5 w-5 items-center justify-center rounded text-sidebar-foreground/30 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
 
-                  {/* Active dot on expanded */}
-                  {isActive && !isCollapsed && (
-                    <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-sidebar-primary" />
-                  )}
-                </Link>
-              )
+                <div className="space-y-0.5">
+                  {/* All Tasks */}
+                  <NavItem href="/tasks" icon={ListChecks} label="All Tasks" active={false} onClick={onClose} />
 
-              return (
-                <li key={item.href} data-tour={NAV_TOUR_IDS[item.href]}>
-                  {isCollapsed ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>{inner}</TooltipTrigger>
-                      <TooltipContent side="right">{item.label}</TooltipContent>
-                    </Tooltip>
-                  ) : inner}
-                </li>
-              )
-            })}
-          </ul>
+                  {/* Spaces */}
+                  {workspaces.map(ws => (
+                    <SpaceItem
+                      key={ws.id}
+                      workspace={ws}
+                      projects={projects.filter(p => p.workspace_id === ws.id)}
+                      pathname={pathname}
+                      onClose={onClose}
+                    />
+                  ))}
+
+                  {/* New Space */}
+                  <button
+                    onClick={openCreateSpace}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-semibold text-sidebar-foreground/25 hover:text-sidebar-foreground/55 hover:bg-white/5 transition-colors mt-1 w-full text-left"
+                  >
+                    <Plus className="h-5 w-5 shrink-0" />
+                    <span>New Space</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* ── HR + Admin items ── */}
+              <div className="pt-4 space-y-0.5">
+                {showTimesheet  && <NavItem href="/timesheet"  icon={Timer}        label="Timesheet"  active={pathname.startsWith('/timesheet')}  onClick={onClose} />}
+                {showAttendance && <NavItem href="/attendance" icon={Clock}        label="Attendance" active={pathname.startsWith('/attendance')} onClick={onClose} />}
+                {showLeave      && <NavItem href="/leave"      icon={CalendarDays} label="Leave"      active={pathname.startsWith('/leave')}      onClick={onClose} />}
+                {showTeam       && <NavItem href="/team"       icon={Users}        label="Team"       active={pathname.startsWith('/team')}       onClick={onClose} />}
+                {showReports    && <NavItem href="/reports"    icon={BarChart2}    label="Reports"    active={pathname.startsWith('/reports')}    onClick={onClose} />}
+                {showSettings   && <NavItem href="/settings"   icon={Settings}     label="Settings"   active={pathname.startsWith('/settings')}   onClick={onClose} />}
+              </div>
+
+            </div>
+          )}
         </nav>
 
         {/* ── User footer ── */}
         <div className={cn(
-          'shrink-0 border-t border-sidebar-border p-2',
-          isCollapsed && 'lg:flex lg:justify-center',
+          'shrink-0 border-t border-sidebar-border',
+          isCollapsed ? 'p-2 flex justify-center' : 'p-3',
         )}>
-          {/* Collapsed */}
           {isCollapsed ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link
-                  href="/settings/profile"
-                  className="hidden lg:flex h-9 w-9 items-center justify-center rounded-lg hover:bg-sidebar-accent transition-colors"
-                >
+                <Link href="/settings/profile"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-white/10 transition-colors">
                   <Avatar className="h-7 w-7">
                     <AvatarImage src={profile.avatar_url ?? undefined} />
-                    <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-[11px] font-semibold">
+                    <AvatarFallback className="bg-sidebar-primary text-white text-[11px] font-bold">
                       {getInitials(profile.full_name)}
                     </AvatarFallback>
                   </Avatar>
                 </Link>
               </TooltipTrigger>
               <TooltipContent side="right">
-                <p className="font-medium text-sm">{profile.full_name}</p>
+                <p className="font-semibold">{profile.full_name}</p>
                 <p className="text-xs text-muted-foreground">{ROLE_LABELS[profile.role]}</p>
               </TooltipContent>
             </Tooltip>
-          ) : null}
-
-          {/* Expanded (always shown on mobile, shown on desktop when not collapsed) */}
-          <Link
-            href="/settings/profile"
-            className={cn(
-              'flex items-center gap-2.5 rounded-lg p-2 hover:bg-sidebar-accent transition-colors',
-              isCollapsed ? 'lg:hidden' : '',
-            )}
-          >
-            <Avatar className="h-7 w-7 shrink-0">
-              <AvatarImage src={profile.avatar_url ?? undefined} />
-              <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-[11px] font-semibold">
-                {getInitials(profile.full_name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[12px] font-semibold text-sidebar-accent-foreground leading-none">
-                {profile.full_name}
-              </p>
-              <p className="truncate text-[11px] text-sidebar-foreground/50 leading-none mt-1">
-                {ROLE_LABELS[profile.role]}
-              </p>
-            </div>
-          </Link>
+          ) : (
+            <Link href="/settings/profile"
+              className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/8 transition-colors">
+              <Avatar className="h-8 w-8 shrink-0">
+                <AvatarImage src={profile.avatar_url ?? undefined} />
+                <AvatarFallback className="bg-sidebar-primary text-white text-[11px] font-bold">
+                  {getInitials(profile.full_name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-bold text-white leading-tight">{profile.full_name}</p>
+                <p className="truncate text-[11px] text-sidebar-foreground/45 leading-tight mt-0.5">{ROLE_LABELS[profile.role]}</p>
+              </div>
+            </Link>
+          )}
         </div>
       </aside>
+
+      {/* ── Create Space Dialog ── */}
+      <CreateWorkspaceDialog
+        open={showCreateSpace}
+        onOpenChange={setShowCreateSpace}
+        staffProfiles={staffProfiles}
+        onSuccess={(newWs) => {
+          setWorkspaces(prev => [...prev, { ...newWs }])
+          setShowCreateSpace(false)
+        }}
+      />
     </TooltipProvider>
   )
 }

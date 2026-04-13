@@ -3,13 +3,9 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
-  FolderKanban,
   CheckSquare,
   AlertTriangle,
-  Clock,
-  Users,
   CalendarDays,
-  Plus,
   Timer,
   LogIn,
   Activity,
@@ -17,6 +13,14 @@ import {
   Play,
   Square,
   ExternalLink,
+  FolderKanban,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Clock,
+  Users,
+  Calendar,
+  Hash,
 } from 'lucide-react'
 import { StatCard } from './stat-card'
 import { Badge } from '@/components/ui/badge'
@@ -77,6 +81,12 @@ interface DashboardPageProps {
   clientProjects?: Project[]
 }
 
+function getGreeting(name: string) {
+  const h = new Date().getHours()
+  const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  return `Good ${part}, ${name.split(' ')[0]}`
+}
+
 export function DashboardPage({
   profile,
   totalProjects,
@@ -97,306 +107,668 @@ export function DashboardPage({
 }: DashboardPageProps) {
   const router = useRouter()
   const role = profile.role
+  const firstName = (profile.full_name ?? 'there').split(' ')[0]
 
   return (
     <div className="page-inner">
-      {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          Welcome back, {(profile.full_name ?? 'there').split(' ')[0]}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {new Date().toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
-        </p>
-      </div>
-
       {/* ── SUPER ADMIN ── */}
       {role === 'super_admin' && (
-        <>
-          {/* Stats row */}
-          <div data-tour="dashboard-stats" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
-            <StatCard
-              title="Total Projects"
-              value={totalProjects ?? 0}
-              icon={FolderKanban}
-              variant="blue"
-            />
-            <StatCard
-              title="Active Projects"
-              value={activeProjects ?? 0}
-              icon={TrendingUp}
-              variant="green"
-            />
-            <StatCard
-              title="Overdue Tasks"
-              value={overdueTasks ?? 0}
-              icon={AlertTriangle}
-              variant="red"
-            />
-            <StatCard
-              title="Pending Leaves"
-              value={pendingLeaveRequests ?? 0}
-              icon={CalendarDays}
-              variant="yellow"
-            />
-            <StatCard
-              title="Present Today"
-              value={todayAttendanceCount ?? 0}
-              subtitle={`of ${totalStaff ?? 0} staff`}
-              icon={Users}
-              variant="purple"
-            />
-            <StatCard
-              title="Activity (24h)"
-              value={recentActivity?.length ?? 0}
-              icon={Activity}
-              variant="default"
-            />
-          </div>
-
-          {/* Quick actions */}
-          <QuickActions role={role} router={router} />
-
-          {/* Content grid */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <RecentProjectsList projects={recentProjects ?? []} />
-            <ActivityFeed activities={recentActivity ?? []} />
-          </div>
-
-          {/* Team time log */}
-          <TimeLogWidget
-            entries={recentTeamTimeEntries ?? []}
-            title="Team Time Logs"
-            showUser
-          />
-        </>
+        <SuperAdminDashboard
+          profile={profile}
+          totalProjects={totalProjects ?? 0}
+          activeProjects={activeProjects ?? 0}
+          overdueTasks={overdueTasks ?? 0}
+          pendingLeaveRequests={pendingLeaveRequests ?? 0}
+          todayAttendanceCount={todayAttendanceCount ?? 0}
+          totalStaff={totalStaff ?? 0}
+          recentActivity={recentActivity ?? []}
+          recentProjects={recentProjects ?? []}
+          recentTeamTimeEntries={recentTeamTimeEntries ?? []}
+          router={router}
+        />
       )}
 
-      {/* ── STAFF ── */}
+      {/* ── STAFF / MANAGER ── */}
       {(role === 'staff' || role === 'account_manager' || role === 'project_manager') && (
-        <>
-          {/* Stats row */}
-          <div data-tour="dashboard-stats" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              title="My Open Tasks"
-              value={myTasks?.filter((t) => t.status !== 'done' && t.status !== 'cancelled').length ?? 0}
-              icon={CheckSquare}
-              variant="blue"
-            />
-            <StatCard
-              title="Overdue Tasks"
-              value={
-                myTasks?.filter(
-                  (t) =>
-                    t.due_date &&
-                    new Date() > new Date(t.due_date) &&
-                    t.status !== 'done' &&
-                    t.status !== 'cancelled'
-                ).length ?? 0
-              }
-              icon={AlertTriangle}
-              variant="red"
-            />
-            <StatCard
-              title="Time Tracked Today"
-              value={timeTrackedTodayMinutes ? formatMinutes(timeTrackedTodayMinutes) : '0m'}
-              icon={Timer}
-              variant="green"
-            />
-            <StatCard
-              title="Leave Remaining"
-              value={
-                myLeaveBalance
-                  ? `${myLeaveBalance.yearly_total - myLeaveBalance.yearly_used}d`
-                  : '—'
-              }
-              subtitle="Yearly leave"
-              icon={CalendarDays}
-              variant="purple"
-            />
-          </div>
-
-          {/* Today attendance */}
-          {myAttendanceToday && (
-            <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-foreground/80">Today&apos;s Attendance</h3>
-              <div className="mt-3 flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <LogIn className="h-4 w-4 text-muted-foreground/70" />
-                  <span className="text-sm text-muted-foreground">
-                    Check-in:{' '}
-                    <span className="font-medium">
-                      {myAttendanceToday.check_in_time
-                        ? myAttendanceToday.check_in_time.slice(0, 5)
-                        : '—'}
-                    </span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground/70" />
-                  <span className="text-sm text-muted-foreground">
-                    Check-out:{' '}
-                    <span className="font-medium">
-                      {myAttendanceToday.check_out_time
-                        ? myAttendanceToday.check_out_time.slice(0, 5)
-                        : '—'}
-                    </span>
-                  </span>
-                </div>
-                <Badge
-                  variant="outline"
-                  className={cn('capitalize', getStatusColor(myAttendanceToday.status))}
-                >
-                  {formatStatus(myAttendanceToday.status)}
-                </Badge>
-              </div>
-            </div>
-          )}
-
-          {/* Quick actions */}
-          <QuickActions role={role} router={router} />
-
-          {/* Time logs + tasks in 2-col grid */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <TimeLogWidget
-              entries={myRecentTimeEntries ?? []}
-              title="My Time Logs"
-              showUser={false}
-            />
-            <div />
-          </div>
-
-          {/* My tasks */}
-          <MyTasksList tasks={myTasks ?? []} />
-        </>
+        <StaffDashboard
+          profile={profile}
+          firstName={firstName}
+          myTasks={myTasks ?? []}
+          myAttendanceToday={myAttendanceToday ?? null}
+          myLeaveBalance={myLeaveBalance ?? null}
+          timeTrackedTodayMinutes={timeTrackedTodayMinutes ?? 0}
+          myRecentTimeEntries={myRecentTimeEntries ?? []}
+          router={router}
+        />
       )}
 
       {/* ── CLIENT ── */}
       {role === 'client' && (
         <>
-          <div data-tour="dashboard-stats" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard
-              title="Total Projects"
-              value={clientProjects?.length ?? 0}
-              icon={FolderKanban}
-              variant="blue"
-            />
-            <StatCard
-              title="In Progress"
-              value={
-                clientProjects?.filter((p) => p.status === 'in_progress').length ?? 0
-              }
-              icon={TrendingUp}
-              variant="green"
-            />
-            <StatCard
-              title="Completed"
-              value={clientProjects?.filter((p) => p.status === 'completed').length ?? 0}
-              icon={CheckSquare}
-              variant="purple"
-            />
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">{getGreeting(profile.full_name ?? 'there')}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
           </div>
-          <ClientProjectsList projects={clientProjects ?? []} />
+          <div data-tour="dashboard-stats" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <StatCard title="Total Projects" value={clientProjects?.length ?? 0} icon={FolderKanban} variant="blue" />
+            <StatCard title="In Progress" value={clientProjects?.filter(p => p.status === 'in_progress').length ?? 0} icon={TrendingUp} variant="green" />
+            <StatCard title="Completed" value={clientProjects?.filter(p => p.status === 'completed').length ?? 0} icon={CheckSquare} variant="purple" />
+          </div>
+          <ClientProjectsList projects={clientProjects ?? []} router={router} />
         </>
       )}
     </div>
   )
 }
 
-// ─── Sub-components ────────────────────────────────────────────────────────────
+// ─── Super Admin Dashboard ─────────────────────────────────────────────────────
 
-function QuickActions({
-  role,
+function SuperAdminDashboard({
+  profile,
+  totalProjects,
+  activeProjects,
+  overdueTasks,
+  pendingLeaveRequests,
+  todayAttendanceCount,
+  totalStaff,
+  recentActivity,
+  recentProjects,
+  recentTeamTimeEntries,
   router,
 }: {
-  role: string
+  profile: Profile
+  totalProjects: number
+  activeProjects: number
+  overdueTasks: number
+  pendingLeaveRequests: number
+  todayAttendanceCount: number
+  totalStaff: number
+  recentActivity: ActivityLog[]
+  recentProjects: Project[]
+  recentTeamTimeEntries: DashboardTimeEntry[]
   router: ReturnType<typeof useRouter>
 }) {
   return (
-    <div className="flex flex-wrap gap-3">
-      {role === 'super_admin' && (
-        <Button
-          size="sm"
-          onClick={() => router.push('/workspaces')}
-          className="gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          New Workspace
-        </Button>
+    <>
+      {/* Greeting */}
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">
+          {getGreeting(profile.full_name ?? 'there')}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
+      </div>
+
+      {/* Recents */}
+      {recentProjects.length > 0 && (
+        <RecentsStrip items={recentProjects.map(p => ({ id: p.id, name: p.name, subtitle: formatStatus(p.status), href: `/projects/${p.id}`, type: 'project' as const }))} router={router} />
       )}
-      {(role === 'staff' || role === 'account_manager' || role === 'project_manager') && (
-        <>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => router.push('/attendance')}
-            className="gap-2"
+
+      {/* Stats */}
+      <div data-tour="dashboard-stats" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <StatCard title="Total Projects"  value={totalProjects}        icon={FolderKanban}  variant="blue"    />
+        <StatCard title="Active"          value={activeProjects}       icon={TrendingUp}    variant="green"   />
+        <StatCard title="Overdue Tasks"   value={overdueTasks}         icon={AlertTriangle} variant="red"     />
+        <StatCard title="Pending Leaves"  value={pendingLeaveRequests} icon={CalendarDays}  variant="yellow"  />
+        <StatCard title="Present Today"   value={todayAttendanceCount} subtitle={`of ${totalStaff} staff`} icon={Users} variant="purple" />
+        <StatCard title="Activity (24h)"  value={recentActivity.length} icon={Activity}     variant="default" />
+      </div>
+
+      {/* Quick actions */}
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => router.push('/spaces')} className="gap-2 h-8 text-xs">
+          <Plus className="h-3.5 w-3.5" /> New Space
+        </Button>
+      </div>
+
+      {/* Two-col content */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_340px]">
+        {/* Left */}
+        <div className="space-y-5">
+          <RecentProjectsCard projects={recentProjects} router={router} />
+          <ActivityFeedCard activities={recentActivity} />
+        </div>
+        {/* Right */}
+        <div className="space-y-5">
+          <AgendaPanel tasks={[]} />
+          <TimeLogWidget entries={recentTeamTimeEntries} title="Team Time Logs" showUser router={router} />
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Staff Dashboard ───────────────────────────────────────────────────────────
+
+type WorkTab = 'todo' | 'done' | 'delegated'
+
+function StaffDashboard({
+  profile,
+  firstName,
+  myTasks,
+  myAttendanceToday,
+  myLeaveBalance,
+  timeTrackedTodayMinutes,
+  myRecentTimeEntries,
+  router,
+}: {
+  profile: Profile
+  firstName: string
+  myTasks: Task[]
+  myAttendanceToday: AttendanceRecord | null
+  myLeaveBalance: LeaveBalance | null
+  timeTrackedTodayMinutes: number
+  myRecentTimeEntries: DashboardTimeEntry[]
+  router: ReturnType<typeof useRouter>
+}) {
+  const [activeTab, setActiveTab] = useState<WorkTab>('todo')
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const todayTasks = myTasks.filter(t => {
+    if (!t.due_date || t.status === 'done' || t.status === 'cancelled') return false
+    const d = new Date(t.due_date + 'T00:00:00')
+    return d.getTime() === today.getTime()
+  })
+
+  const overdueTasks = myTasks.filter(t => {
+    if (!t.due_date || t.status === 'done' || t.status === 'cancelled') return false
+    const d = new Date(t.due_date + 'T00:00:00')
+    return d < today
+  })
+
+  const nextTasks = myTasks.filter(t => {
+    if (!t.due_date || t.status === 'done' || t.status === 'cancelled') return false
+    const d = new Date(t.due_date + 'T00:00:00')
+    const next7 = new Date(today); next7.setDate(today.getDate() + 7)
+    return d > today && d <= next7
+  })
+
+  const unscheduledTasks = myTasks.filter(t =>
+    !t.due_date && t.status !== 'done' && t.status !== 'cancelled'
+  )
+
+  const doneTasks = myTasks.filter(t => t.status === 'done')
+
+  // Upcoming tasks for Agenda (next 7 days with due dates)
+  const agendaTasks = myTasks
+    .filter(t => t.due_date && t.status !== 'done' && t.status !== 'cancelled')
+    .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
+    .slice(0, 6)
+
+  // Assigned to me — open tasks sorted by priority
+  const assignedTasks = myTasks
+    .filter(t => t.status !== 'done' && t.status !== 'cancelled')
+    .slice(0, 5)
+
+  return (
+    <>
+      {/* Greeting */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{getGreeting(profile.full_name ?? 'there')}</h1>
+        </div>
+        {/* Manage cards stub */}
+        <Button variant="outline" size="sm" className="h-8 text-xs shrink-0">
+          Manage cards
+        </Button>
+      </div>
+
+      {/* Recents strip */}
+      <RecentsStrip
+        items={myTasks.slice(0, 6).map(t => ({
+          id: t.id,
+          name: t.title,
+          subtitle: t.project?.name ?? '',
+          href: `/projects/${t.project_id}/tasks/${t.id}`,
+          type: 'task' as const,
+        }))}
+        router={router}
+      />
+
+      {/* Two-column: My Work + Right Panel */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
+
+        {/* ── Left: My Work ── */}
+        <div className="rounded-xl border border-border bg-card shadow-sm">
+          {/* Card header */}
+          <div className="flex items-center justify-between border-b border-border/60 px-5 py-3.5">
+            <h2 className="text-[15px] font-semibold text-foreground">My Work</h2>
+            {/* Tabs */}
+            <div className="flex items-center gap-0.5 rounded-lg bg-muted/60 p-0.5 text-xs">
+              {(['todo', 'done', 'delegated'] as WorkTab[]).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    'rounded-md px-3 py-1 font-medium capitalize transition-colors',
+                    activeTab === tab
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {tab === 'todo' ? 'To Do' : tab === 'done' ? 'Done' : 'Delegated'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tab content */}
+          <div className="divide-y divide-border/50">
+            {activeTab === 'todo' && (
+              <>
+                <TaskGroup
+                  label="Today"
+                  color="#f97316"
+                  tasks={todayTasks}
+                  router={router}
+                  defaultOpen
+                />
+                <TaskGroup
+                  label="Next"
+                  color="#3b82f6"
+                  tasks={nextTasks}
+                  router={router}
+                  defaultOpen={nextTasks.length > 0}
+                />
+                <TaskGroup
+                  label="Overdue"
+                  color="#ef4444"
+                  tasks={overdueTasks}
+                  router={router}
+                  defaultOpen={overdueTasks.length > 0}
+                />
+                <TaskGroup
+                  label="Unscheduled"
+                  color="#94a3b8"
+                  tasks={unscheduledTasks}
+                  router={router}
+                  defaultOpen={false}
+                />
+              </>
+            )}
+            {activeTab === 'done' && (
+              <TaskGroup label="Completed" color="#22c55e" tasks={doneTasks} router={router} defaultOpen />
+            )}
+            {activeTab === 'delegated' && (
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <CheckSquare className="h-8 w-8 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground/60">No delegated tasks</p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-border/50 px-5 py-3">
+            <button
+              onClick={() => router.push('/tasks')}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              View all tasks
+            </button>
+          </div>
+        </div>
+
+        {/* ── Right panel ── */}
+        <div className="flex flex-col gap-5">
+
+          {/* Agenda */}
+          <AgendaPanel tasks={agendaTasks} />
+
+          {/* Assigned to me */}
+          <AssignedToMePanel tasks={assignedTasks} router={router} />
+
+          {/* Attendance quick info */}
+          {myAttendanceToday && (
+            <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Today&apos;s Attendance</p>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <div className="flex items-center gap-1.5">
+                  <LogIn className="h-3.5 w-3.5 text-muted-foreground/60" />
+                  <span className="text-muted-foreground">In: <span className="font-semibold text-foreground">{myAttendanceToday.check_in_time?.slice(0,5) ?? '—'}</span></span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground/60" />
+                  <span className="text-muted-foreground">Out: <span className="font-semibold text-foreground">{myAttendanceToday.check_out_time?.slice(0,5) ?? '—'}</span></span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Time tracked today */}
+          <div className="rounded-xl border border-border bg-card shadow-sm p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50">
+                <Timer className="h-4 w-4 text-green-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Time Tracked Today</p>
+                <p className="text-sm font-bold text-foreground">{timeTrackedTodayMinutes ? formatMinutes(timeTrackedTodayMinutes) : '0m'}</p>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => router.push('/timesheet')}>
+              Log time
+            </Button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Recents Strip ─────────────────────────────────────────────────────────────
+
+function RecentsStrip({
+  items,
+  router,
+}: {
+  items: { id: string; name: string; subtitle: string; href: string; type: 'project' | 'task' }[]
+  router: ReturnType<typeof useRouter>
+}) {
+  if (items.length === 0) return null
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Recents</p>
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        {items.map(item => (
+          <button
+            key={item.id}
+            onClick={() => router.push(item.href)}
+            className="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-left hover:bg-muted/40 hover:border-border/80 transition-colors max-w-[200px]"
           >
-            <LogIn className="h-4 w-4" />
-            Check In
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
+            <div className={cn(
+              'flex h-5 w-5 shrink-0 items-center justify-center rounded',
+              item.type === 'project' ? 'bg-violet-100' : 'bg-blue-100',
+            )}>
+              {item.type === 'project'
+                ? <Hash className="h-3 w-3 text-violet-600" />
+                : <CheckSquare className="h-3 w-3 text-blue-600" />
+              }
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-medium text-foreground leading-tight">{item.name}</p>
+              {item.subtitle && (
+                <p className="truncate text-[11px] text-muted-foreground/70 leading-tight">{item.subtitle}</p>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Task Group ────────────────────────────────────────────────────────────────
+
+function TaskGroup({
+  label,
+  color,
+  tasks,
+  router,
+  defaultOpen,
+}: {
+  label: string
+  color: string
+  tasks: Task[]
+  router: ReturnType<typeof useRouter>
+  defaultOpen: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <div>
+      {/* Group header */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center gap-2 px-5 py-2.5 hover:bg-muted/20 transition-colors select-none"
+      >
+        <span className="text-muted-foreground">
+          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        </span>
+        <span className="text-[13px] font-semibold" style={{ color }}>{label}</span>
+        <span
+          className="ml-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold min-w-[20px] text-center"
+          style={{ backgroundColor: color + '20', color }}
+        >
+          {tasks.length}
+        </span>
+      </button>
+
+      {/* Task rows */}
+      {open && (
+        <div>
+          {tasks.length === 0 ? (
+            <p className="px-12 py-2 text-xs text-muted-foreground/50 italic">No tasks</p>
+          ) : (
+            tasks.map(task => (
+              <WorkTaskRow key={task.id} task={task} color={color} router={router} />
+            ))
+          )}
+          {/* Add task */}
+          <button
             onClick={() => router.push('/tasks')}
-            className="gap-2"
+            className="flex items-center gap-2 px-12 py-2 text-xs text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/10 transition-colors w-full"
           >
-            <Timer className="h-4 w-4" />
-            Log Time
-          </Button>
-        </>
+            <Plus className="h-3.5 w-3.5" /> Add Task
+          </button>
+        </div>
       )}
     </div>
   )
 }
 
-function RecentProjectsList({ projects }: { projects: Project[] }) {
-  const router = useRouter()
+// ─── Work Task Row ─────────────────────────────────────────────────────────────
+
+function WorkTaskRow({ task, color, router }: { task: Task; color: string; router: ReturnType<typeof useRouter> }) {
+  return (
+    <div
+      className="group flex items-center gap-3 px-5 py-2 hover:bg-muted/20 transition-colors cursor-pointer"
+      style={{ borderLeft: `2px solid ${color}40` }}
+      onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}
+    >
+      {/* Status dot */}
+      <div
+        className="h-2.5 w-2.5 shrink-0 rounded-full border-2"
+        style={{ borderColor: color, backgroundColor: task.status === 'done' ? color : 'transparent' }}
+      />
+
+      {/* Title */}
+      <p className="flex-1 min-w-0 truncate text-[13px] font-medium text-foreground group-hover:text-foreground/90">
+        {task.title}
+      </p>
+
+      {/* Tags */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {task.project?.name && (
+          <span className="rounded px-1.5 py-0.5 text-[11px] font-medium bg-violet-50 text-violet-700 border border-violet-100">
+            {task.project.name}
+          </span>
+        )}
+        <StatusChip status={task.status} />
+        {task.due_date && (
+          <span className="text-[11px] text-muted-foreground/60">{formatDate(task.due_date)}</span>
+        )}
+        <PriorityDot priority={task.priority} />
+      </div>
+    </div>
+  )
+}
+
+// ─── Agenda Panel ──────────────────────────────────────────────────────────────
+
+function AgendaPanel({ tasks }: { tasks: Task[] }) {
+  const now = new Date()
+  // dateStr unused — agenda header uses inline toLocaleDateString below
 
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm">
-      <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
-        <h3 className="font-semibold text-foreground">Recent Projects</h3>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs text-muted-foreground"
-          onClick={() => router.push('/projects')}
+      <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-muted-foreground/60" />
+          <span className="text-[13px] font-semibold text-foreground">Agenda</span>
+          <span className="text-[11px] text-muted-foreground/60">{now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })}</span>
+        </div>
+        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">Today</span>
+      </div>
+      <div className="divide-y divide-border/40">
+        {tasks.length === 0 ? (
+          <div className="px-4 py-6 text-center">
+            <p className="text-xs text-muted-foreground/50">No upcoming tasks</p>
+          </div>
+        ) : (
+          tasks.slice(0, 5).map(task => (
+            <div key={task.id} className="flex items-center gap-3 px-4 py-2.5">
+              <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
+              <p className="flex-1 min-w-0 truncate text-[13px] text-foreground/80">{task.title}</p>
+              <span className="shrink-0 text-[11px] text-muted-foreground/50">
+                {task.due_date ? formatDate(task.due_date) : 'All day'}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Assigned to Me Panel ──────────────────────────────────────────────────────
+
+function AssignedToMePanel({
+  tasks,
+  router,
+}: {
+  tasks: Task[]
+  router: ReturnType<typeof useRouter>
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-muted-foreground/60" />
+          <span className="text-[13px] font-semibold text-foreground">Assigned to me</span>
+        </div>
+        <div className="flex items-center gap-1 text-muted-foreground/40">
+          {/* filter/sort icons placeholder */}
+          <span className="text-[10px] font-medium">Priority</span>
+        </div>
+      </div>
+
+      {tasks.length === 0 ? (
+        <div className="px-4 py-8 text-center">
+          <CheckSquare className="h-7 w-7 text-muted-foreground/20 mx-auto mb-2" />
+          <p className="text-xs text-muted-foreground/50">No tasks assigned</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-border/40">
+          {tasks.map(task => (
+            <div
+              key={task.id}
+              className="group flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors"
+              onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}
+            >
+              <StatusChip status={task.status} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-medium text-foreground leading-snug">{task.title}</p>
+                {task.project?.name && (
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/60">{task.project.name}</p>
+                )}
+              </div>
+              <PriorityDot priority={task.priority} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="border-t border-border/50 px-4 py-2">
+        <button
+          onClick={() => router.push('/tasks')}
+          className="text-xs text-muted-foreground/60 hover:text-foreground transition-colors"
         >
-          View all
-        </Button>
+          + Add Task
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Status Chip ──────────────────────────────────────────────────────────────
+
+const STATUS_CHIP_STYLES: Record<string, string> = {
+  done:        'bg-green-100 text-green-700 border-green-200',
+  in_progress: 'bg-violet-100 text-violet-700 border-violet-200',
+  review:      'bg-blue-100 text-blue-700 border-blue-200',
+  todo:        'bg-slate-100 text-slate-600 border-slate-200',
+  cancelled:   'bg-red-50 text-red-500 border-red-100',
+}
+const STATUS_LABELS: Record<string, string> = {
+  done:        'Done',
+  in_progress: 'In Progress',
+  review:      'Review',
+  todo:        'To Do',
+  cancelled:   'Cancelled',
+}
+
+function StatusChip({ status }: { status: string }) {
+  const style = STATUS_CHIP_STYLES[status] ?? 'bg-slate-100 text-slate-600 border-slate-200'
+  const label = STATUS_LABELS[status] ?? formatStatus(status)
+  return (
+    <span className={cn('shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide', style)}>
+      {label}
+    </span>
+  )
+}
+
+// ─── Priority Dot ─────────────────────────────────────────────────────────────
+
+const PRIORITY_DOT: Record<string, string> = {
+  urgent: 'bg-red-500',
+  high:   'bg-orange-400',
+  medium: 'bg-yellow-400',
+  low:    'bg-blue-400',
+}
+
+function PriorityDot({ priority }: { priority: string }) {
+  const color = PRIORITY_DOT[priority] ?? 'bg-slate-400'
+  return (
+    <span title={priority} className={cn('h-2 w-2 shrink-0 rounded-full', color)} />
+  )
+}
+
+// ─── Recent Projects Card ─────────────────────────────────────────────────────
+
+function RecentProjectsCard({ projects, router }: { projects: Project[]; router: ReturnType<typeof useRouter> }) {
+  return (
+    <div className="rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+        <h3 className="text-[14px] font-semibold text-foreground">Recent Projects</h3>
+        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-7" onClick={() => router.push('/projects')}>View all</Button>
       </div>
       {projects.length === 0 ? (
         <p className="px-5 py-8 text-center text-sm text-muted-foreground/70">No projects yet</p>
       ) : (
-        <ul className="divide-y divide-gray-50">
-          {projects.slice(0, 5).map((project) => (
+        <ul className="divide-y divide-border/40">
+          {projects.slice(0, 5).map(project => (
             <li
               key={project.id}
               className="flex cursor-pointer items-center justify-between gap-4 px-5 py-3 transition-colors hover:bg-muted/30"
               onClick={() => router.push(`/projects/${project.id}`)}
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">{project.name}</p>
+                <p className="truncate text-[13px] font-medium text-foreground">{project.name}</p>
                 <div className="mt-1 flex items-center gap-2">
                   <Progress value={project.progress} className="h-1.5 w-20" />
-                  <span className="text-xs text-muted-foreground/70">{project.progress}%</span>
+                  <span className="text-[11px] text-muted-foreground/70">{project.progress}%</span>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={cn('text-xs capitalize', getStatusColor(project.status))}
-                >
-                  {formatStatus(project.status)}
-                </Badge>
+                <StatusChip status={project.status} />
                 {project.due_date && (
-                  <span className="text-xs text-muted-foreground/70">{formatDate(project.due_date)}</span>
+                  <span className="text-[11px] text-muted-foreground/70">{formatDate(project.due_date)}</span>
                 )}
               </div>
             </li>
@@ -407,142 +779,48 @@ function RecentProjectsList({ projects }: { projects: Project[] }) {
   )
 }
 
-function ActivityFeed({ activities }: { activities: ActivityLog[] }) {
+// ─── Activity Feed Card ───────────────────────────────────────────────────────
+
+function ActivityFeedCard({ activities }: { activities: ActivityLog[] }) {
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm">
       <div className="border-b border-border/60 px-5 py-4">
-        <h3 className="font-semibold text-foreground">Recent Activity</h3>
+        <h3 className="text-[14px] font-semibold text-foreground">Recent Activity</h3>
       </div>
       {activities.length === 0 ? (
         <p className="px-5 py-8 text-center text-sm text-muted-foreground/70">No recent activity</p>
       ) : (
-        <ul className="divide-y divide-gray-50">
-          {activities.slice(0, 5).map((log) => (
+        <ul className="divide-y divide-border/40">
+          {activities.slice(0, 5).map(log => (
             <li key={log.id} className="flex items-start gap-3 px-5 py-3">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-600">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-bold text-blue-600">
                 {log.user?.full_name?.charAt(0) ?? '?'}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-foreground/80">
-                  <span className="font-medium">{log.user?.full_name ?? 'Someone'}</span>{' '}
-                  {log.action}
+                <p className="text-[13px] text-foreground/80">
+                  <span className="font-medium">{log.user?.full_name ?? 'Someone'}</span>{' '}{log.action}
                 </p>
                 {(log.old_value || log.new_value) && (
-                  <p className="mt-0.5 text-xs text-muted-foreground/70 truncate">
+                  <p className="mt-0.5 text-[11px] text-muted-foreground/70 truncate">
                     {log.old_value && <span className="line-through mr-1">{log.old_value}</span>}
                     {log.new_value && <span>{log.new_value}</span>}
                   </p>
                 )}
-                <p className="mt-0.5 text-xs text-muted-foreground/70">{timeAgo(log.created_at)}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground/60">{timeAgo(log.created_at)}</p>
               </div>
             </li>
           ))}
         </ul>
       )}
     </div>
-  )
-}
-
-function MyTasksList({ tasks }: { tasks: Task[] }) {
-  const router = useRouter()
-  const overdueTasks = tasks.filter(
-    (t) =>
-      t.due_date &&
-      new Date() > new Date(t.due_date) &&
-      t.status !== 'done' &&
-      t.status !== 'cancelled'
-  )
-  const activeTasks = tasks.filter(
-    (t) =>
-      t.status !== 'done' &&
-      t.status !== 'cancelled' &&
-      !(t.due_date && new Date() > new Date(t.due_date))
-  )
-
-  return (
-    <div className="space-y-4">
-      {overdueTasks.length > 0 && (
-        <div className="rounded-xl border border-red-100 bg-card shadow-sm">
-          <div className="flex items-center gap-2 border-b border-red-100 px-5 py-4">
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-            <h3 className="font-semibold text-red-700">Overdue Tasks ({overdueTasks.length})</h3>
-          </div>
-          <ul className="divide-y divide-gray-50">
-            {overdueTasks.map((task) => (
-              <TaskRow key={task.id} task={task} onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)} />
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="rounded-xl border border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
-          <h3 className="font-semibold text-foreground">My Tasks</h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground"
-            onClick={() => router.push('/tasks')}
-          >
-            View all
-          </Button>
-        </div>
-        {activeTasks.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-muted-foreground/70">No open tasks</p>
-        ) : (
-          <ul className="divide-y divide-gray-50">
-            {activeTasks.slice(0, 8).map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function TaskRow({ task, onClick }: { task: Task; onClick: () => void }) {
-  return (
-    <li
-      className="flex cursor-pointer items-center justify-between gap-4 px-5 py-3 transition-colors hover:bg-muted/30"
-      onClick={onClick}
-    >
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">{task.title}</p>
-        {task.project && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground/70">{task.project.name}</p>
-        )}
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <Badge
-          variant="outline"
-          className={cn('text-xs', getPriorityColor(task.priority))}
-        >
-          {task.priority}
-        </Badge>
-        <Badge
-          variant="outline"
-          className={cn('text-xs capitalize', getStatusColor(task.status))}
-        >
-          {formatStatus(task.status)}
-        </Badge>
-        {task.due_date && (
-          <span className="text-xs text-muted-foreground/70">{formatDate(task.due_date)}</span>
-        )}
-      </div>
-    </li>
   )
 }
 
 // ─── Time Log Widget ──────────────────────────────────────────────────────────
 
 const avatarColors = [
-  'bg-pink-500', 'bg-purple-500', 'bg-indigo-500', 'bg-blue-500',
-  'bg-cyan-500', 'bg-teal-500', 'bg-green-500', 'bg-orange-500',
+  'bg-pink-500','bg-purple-500','bg-indigo-500','bg-blue-500',
+  'bg-cyan-500','bg-teal-500','bg-green-500','bg-orange-500',
 ]
 function getAvatarColor(name: string) {
   let hash = 0
@@ -550,7 +828,7 @@ function getAvatarColor(name: string) {
   return avatarColors[Math.abs(hash) % avatarColors.length]
 }
 
-function formatDurationDisplay(minutes: number | null): string {
+function formatDuration(minutes: number | null): string {
   const m = Math.max(0, minutes ?? 0)
   const h = Math.floor(m / 60)
   const min = m % 60
@@ -560,26 +838,27 @@ function formatDurationDisplay(minutes: number | null): string {
   return `${h}h ${min}m`
 }
 
-function formatRunningTimer(startedAt: string, tick: number): string {
+function formatTimer(startedAt: string, tick: number): string {
   const elapsed = Math.max(0, Math.floor((tick - new Date(startedAt).getTime()) / 1000))
   const h = Math.floor(elapsed / 3600)
   const m = Math.floor((elapsed % 3600) / 60)
   const s = elapsed % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
 }
 
 function TimeLogWidget({
   entries,
   title,
   showUser,
+  router,
 }: {
   entries: DashboardTimeEntry[]
   title: string
   showUser: boolean
+  router: ReturnType<typeof useRouter>
 }) {
-  const router = useRouter()
   const [tick, setTick] = useState(Date.now())
-  const hasRunning = entries.some((e) => e.is_running)
+  const hasRunning = entries.some(e => e.is_running)
 
   useEffect(() => {
     if (!hasRunning) return
@@ -587,65 +866,52 @@ function TimeLogWidget({
     return () => clearInterval(id)
   }, [hasRunning])
 
-  const runningEntry = entries.find((e) => e.is_running)
-  const pastEntries = entries.filter((e) => !e.is_running).slice(0, 6)
+  const running = entries.find(e => e.is_running)
+  const past    = entries.filter(e => !e.is_running).slice(0, 6)
 
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm">
-      <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+      <div className="flex items-center justify-between border-b border-border/60 px-5 py-3.5">
         <div className="flex items-center gap-2">
-          <Timer className="h-4 w-4 text-muted-foreground/70" />
-          <h3 className="font-semibold text-foreground">{title}</h3>
+          <Timer className="h-4 w-4 text-muted-foreground/60" />
+          <h3 className="text-[14px] font-semibold text-foreground">{title}</h3>
           {hasRunning && (
-            <span className="flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-              Live
+            <span className="flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />Live
             </span>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1 text-xs text-muted-foreground"
-          onClick={() => router.push('/timesheet')}
-        >
-          View all
-          <ExternalLink className="h-3 w-3" />
+        <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground h-7" onClick={() => router.push('/timesheet')}>
+          View all <ExternalLink className="h-3 w-3" />
         </Button>
       </div>
 
       {entries.length === 0 ? (
         <div className="flex flex-col items-center gap-2 px-5 py-8 text-center">
-          <Timer className="h-8 w-8 text-gray-200" />
-          <p className="text-sm text-muted-foreground/70">No time logged yet</p>
+          <Timer className="h-8 w-8 text-muted-foreground/20" />
+          <p className="text-sm text-muted-foreground/60">No time logged yet</p>
         </div>
       ) : (
-        <ul className="divide-y divide-gray-50">
-          {/* Running entry first */}
-          {runningEntry && (
+        <ul className="divide-y divide-border/40">
+          {running && (
             <li className="flex items-center gap-3 bg-green-50/50 px-5 py-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-100">
-                <Play className="h-3.5 w-3.5 fill-green-600 text-green-600" />
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100">
+                <Play className="h-3 w-3 fill-green-600 text-green-600" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">{runningEntry.task_title}</p>
-                <p className="truncate text-xs text-muted-foreground/70">
-                  {runningEntry.project_name}
-                  {showUser && ` · ${runningEntry.user_full_name}`}
+                <p className="truncate text-[13px] font-medium text-foreground">{running.task_title}</p>
+                <p className="truncate text-[11px] text-muted-foreground/60">
+                  {running.project_name}{showUser && ` · ${running.user_full_name}`}
                 </p>
               </div>
               <div className="shrink-0 text-right">
-                <p className="font-mono text-sm font-semibold text-green-600">
-                  {formatRunningTimer(runningEntry.started_at, tick)}
-                </p>
-                <p className="text-[10px] text-muted-foreground/70">Running</p>
+                <p className="font-mono text-[13px] font-semibold text-green-600">{formatTimer(running.started_at, tick)}</p>
+                <p className="text-[10px] text-muted-foreground/60">Running</p>
               </div>
             </li>
           )}
-
-          {/* Past entries */}
-          {pastEntries.map((entry) => (
-            <li key={entry.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors">
+          {past.map(entry => (
+            <li key={entry.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors">
               {showUser ? (
                 <Avatar className="h-7 w-7 shrink-0">
                   <AvatarImage src={entry.user_avatar_url ?? undefined} />
@@ -655,21 +921,20 @@ function TimeLogWidget({
                 </Avatar>
               ) : (
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted">
-                  <Square className="h-3 w-3 text-muted-foreground/70" />
+                  <Square className="h-3 w-3 text-muted-foreground/60" />
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">{entry.task_title}</p>
-                <p className="truncate text-xs text-muted-foreground/70">
-                  {entry.project_name}
-                  {showUser && ` · ${entry.user_full_name}`}
+                <p className="truncate text-[13px] font-medium text-foreground">{entry.task_title}</p>
+                <p className="truncate text-[11px] text-muted-foreground/60">
+                  {entry.project_name}{showUser && ` · ${entry.user_full_name}`}
                 </p>
               </div>
               <div className="shrink-0 text-right">
-                <Badge className="bg-orange-500 hover:bg-orange-500 text-white font-mono text-xs px-2">
-                  {formatDurationDisplay(entry.duration_minutes)}
-                </Badge>
-                <p className="mt-0.5 text-[10px] text-muted-foreground/70">{timeAgo(entry.started_at)}</p>
+                <span className="rounded bg-orange-500 px-2 py-0.5 font-mono text-[11px] font-semibold text-white">
+                  {formatDuration(entry.duration_minutes)}
+                </span>
+                <p className="mt-0.5 text-[10px] text-muted-foreground/60">{timeAgo(entry.started_at)}</p>
               </div>
             </li>
           ))}
@@ -679,19 +944,19 @@ function TimeLogWidget({
   )
 }
 
-function ClientProjectsList({ projects }: { projects: Project[] }) {
-  const router = useRouter()
+// ─── Client Projects List ─────────────────────────────────────────────────────
 
+function ClientProjectsList({ projects, router }: { projects: Project[]; router: ReturnType<typeof useRouter> }) {
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm">
       <div className="border-b border-border/60 px-5 py-4">
-        <h3 className="font-semibold text-foreground">Your Projects</h3>
+        <h3 className="text-[14px] font-semibold text-foreground">Your Projects</h3>
       </div>
       {projects.length === 0 ? (
         <p className="px-5 py-8 text-center text-sm text-muted-foreground/70">No projects assigned</p>
       ) : (
-        <ul className="divide-y divide-gray-50">
-          {projects.map((project) => (
+        <ul className="divide-y divide-border/40">
+          {projects.map(project => (
             <li
               key={project.id}
               className="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/30"
@@ -704,18 +969,13 @@ function ClientProjectsList({ projects }: { projects: Project[] }) {
                 )}
                 <div className="mt-2 flex items-center gap-2">
                   <Progress value={project.progress} className="h-1.5 w-32" />
-                  <span className="text-xs text-muted-foreground/70">{project.progress}% complete</span>
+                  <span className="text-[11px] text-muted-foreground/70">{project.progress}% complete</span>
                 </div>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <Badge
-                  variant="outline"
-                  className={cn('text-xs capitalize', getStatusColor(project.status))}
-                >
-                  {formatStatus(project.status)}
-                </Badge>
+                <StatusChip status={project.status} />
                 {project.due_date && (
-                  <span className="text-xs text-muted-foreground/70">Due {formatDate(project.due_date)}</span>
+                  <span className="text-[11px] text-muted-foreground/70">Due {formatDate(project.due_date)}</span>
                 )}
               </div>
             </li>

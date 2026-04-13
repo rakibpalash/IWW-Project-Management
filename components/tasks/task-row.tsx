@@ -3,17 +3,13 @@
 import { useState } from 'react'
 import { Task, Profile, TaskStatus } from '@/types'
 import { updateTaskStatusAction } from '@/app/actions/tasks'
-import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
@@ -21,15 +17,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, Flag, AlertCircle } from 'lucide-react'
 import { useTaskConfig } from '@/hooks/use-task-config'
-import {
-  cn,
-  formatDate,
-  getInitials,
-  isOverdue,
-} from '@/lib/utils'
-import { SubtaskList } from './subtask-list'
+import { cn, formatDate, getInitials, isOverdue } from '@/lib/utils'
 
 interface TaskRowProps {
   task: Task
@@ -38,6 +28,16 @@ interface TaskRowProps {
   onClick?: () => void
   showProject?: boolean
   level?: number
+  // Bulk selection
+  selected?: boolean
+  onSelect?: (id: string, checked: boolean) => void
+}
+
+const PRIORITY_COLOR: Record<string, string> = {
+  urgent: '#ef4444',
+  high:   '#f97316',
+  medium: '#eab308',
+  low:    '#3b82f6',
 }
 
 export function TaskRow({
@@ -47,232 +47,241 @@ export function TaskRow({
   onClick,
   showProject = false,
   level = 0,
+  selected = false,
+  onSelect,
 }: TaskRowProps) {
   const { toast } = useToast()
-  const { statuses, priorities, getStatus, getPriority } = useTaskConfig()
+  const { statuses, getStatus, getPriority } = useTaskConfig()
   const [expanded, setExpanded] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
 
   const hasSubtasks = (task.subtasks ?? []).length > 0
-  const statusCfg = getStatus(task.status)
+  const statusCfg   = getStatus(task.status)
   const priorityCfg = getPriority(task.priority)
-  const isDone = statusCfg?.is_completed_status ?? task.status === 'done'
-  const overdue = !isDone && isOverdue(task.due_date)
-  // Slug for "done" state when checking off
-  const doneSlug = statuses.find((s) => s.is_completed_status && s.slug === 'done')?.slug ?? statuses.find((s) => s.is_completed_status)?.slug ?? 'done'
+  const isDone      = statusCfg?.is_completed_status ?? task.status === 'done'
+  const overdue     = !isDone && isOverdue(task.due_date)
+
+  const doneSlug    = statuses.find((s) => s.is_completed_status && s.slug === 'done')?.slug
+                   ?? statuses.find((s) => s.is_completed_status)?.slug
+                   ?? 'done'
   const defaultSlug = statuses.find((s) => s.is_default)?.slug ?? 'todo'
 
-  const isAdmin = profile.role === 'super_admin'
-  const isCreator = task.created_by === profile.id
+  const isAdmin    = profile.role === 'super_admin'
+  const isCreator  = task.created_by === profile.id
   const isAssignee = (task.assignees ?? []).some((a) => a.id === profile.id)
-  const canEdit = isAdmin || isCreator || isAssignee
+  const canEdit    = isAdmin || isCreator || isAssignee
 
-  async function handleCheckboxChange(checked: boolean) {
-    await handleStatusChange(checked ? doneSlug : defaultSlug)
-  }
+  const doneCount  = (task.subtasks ?? []).filter((s) => s.status === 'done').length
+  const totalSubs  = (task.subtasks ?? []).length
 
   async function handleStatusChange(newStatus: string) {
     if (!canEdit) return
     setUpdatingStatus(true)
     const oldStatus = task.status
-
-    // Optimistic update
     onTaskUpdated({ ...task, status: newStatus as TaskStatus })
-
     const result = await updateTaskStatusAction(task.id, newStatus)
-
     setUpdatingStatus(false)
-
     if (!result.success) {
-      // Revert optimistic update
       onTaskUpdated({ ...task, status: oldStatus })
-      toast({
-        title: 'Error updating status',
-        description: result.error,
-        variant: 'destructive',
-      })
+      toast({ title: 'Error updating status', description: result.error, variant: 'destructive' })
     }
   }
+
+  const paddingLeft = 12 + level * 20
 
   return (
     <TooltipProvider>
       <div>
+        {/* ── Row ────────────────────────────────────────────────────────── */}
         <div
           className={cn(
-            'flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors group',
-            level > 0 && 'pl-8 border-t border-dashed',
-            isDone && 'opacity-60'
+            'flex items-center border-b border-border/40 hover:bg-muted/30 transition-colors group',
+            'min-h-[36px]',
+            isDone && 'opacity-60',
+            selected && 'bg-primary/5 hover:bg-primary/10',
           )}
+          style={{ paddingLeft }}
         >
-          {/* Expand button */}
-          {hasSubtasks ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 w-5 p-0 shrink-0"
-              onClick={(e) => {
-                e.stopPropagation()
-                setExpanded((v) => !v)
-              }}
-            >
-              {expanded ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          ) : (
-            <div className="w-5 shrink-0" />
-          )}
+          {/* Checkbox + expand toggle */}
+          <div className="w-7 shrink-0 flex items-center justify-center">
+            {onSelect ? (
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={(e) => { e.stopPropagation(); onSelect(task.id, e.target.checked) }}
+                onClick={(e) => e.stopPropagation()}
+                className="h-3.5 w-3.5 cursor-pointer accent-primary rounded"
+              />
+            ) : hasSubtasks ? (
+              <button
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground"
+                onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v) }}
+              >
+                {expanded
+                  ? <ChevronDown className="h-3.5 w-3.5" />
+                  : <ChevronRight className="h-3.5 w-3.5" />}
+              </button>
+            ) : null}
+          </div>
 
-          {/* Checkbox */}
-          <Checkbox
-            checked={isDone}
-            onCheckedChange={handleCheckboxChange}
-            disabled={!canEdit || updatingStatus}
-            className="shrink-0"
-          />
+          {/* Status circle — click to change */}
+          <div className="w-6 shrink-0 flex items-center justify-center">
+            {canEdit ? (
+              <div onClick={(e) => e.stopPropagation()}>
+                <Select
+                  value={task.status}
+                  onValueChange={handleStatusChange}
+                  disabled={updatingStatus}
+                >
+                  <SelectTrigger className="h-auto w-auto border-0 p-0 shadow-none bg-transparent focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className="h-3.5 w-3.5 rounded-full border-2 cursor-pointer hover:opacity-80 transition-opacity"
+                          style={{
+                            borderColor: statusCfg?.color ?? '#94a3b8',
+                            backgroundColor: isDone ? (statusCfg?.color ?? '#94a3b8') : 'transparent',
+                          }}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="text-xs">
+                        {statusCfg?.name ?? task.status}
+                      </TooltipContent>
+                    </Tooltip>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statuses.map((s) => (
+                      <SelectItem key={s.slug} value={s.slug} className="text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                          {s.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div
+                className="h-3.5 w-3.5 rounded-full border-2"
+                style={{
+                  borderColor: statusCfg?.color ?? '#94a3b8',
+                  backgroundColor: isDone ? (statusCfg?.color ?? '#94a3b8') : 'transparent',
+                }}
+              />
+            )}
+          </div>
 
-          {/* Title + project */}
+          {/* Task name */}
           <div
-            className="flex-1 min-w-0 cursor-pointer"
+            className="flex-1 min-w-0 px-2 flex items-center gap-2 cursor-pointer h-full py-2"
             onClick={onClick}
           >
-            <p
+            <span
               className={cn(
-                'text-sm font-medium truncate',
-                isDone && 'line-through text-muted-foreground'
+                'text-sm truncate leading-none',
+                isDone && 'line-through text-muted-foreground',
               )}
             >
               {task.title}
-            </p>
+            </span>
             {showProject && task.project && (
-              <p className="text-xs text-muted-foreground truncate mt-0.5">
-                {task.project.name}
-              </p>
+              <span className="text-xs text-muted-foreground/50 truncate shrink-0 hidden sm:inline">
+                · {task.project.name}
+              </span>
+            )}
+            {hasSubtasks && (
+              <span className="text-[10px] text-muted-foreground/50 shrink-0 tabular-nums">
+                {doneCount}/{totalSubs}
+              </span>
+            )}
+            {overdue && (
+              <AlertCircle className="h-3 w-3 text-red-500 shrink-0" />
             )}
           </div>
 
-          {/* Priority badge */}
-          <span
-            className="hidden sm:inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium shrink-0"
-            style={{
-              backgroundColor: (priorityCfg?.color ?? '#f59e0b') + '20',
-              color: priorityCfg?.color ?? '#f59e0b',
-              borderColor: (priorityCfg?.color ?? '#f59e0b') + '40',
-            }}
-          >
-            {priorityCfg?.name ?? task.priority}
-          </span>
-
-          {/* Status select */}
-          {canEdit ? (
-            <div onClick={(e) => e.stopPropagation()}>
-              <Select
-                value={task.status}
-                onValueChange={handleStatusChange}
-                disabled={updatingStatus}
-              >
-                <SelectTrigger className="h-7 w-[120px] text-xs shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <div
-                      className="h-2 w-2 rounded-full shrink-0"
-                      style={{ backgroundColor: statusCfg?.color ?? '#94a3b8' }}
-                    />
-                    <span className="truncate">{statusCfg?.name ?? task.status}</span>
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {statuses.map((s) => (
-                    <SelectItem key={s.slug} value={s.slug} className="text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                        {s.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Assignees */}
+          <div className="w-[80px] shrink-0 flex items-center px-1">
+            <div className="flex -space-x-1">
+              {(task.assignees ?? []).slice(0, 3).map((a) => (
+                <Tooltip key={a.id}>
+                  <TooltipTrigger asChild>
+                    <Avatar className="h-5 w-5 border border-background ring-0">
+                      <AvatarImage src={a.avatar_url ?? undefined} />
+                      <AvatarFallback className="text-[8px] font-medium">
+                        {getInitials(a.full_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-xs">{a.full_name}</TooltipContent>
+                </Tooltip>
+              ))}
+              {(task.assignees ?? []).length > 3 && (
+                <Avatar className="h-5 w-5 border border-background">
+                  <AvatarFallback className="text-[8px]">
+                    +{(task.assignees ?? []).length - 3}
+                  </AvatarFallback>
+                </Avatar>
+              )}
             </div>
-          ) : (
-            <span
-              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium shrink-0"
-              style={{
-                backgroundColor: (statusCfg?.color ?? '#94a3b8') + '20',
-                color: statusCfg?.color ?? '#94a3b8',
-                borderColor: (statusCfg?.color ?? '#94a3b8') + '40',
-              }}
-            >
-              {statusCfg?.name ?? task.status}
-            </span>
-          )}
+          </div>
 
           {/* Due date */}
-          <span
-            className={cn(
-              'hidden md:block text-xs shrink-0 w-24 text-right',
-              overdue ? 'text-red-600 font-medium' : 'text-muted-foreground'
-            )}
-          >
-            {task.due_date ? formatDate(task.due_date) : '—'}
-          </span>
-
-          {/* Assignee avatars */}
-          <div className="hidden sm:flex -space-x-1.5 shrink-0">
-            {(task.assignees ?? []).slice(0, 3).map((a) => (
-              <Tooltip key={a.id}>
-                <TooltipTrigger asChild>
-                  <Avatar className="h-6 w-6 border-2 border-background">
-                    <AvatarImage src={a.avatar_url ?? undefined} />
-                    <AvatarFallback className="text-[10px]">
-                      {getInitials(a.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                </TooltipTrigger>
-                <TooltipContent>{a.full_name}</TooltipContent>
-              </Tooltip>
-            ))}
-            {(task.assignees ?? []).length > 3 && (
-              <Avatar className="h-6 w-6 border-2 border-background">
-                <AvatarFallback className="text-[10px]">
-                  +{(task.assignees ?? []).length - 3}
-                </AvatarFallback>
-              </Avatar>
-            )}
+          <div className="w-[90px] shrink-0 flex items-center px-1">
+            <span
+              className={cn(
+                'text-xs',
+                overdue
+                  ? 'text-red-500 font-medium'
+                  : task.due_date
+                  ? 'text-muted-foreground'
+                  : 'text-muted-foreground/30',
+              )}
+            >
+              {task.due_date ? formatDate(task.due_date) : '—'}
+            </span>
           </div>
 
-          {/* Navigate */}
-          {onClick && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 shrink-0"
-              onClick={(e) => {
-                e.stopPropagation()
-                onClick()
-              }}
+          {/* Priority */}
+          <div className="w-[90px] shrink-0 flex items-center px-1">
+            <span
+              className="text-xs font-medium flex items-center gap-1"
+              style={{ color: PRIORITY_COLOR[task.priority] ?? '#94a3b8' }}
             >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
-          )}
+              <Flag className="h-3 w-3 shrink-0" />
+              <span className="truncate">{priorityCfg?.name ?? task.priority}</span>
+            </span>
+          </div>
+
+          {/* Open button */}
+          <div className="w-8 shrink-0 flex items-center justify-center opacity-0 group-hover:opacity-100">
+            {onClick && (
+              <button
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground"
+                onClick={(e) => { e.stopPropagation(); onClick() }}
+                title="Open task"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Subtasks (expanded) */}
+        {/* ── Subtasks ───────────────────────────────────────────────────── */}
         {hasSubtasks && expanded && (
-          <div className="border-t bg-muted/20">
+          <div className="border-l-2 border-border/40 ml-[19px]">
             {(task.subtasks ?? []).map((subtask) => (
               <TaskRow
                 key={subtask.id}
                 task={subtask}
                 profile={profile}
                 onTaskUpdated={(updated) => {
-                  const updatedParent = {
+                  onTaskUpdated({
                     ...task,
                     subtasks: (task.subtasks ?? []).map((s) =>
                       s.id === updated.id ? updated : s
                     ),
-                  }
-                  onTaskUpdated(updatedParent)
+                  })
                 }}
                 level={level + 1}
               />

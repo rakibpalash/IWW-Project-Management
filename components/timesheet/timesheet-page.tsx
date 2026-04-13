@@ -189,10 +189,10 @@ function WorkspaceFilter({
 
   const allSelected = selected.length === 0
   const label = allSelected
-    ? 'All Workspaces'
+    ? 'All Spaces'
     : selected.length === 1
-    ? (workspaces.find((w) => w.id === selected[0])?.name ?? '1 Workspace')
-    : `${selected.length} Workspaces`
+    ? (workspaces.find((w) => w.id === selected[0])?.name ?? '1 Space')
+    : `${selected.length} Spaces`
 
   const toggle = (id: string) => {
     onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
@@ -208,7 +208,7 @@ function WorkspaceFilter({
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <div className="flex items-center justify-between px-3 pt-3 pb-2">
-          <span className="text-sm font-semibold text-foreground">Workspaces</span>
+          <span className="text-sm font-semibold text-foreground">Spaces</span>
           <Button size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
             Done
           </Button>
@@ -217,7 +217,7 @@ function WorkspaceFilter({
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
             <Input
-              placeholder="Search workspaces"
+              placeholder="Search spaces"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm"
@@ -237,7 +237,7 @@ function WorkspaceFilter({
             )}>
               {allSelected && <Check className="h-2.5 w-2.5 text-white" />}
             </div>
-            <span className="text-foreground/80">All Workspaces</span>
+            <span className="text-foreground/80">All Spaces</span>
           </button>
           {filtered.map((w) => {
             const checked = selected.includes(w.id)
@@ -721,10 +721,10 @@ export function TimesheetPage({
   // Workspace label for breadcrumb
   const boardLabel =
     selectedWorkspaceIds.length === 0
-      ? 'All Workspaces'
+      ? 'All Spaces'
       : selectedWorkspaceIds.length === 1
-      ? (allWorkspaces.find((w) => w.id === selectedWorkspaceIds[0])?.name ?? 'Workspace')
-      : `${selectedWorkspaceIds.length} Workspaces`
+      ? (allWorkspaces.find((w) => w.id === selectedWorkspaceIds[0])?.name ?? 'Space')
+      : `${selectedWorkspaceIds.length} Spaces`
 
   return (
     <div className="flex flex-col h-full bg-background">

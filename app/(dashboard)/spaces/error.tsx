@@ -1,0 +1,35 @@
+'use client'
+
+import { useEffect } from 'react'
+import { AlertTriangle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+
+export default function SpacesError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string }
+  reset: () => void
+}) {
+  useEffect(() => {
+    console.error('Spaces error:', error)
+  }, [error])
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center p-6">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+        <AlertTriangle className="h-8 w-8 text-destructive" />
+      </div>
+      <div className="space-y-2">
+        <h2 className="text-xl font-semibold">Something went wrong</h2>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          There was a problem loading spaces. Your changes may have saved successfully.
+        </p>
+      </div>
+      <div className="flex gap-3">
+        <Button onClick={reset}>Try again</Button>
+        <Button variant="outline" onClick={() => window.location.reload()}>Reload page</Button>
+      </div>
+    </div>
+  )
+}

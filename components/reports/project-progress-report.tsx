@@ -41,9 +41,9 @@ export function ProjectProgressReport({ workspaces, isAdmin }: Props) {
       <div className="flex flex-wrap items-center gap-3">
         {isAdmin && workspaces.length > 1 && (
           <Select value={workspaceId} onValueChange={setWorkspaceId}>
-            <SelectTrigger className="w-[180px] h-8 text-sm"><SelectValue placeholder="All Workspaces" /></SelectTrigger>
+            <SelectTrigger className="w-[180px] h-8 text-sm"><SelectValue placeholder="All Spaces" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Workspaces</SelectItem>
+              <SelectItem value="all">All Spaces</SelectItem>
               {workspaces.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -63,7 +63,7 @@ export function ProjectProgressReport({ workspaces, isAdmin }: Props) {
           <ExportButton
             title="Project Progress Report"
             filename="project-progress"
-            headers={['Project', 'Workspace', 'Status', 'Priority', 'Progress %', 'Tasks Done', 'Total Tasks', 'Logged Hours', 'Est. Hours', 'Due Date', 'Overdue']}
+            headers={['Project', 'Space', 'Status', 'Priority', 'Progress %', 'Tasks Done', 'Total Tasks', 'Logged Hours', 'Est. Hours', 'Due Date', 'Overdue']}
             buildRows={() => data.map(p => [p.name, p.workspace_name ?? '', p.status, p.priority, p.progress, p.completed_tasks, p.total_tasks, p.logged_hours, p.estimated_hours ?? '', p.due_date ?? '', p.is_overdue ? 'Yes' : 'No'])}
           />
         </div>

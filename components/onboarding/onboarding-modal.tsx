@@ -55,7 +55,7 @@ const STAFF_TIPS = [
 
 const ROLE_TIPS: Record<Role, { title: string; body: string }[]> = {
   super_admin: [
-    { title: 'Create your first workspace', body: 'Head to Workspaces to create one and start adding projects.' },
+    { title: 'Create your first space', body: 'Head to Spaces to create one and start adding projects.' },
     { title: 'Invite your team',            body: 'Go to Settings → Team to invite staff members.' },
     { title: 'Configure attendance rules',  body: 'Visit Attendance → Settings to set check-in windows.' },
   ],
