@@ -411,7 +411,7 @@ export function TaskStatusesForm({ initialStatuses }: Props) {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Count toward progress</p>
-                  <p className="text-xs text-muted-foreground">Include in project progress calculation</p>
+                  <p className="text-xs text-muted-foreground">Include in list progress calculation</p>
                 </div>
                 <Switch
                   checked={form.counts_toward_progress}

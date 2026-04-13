@@ -18,12 +18,12 @@ import { useTaskConfig } from '@/hooks/use-task-config'
 interface CreateTaskDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  projects: List[]
+  lists: List[]
   profile: Profile
   onCreated: (task: Task) => void
   parentTaskId?: string
   parentTaskDepth?: number
-  projectId?: string
+  listId?: string
   currentSubtaskCount?: number
 }
 
@@ -133,12 +133,12 @@ function MiniCalendar({ selected, onSelect }: { selected: string; onSelect: (d: 
 export function CreateTaskDialog({
   open,
   onOpenChange,
-  projects,
+  lists,
   profile,
   onCreated,
   parentTaskId,
   parentTaskDepth = 0,
-  projectId: defaultProjectId,
+  listId: defaultListId,
   currentSubtaskCount = 0,
 }: CreateTaskDialogProps) {
   const { toast } = useToast()
@@ -154,7 +154,7 @@ export function CreateTaskDialog({
   const [title,             setTitle]             = useState('')
   const [titleTouched,      setTitleTouched]      = useState(false)
   const [description,       setDescription]       = useState('')
-  const [selectedProjectId, setSelectedProjectId] = useState(defaultProjectId ?? '')
+  const [selectedListId, setSelectedListId] = useState(defaultListId ?? '')
   const [dueDate,           setDueDate]           = useState('')
   const [startDate,         setStartDate]         = useState('')
   const [priority,          setPriority]          = useState(defaultPriority || 'medium')
@@ -175,7 +175,7 @@ export function CreateTaskDialog({
   const [tagSearch,       setTagSearch]       = useState('')
 
   const titleError = titleTouched && !title.trim()
-  const currentProject = projects.find(p => p.id === (selectedProjectId || defaultProjectId))
+  const currentList = lists.find(p => p.id === (selectedListId || defaultListId))
   const selectedStatusCfg   = statuses.find(s => s.slug === status)
   const selectedPriorityCfg = priorities.find(p => p.slug === priority)
   const assignedMembers     = members.filter(m => assigneeIds.includes(m.id))
@@ -209,7 +209,7 @@ export function CreateTaskDialog({
 
   function reset() {
     setTitle(''); setTitleTouched(false); setDescription('')
-    if (!defaultProjectId) setSelectedProjectId('')
+    if (!defaultListId) setSelectedListId('')
     setDueDate(''); setStartDate('')
     setPriority(defaultPriority || 'medium')
     setStatus(defaultStatus || 'todo')
@@ -220,15 +220,15 @@ export function CreateTaskDialog({
   async function handleSubmit() {
     setTitleTouched(true)
     if (!title.trim()) { titleRef.current?.focus(); return }
-    const projectId = selectedProjectId || defaultProjectId
-    if (!projectId) { setListOpen(true); return }
+    const listId = selectedListId || defaultListId
+    if (!listId) { setListOpen(true); return }
 
     setSubmitting(true)
     try {
       const { data: newTask, error } = await supabase.from('tasks').insert({
         title: title.trim(),
         description: description.trim() || null,
-        list_id: projectId,
+        list_id: listId,
         parent_task_id: parentTaskId ?? null,
         status, priority,
         due_date: dueDate || null,
@@ -253,7 +253,7 @@ export function CreateTaskDialog({
           user_id: uid, type: 'task_assigned',
           title: 'Task assigned to you',
           message: `You have been assigned to "${newTask.title}"`,
-          link: `/lists/${projectId}/tasks/${newTask.id}`, is_read: false,
+          link: `/lists/${listId}/tasks/${newTask.id}`, is_read: false,
         })))
 
       const assigneeProfiles = members.filter(m => assigneeIds.includes(m.id))
@@ -288,7 +288,7 @@ export function CreateTaskDialog({
     )
   }
 
-  const filteredProjects = projects.filter(p =>
+  const filteredLists = lists.filter(p =>
     !listSearch || p.name.toLowerCase().includes(listSearch.toLowerCase())
   )
   const filteredMembers = members.filter(m =>
@@ -325,13 +325,13 @@ export function CreateTaskDialog({
                   onClick={() => { setListOpen(o => !o); setListSearch('') }}
                   className={cn(
                     'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors',
-                    currentProject
+                    currentList
                       ? 'bg-primary/10 text-primary'
                       : 'bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted',
                   )}
                 >
                   <Hash className="h-3 w-3" />
-                  {currentProject ? currentProject.name : 'Select List...'}
+                  {currentList ? currentList.name : 'Select List...'}
                   <ChevronDown className="h-3 w-3 opacity-60" />
                 </button>
 
@@ -352,7 +352,7 @@ export function CreateTaskDialog({
                     <div className="max-h-64 overflow-y-auto py-1">
                       {/* Personal List */}
                       <button
-                        onClick={() => { setSelectedProjectId(''); setListOpen(false) }}
+                        onClick={() => { setSelectedListId(''); setListOpen(false) }}
                         className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left"
                       >
                         <User className="h-4 w-4 text-muted-foreground" />
@@ -360,38 +360,38 @@ export function CreateTaskDialog({
                       </button>
 
                       {/* Recents */}
-                      {projects.slice(0, 2).length > 0 && (
+                      {lists.slice(0, 2).length > 0 && (
                         <>
                           <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Recents</p>
-                          {projects.slice(0, 2).map(p => (
+                          {lists.slice(0, 2).map(p => (
                             <button
                               key={p.id}
-                              onClick={() => { setSelectedProjectId(p.id); setListOpen(false) }}
+                              onClick={() => { setSelectedListId(p.id); setListOpen(false) }}
                               className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left"
                             >
                               <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
                               <span className="truncate">{p.name}</span>
-                              {selectedProjectId === p.id && <Check className="h-3.5 w-3.5 text-primary ml-auto shrink-0" />}
+                              {selectedListId === p.id && <Check className="h-3.5 w-3.5 text-primary ml-auto shrink-0" />}
                             </button>
                           ))}
                         </>
                       )}
 
                       {/* All spaces */}
-                      {filteredProjects.length > 0 && (
+                      {filteredLists.length > 0 && (
                         <>
                           <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Spaces</p>
-                          {filteredProjects.map(p => (
+                          {filteredLists.map(p => (
                             <button
                               key={p.id}
-                              onClick={() => { setSelectedProjectId(p.id); setListOpen(false) }}
+                              onClick={() => { setSelectedListId(p.id); setListOpen(false) }}
                               className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left"
                             >
                               <div className="h-5 w-5 rounded shrink-0 flex items-center justify-center bg-blue-100 text-blue-700 text-[9px] font-bold">
                                 {p.name.slice(0,2).toUpperCase()}
                               </div>
                               <span className="truncate flex-1">{p.name}</span>
-                              {selectedProjectId === p.id && <Check className="h-3.5 w-3.5 text-primary ml-auto shrink-0" />}
+                              {selectedListId === p.id && <Check className="h-3.5 w-3.5 text-primary ml-auto shrink-0" />}
                             </button>
                           ))}
                         </>

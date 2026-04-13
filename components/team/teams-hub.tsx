@@ -365,7 +365,7 @@ function OrgChartView({ profiles, allProfiles, isAdmin }: { profiles: Profile[];
 
   const superAdmins     = byRole['super_admin']     ?? []
   const accountManagers = byRole['account_manager'] ?? []
-  const projectManagers = byRole['project_manager'] ?? []
+  const listManagers = byRole['project_manager'] ?? []
   const staffMembers    = byRole['staff']           ?? []
 
   const roleChildrenMap: Record<string, Profile[]> = {}
@@ -382,10 +382,10 @@ function OrgChartView({ profiles, allProfiles, isAdmin }: { profiles: Profile[];
   // account_managers → under super_admins
   addChildren(superAdmins, accountManagers)
   // project_managers → under account_managers (fallback: super_admins)
-  addChildren(accountManagers.length > 0 ? accountManagers : superAdmins, projectManagers)
+  addChildren(accountManagers.length > 0 ? accountManagers : superAdmins, listManagers)
   // staff → under project_managers → account_managers → super_admins
-  const staffParents = projectManagers.length > 0
-    ? projectManagers
+  const staffParents = listManagers.length > 0
+    ? listManagers
     : accountManagers.length > 0
       ? accountManagers
       : superAdmins

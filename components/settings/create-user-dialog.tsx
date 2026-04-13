@@ -42,10 +42,10 @@ function generatePassword(): string {
 }
 
 const ROLE_OPTIONS: { value: RoleOption; label: string; description: string }[] = [
-  { value: 'account_manager', label: 'Org Admin',  description: 'Full org visibility, can manage workspaces and team' },
-  { value: 'project_manager', label: 'Team Lead',  description: 'Manages projects and tasks, approves leave' },
-  { value: 'staff',           label: 'Staff',      description: 'Works on assigned tasks and projects' },
-  { value: 'client',          label: 'Client',     description: 'View-only access to their projects' },
+  { value: 'account_manager', label: 'Org Admin',  description: 'Full org visibility, can manage spaces and team' },
+  { value: 'project_manager', label: 'Team Lead',  description: 'Manages lists and tasks, approves leave' },
+  { value: 'staff',           label: 'Staff',      description: 'Works on assigned tasks and lists' },
+  { value: 'client',          label: 'Client',     description: 'View-only access to their lists' },
   { value: 'partner',         label: 'Partner',    description: 'External collaborator, view-only access' },
 ]
 

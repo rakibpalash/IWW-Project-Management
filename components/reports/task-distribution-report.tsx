@@ -5,9 +5,9 @@ import { getTaskDistributionReportAction, TaskDistributionData } from '@/app/act
 import { StatCard, ExportButton, ReportLoading, ReportEmpty, BarChart, HorizontalBar } from './report-shell'
 import { Space } from '@/types'
 
-interface Props { workspaces: Space[]; isAdmin: boolean }
+interface Props { spaces: Space[]; isAdmin: boolean }
 
-export function TaskDistributionReport({ workspaces, isAdmin }: Props) {
+export function TaskDistributionReport({ spaces, isAdmin }: Props) {
   const [data, setData] = useState<TaskDistributionData | null>(null)
   const [loading, setLoading] = useState(true)
 

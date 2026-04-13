@@ -50,7 +50,7 @@ import { useTaskConfig } from '@/hooks/use-task-config'
 interface MyTasksPageProps {
   initialTasks: Task[]
   profile: Profile
-  projects: List[]
+  lists: List[]
 }
 
 type TaskGroup = {
@@ -73,7 +73,7 @@ const GROUP_COLORS: Record<string, string> = {
   later:     '#94a3b8',
 }
 
-export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProps) {
+export function MyTasksPage({ initialTasks, profile, lists }: MyTasksPageProps) {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const activeFilter = searchParams.get('filter') // 'today' | null
@@ -84,14 +84,14 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
   const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [priorityFilter, setPriorityFilter] = useState<string>('all')
-  const [projectFilter, setProjectFilter]   = useState<string>('all')
+  const [listFilter, setListFilter]   = useState<string>('all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [collapsedGroups, setCollapsedGroups]   = useState<Set<string>>(new Set())
 
   // Inline add state
   const [addingToGroup,   setAddingToGroup]   = useState<string | null>(null)
   const [newTaskName,     setNewTaskName]     = useState('')
-  const [newTaskProject,  setNewTaskProject]  = useState(projects[0]?.id ?? '')
+  const [newTaskList,  setNewTaskList]  = useState(lists[0]?.id ?? '')
   const [saving,          setSaving]          = useState(false)
   const inlineInputRef = useRef<HTMLInputElement>(null)
 
@@ -101,7 +101,7 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
 
   function openInlineAdd(groupId: string) {
     setNewTaskName('')
-    setNewTaskProject(projects[0]?.id ?? '')
+    setNewTaskList(lists[0]?.id ?? '')
     setCollapsedGroups(prev => { const n = new Set(prev); n.delete(groupId); return n })
     setAddingToGroup(groupId)
   }
@@ -111,14 +111,14 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
   async function submitInlineTask() {
     const title = newTaskName.trim()
     if (!title) { cancelInlineAdd(); return }
-    if (!newTaskProject) { toast({ title: 'Select a project', variant: 'destructive' }); return }
+    if (!newTaskList) { toast({ title: 'Select a list', variant: 'destructive' }); return }
     setSaving(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data, error } = await supabase.from('tasks').insert({
         title,
-        list_id: newTaskProject,
+        list_id: newTaskList,
         status:     'todo',
         priority:   defaultPriority || 'medium',
         created_by: user.id,
@@ -140,10 +140,10 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
         task.description?.toLowerCase().includes(search.toLowerCase())
       const matchesStatus   = statusFilter === 'all'   || task.status === statusFilter
       const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter
-      const matchesProject  = projectFilter === 'all'  || task.list_id === projectFilter
-      return matchesSearch && matchesStatus && matchesPriority && matchesProject
+      const matchesList  = listFilter === 'all'  || task.list_id === listFilter
+      return matchesSearch && matchesStatus && matchesPriority && matchesList
     })
-  }, [tasks, search, statusFilter, priorityFilter, projectFilter])
+  }, [tasks, search, statusFilter, priorityFilter, listFilter])
 
   // For "Today & Overdue" filter — only show overdue + today tasks
   const filterSource = useMemo(() => {
@@ -191,10 +191,10 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
   }, [filterSource, activeFilter])
 
   const hasActiveFilters =
-    search !== '' || statusFilter !== 'all' || priorityFilter !== 'all' || projectFilter !== 'all'
+    search !== '' || statusFilter !== 'all' || priorityFilter !== 'all' || listFilter !== 'all'
 
   function clearFilters() {
-    setSearch(''); setStatusFilter('all'); setPriorityFilter('all'); setProjectFilter('all')
+    setSearch(''); setStatusFilter('all'); setPriorityFilter('all'); setListFilter('all')
   }
 
   function toggleGroup(id: string) {
@@ -224,10 +224,10 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
 
   // ── Export helpers ────────────────────────────────────────────────────────
   function buildTableHtml() {
-    const headers = ['Title', 'Project', 'Status', 'Priority', 'Due Date']
+    const headers = ['Title', 'List', 'Status', 'Priority', 'Due Date']
     const rows = filteredTasks.map((t) => `<tr>
       <td>${t.title}</td>
-      <td>${projects.find((p) => p.id === t.list_id)?.name ?? '-'}</td>
+      <td>${lists.find((p) => p.id === t.list_id)?.name ?? '-'}</td>
       <td>${t.status.replace(/_/g, ' ')}</td>
       <td>${t.priority}</td>
       <td>${t.due_date ? format(new Date(t.due_date + 'T00:00:00'), 'MMM d, yyyy') : '-'}</td>
@@ -236,10 +236,10 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
   }
 
   function exportCsv() {
-    const headers = ['Title', 'Project', 'Status', 'Priority', 'Due Date']
+    const headers = ['Title', 'List', 'Status', 'Priority', 'Due Date']
     const rows = filteredTasks.map((t) => [
       `"${t.title.replace(/"/g, '""')}"`,
-      `"${(projects.find((p) => p.id === t.list_id)?.name ?? '').replace(/"/g, '""')}"`,
+      `"${(lists.find((p) => p.id === t.list_id)?.name ?? '').replace(/"/g, '""')}"`,
       t.status.replace(/_/g, ' '),
       t.priority,
       t.due_date ? format(new Date(t.due_date + 'T00:00:00'), 'MMM d, yyyy') : '',
@@ -349,14 +349,14 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
               ))}
             </SelectContent>
           </Select>
-          {projects.length > 0 && (
-            <Select value={projectFilter} onValueChange={setProjectFilter}>
+          {lists.length > 0 && (
+            <Select value={listFilter} onValueChange={setListFilter}>
               <SelectTrigger className="w-[160px] h-8 text-xs">
-                <SelectValue placeholder="Project" />
+                <SelectValue placeholder="List" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Lists</SelectItem>
-                {projects.map((p) => (
+                {lists.map((p) => (
                   <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -462,7 +462,7 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
                           profile={profile}
                           onTaskUpdated={handleTaskUpdated}
                           onClick={() => handleTaskClick(task)}
-                          showProject
+                          showList
                         />
                       </div>
                     ))}
@@ -487,14 +487,14 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
                           disabled={saving}
                           className="flex-1 min-w-0 bg-transparent text-sm py-1 outline-none placeholder:text-muted-foreground/50"
                         />
-                        {projects.length > 1 && (
-                          <Select value={newTaskProject} onValueChange={setNewTaskProject}>
+                        {lists.length > 1 && (
+                          <Select value={newTaskList} onValueChange={setNewTaskList}>
                             <SelectTrigger className="h-7 w-[130px] text-xs border-dashed shrink-0">
                               <FolderOpen className="h-3 w-3 mr-1 shrink-0" />
-                              <SelectValue placeholder="Project" />
+                              <SelectValue placeholder="List" />
                             </SelectTrigger>
                             <SelectContent>
-                              {projects.map(p => (
+                              {lists.map(p => (
                                 <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>
                               ))}
                             </SelectContent>
@@ -536,7 +536,7 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
         <CreateTaskDialog
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
-          projects={projects}
+          lists={lists}
           profile={profile}
           onCreated={handleTaskCreated}
         />

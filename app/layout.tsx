@@ -7,8 +7,8 @@ import { ThemeProvider } from '@/components/ui/theme-provider'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'IWW Project Management',
-  description: 'Project Management, Attendance & Leave Management System',
+  title: 'IWW List Management',
+  description: 'List Management, Attendance & Leave Management System',
 }
 
 export default function RootLayout({

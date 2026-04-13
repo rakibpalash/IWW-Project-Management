@@ -20,8 +20,8 @@ import { format, parseISO } from 'date-fns'
 interface TeamPageProps {
   profile: Profile
   allProfiles: Profile[]
-  workspaces: Space[]
-  workspaceAssignments: (SpaceAssignment & { workspace?: Space })[]
+  spaces: Space[]
+  spaceAssignments: (SpaceAssignment & { space?: Space })[]
 }
 
 const roleConfig: Record<string, { label: string; icon: React.ElementType; className: string }> = {
@@ -41,10 +41,10 @@ function getInitials(name: string): string {
 
 function UserCard({
   user,
-  workspaces,
+  spaces,
 }: {
   user: Profile
-  workspaces: Space[]
+  spaces: Space[]
 }) {
   const rc = roleConfig[user.role] ?? roleConfig.staff
   const RoleIcon = rc.icon
@@ -75,11 +75,11 @@ function UserCard({
             {rc.label}
           </span>
 
-          {workspaces.length > 0 && (
+          {spaces.length > 0 && (
             <div className="w-full">
               <p className="text-xs text-muted-foreground mb-1.5">Spaces</p>
               <div className="flex flex-wrap justify-center gap-1">
-                {workspaces.map((ws) => (
+                {spaces.map((ws) => (
                   <Badge key={ws.id} variant="outline" className="text-xs">
                     {ws.name}
                   </Badge>
@@ -106,17 +106,17 @@ function UserCard({
 export function TeamPage({
   profile,
   allProfiles,
-  workspaces,
-  workspaceAssignments,
+  spaces,
+  spaceAssignments,
 }: TeamPageProps) {
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [spaceFilter, setSpaceFilter] = useState('all')
 
-  const getUserWorkspaces = (userId: string): Space[] => {
-    return workspaceAssignments
-      .filter((a) => a.user_id === userId && a.workspace)
-      .map((a) => a.workspace as Space)
+  const getUserSpaces = (userId: string): Space[] => {
+    return spaceAssignments
+      .filter((a) => a.user_id === userId && a.space)
+      .map((a) => a.space as Space)
   }
 
   const filteredUsers = allProfiles.filter((u) => {
@@ -127,13 +127,13 @@ export function TeamPage({
 
     const matchesRole = roleFilter === 'all' || u.role === roleFilter
 
-    const matchesWorkspace =
+    const matchesSpace =
       spaceFilter === 'all' ||
-      workspaceAssignments.some(
+      spaceAssignments.some(
         (a) => a.user_id === u.id && a.space_id === spaceFilter
       )
 
-    return matchesSearch && matchesRole && matchesWorkspace
+    return matchesSearch && matchesRole && matchesSpace
   })
 
   const staffCount = allProfiles.filter((u) => u.role === 'staff').length
@@ -173,14 +173,14 @@ export function TeamPage({
             <SelectItem value="client">Client</SelectItem>
           </SelectContent>
         </Select>
-        {workspaces.length > 0 && (
+        {spaces.length > 0 && (
           <Select value={spaceFilter} onValueChange={setSpaceFilter}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="All Spaces" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Spaces</SelectItem>
-              {workspaces.map((ws) => (
+              {spaces.map((ws) => (
                 <SelectItem key={ws.id} value={ws.id}>
                   {ws.name}
                 </SelectItem>
@@ -203,7 +203,7 @@ export function TeamPage({
             <UserCard
               key={user.id}
               user={user}
-              workspaces={getUserWorkspaces(user.id)}
+              spaces={getUserSpaces(user.id)}
             />
           ))}
         </div>

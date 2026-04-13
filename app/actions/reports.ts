@@ -4,7 +4,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type ProjectProgressRow = {
+export type ListProgressRow = {
   id: string
   name: string
   status: string
@@ -15,13 +15,13 @@ export type ProjectProgressRow = {
   estimated_hours: number | null
   due_date: string | null
   progress: number
-  workspace_name: string | null
+  space_name: string | null
   is_overdue: boolean
 }
 
-export type ProjectTimeRow = {
+export type ListTimeRow = {
   list_id: string
-  project_name: string
+  list_name: string
   user_id: string
   user_name: string
   total_minutes: number
@@ -35,13 +35,13 @@ export type TaskCompletionData = {
   in_progress: number
   overdue: number
   by_status: { status: string; count: number }[]
-  by_project: { project_name: string; total: number; completed: number }[]
+  by_list: { list_name: string; total: number; completed: number }[]
 }
 
 export type OverdueTaskRow = {
   id: string
   title: string
-  project_name: string
+  list_name: string
   priority: string
   due_date: string
   days_overdue: number
@@ -58,7 +58,7 @@ export type TimeLogRow = {
   id: string
   date: string
   user_name: string
-  project_name: string
+  list_name: string
   task_title: string
   duration_minutes: number
   description: string | null
@@ -133,63 +133,63 @@ async function getOrgId(): Promise<{ orgId: string | null; error?: string }> {
   }
 }
 
-// ── 1. Project Progress Report ────────────────────────────────────────────────
+// ── 1. List Progress Report ────────────────────────────────────────────────
 
-export async function getProjectProgressReportAction(filters: {
-  workspaceId?: string
+export async function getListProgressReportAction(filters: {
+  spaceId?: string
   status?: string
-}): Promise<{ data?: ProjectProgressRow[]; error?: string }> {
+}): Promise<{ data?: ListProgressRow[]; error?: string }> {
   try {
     const { orgId, error: orgError } = await getOrgId()
     if (orgError || !orgId) return { error: orgError ?? 'Organization not found' }
 
     const admin = createAdminClient()
 
-    // Fetch workspaces scoped to org
-    let workspaceQuery = admin.from('spaces').select('id').eq('organization_id', orgId)
-    if (filters.workspaceId) workspaceQuery = workspaceQuery.eq('id', filters.workspaceId)
-    const { data: workspaces } = await workspaceQuery
-    const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
+    // Fetch spaces scoped to org
+    let spaceQuery = admin.from('spaces').select('id').eq('organization_id', orgId)
+    if (filters.spaceId) spaceQuery = spaceQuery.eq('id', filters.spaceId)
+    const { data: spaces } = await spaceQuery
+    const spaceIds = (spaces ?? []).map((w: any) => w.id)
 
-    if (workspaceIds.length === 0) return { data: [] }
+    if (spaceIds.length === 0) return { data: [] }
 
-    // Fetch projects
-    let projectQuery = admin
+    // Fetch lists
+    let listQuery = admin
       .from('lists')
-      .select('id, name, status, priority, due_date, estimated_hours, progress, space_id, workspace:workspaces(name)')
-      .in('space_id', workspaceIds)
+      .select('id, name, status, priority, due_date, estimated_hours, progress, space_id, space:spaces(name)')
+      .in('space_id', spaceIds)
 
-    if (filters.status) projectQuery = projectQuery.eq('status', filters.status)
+    if (filters.status) listQuery = listQuery.eq('status', filters.status)
 
-    const { data: projects, error: projError } = await projectQuery
-    if (projError || !projects || projects.length === 0) return { data: [] }
+    const { data: lists, error: projError } = await listQuery
+    if (projError || !lists || lists.length === 0) return { data: [] }
 
-    const projectIds = projects.map((p: any) => p.id)
+    const listIds = lists.map((p: any) => p.id)
 
-    // Fetch task counts per project
+    // Fetch task counts per list
     const { data: allTasks } = await admin
       .from('tasks')
       .select('id, list_id, status')
-      .in('list_id', projectIds)
+      .in('list_id', listIds)
 
     // Fetch time entries via tasks
     const { data: timeEntries } = await admin
       .from('time_entries')
       .select('task_id, duration_minutes, task:tasks!inner(list_id)')
-      .in('task.list_id', projectIds)
+      .in('task.list_id', listIds)
       .not('duration_minutes', 'is', null)
 
     const now = new Date()
 
-    const rows: ProjectProgressRow[] = projects.map((p: any) => {
-      const projectTasks = (allTasks ?? []).filter((t: any) => t.list_id === p.id)
-      const total_tasks = projectTasks.length
-      const completed_tasks = projectTasks.filter((t: any) => t.status === 'done').length
+    const rows: ListProgressRow[] = lists.map((p: any) => {
+      const listTasks = (allTasks ?? []).filter((t: any) => t.list_id === p.id)
+      const total_tasks = listTasks.length
+      const completed_tasks = listTasks.filter((t: any) => t.status === 'done').length
 
-      const projectTimeEntries = (timeEntries ?? []).filter(
+      const listTimeEntries = (timeEntries ?? []).filter(
         (te: any) => te.task?.list_id === p.id
       )
-      const logged_minutes = projectTimeEntries.reduce(
+      const logged_minutes = listTimeEntries.reduce(
         (sum: number, te: any) => sum + (te.duration_minutes ?? 0),
         0
       )
@@ -212,7 +212,7 @@ export async function getProjectProgressReportAction(filters: {
         estimated_hours: p.estimated_hours ?? null,
         due_date: p.due_date ?? null,
         progress: p.progress ?? 0,
-        workspace_name: (p.workspace as any)?.name ?? null,
+        space_name: (p.space as any)?.name ?? null,
         is_overdue,
       }
     })
@@ -223,46 +223,46 @@ export async function getProjectProgressReportAction(filters: {
   }
 }
 
-// ── 2. Project Time Report ────────────────────────────────────────────────────
+// ── 2. List Time Report ────────────────────────────────────────────────────
 
-export async function getProjectTimeReportAction(filters: {
+export async function getListTimeReportAction(filters: {
   startDate: string
   endDate: string
-  projectId?: string
-}): Promise<{ data?: ProjectTimeRow[]; error?: string }> {
+  listId?: string
+}): Promise<{ data?: ListTimeRow[]; error?: string }> {
   try {
     const { orgId, error: orgError } = await getOrgId()
     if (orgError || !orgId) return { error: orgError ?? 'Organization not found' }
 
     const admin = createAdminClient()
 
-    // Get workspace IDs for org
-    const { data: workspaces } = await admin
+    // Get space IDs for org
+    const { data: spaces } = await admin
       .from('spaces')
       .select('id')
       .eq('organization_id', orgId)
-    const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
-    if (workspaceIds.length === 0) return { data: [] }
+    const spaceIds = (spaces ?? []).map((w: any) => w.id)
+    if (spaceIds.length === 0) return { data: [] }
 
-    // Get project IDs scoped to org
-    let projectQuery = admin
+    // Get list IDs scoped to org
+    let listQuery = admin
       .from('lists')
       .select('id, name')
-      .in('space_id', workspaceIds)
-    if (filters.projectId) projectQuery = projectQuery.eq('id', filters.projectId)
-    const { data: projects } = await projectQuery
-    const projectIds = (projects ?? []).map((p: any) => p.id)
-    if (projectIds.length === 0) return { data: [] }
+      .in('space_id', spaceIds)
+    if (filters.listId) listQuery = listQuery.eq('id', filters.listId)
+    const { data: lists } = await listQuery
+    const listIds = (lists ?? []).map((p: any) => p.id)
+    if (listIds.length === 0) return { data: [] }
 
-    const projectMap = Object.fromEntries((projects ?? []).map((p: any) => [p.id, p.name]))
+    const listMap = Object.fromEntries((lists ?? []).map((p: any) => [p.id, p.name]))
 
-    // Fetch time entries in date range via task → project
+    // Fetch time entries in date range via task → list
     const { data: entries, error: entriesError } = await admin
       .from('time_entries')
       .select('id, user_id, duration_minutes, is_billable, task:tasks!inner(list_id)')
       .gte('started_at', `${filters.startDate}T00:00:00`)
       .lte('started_at', `${filters.endDate}T23:59:59`)
-      .in('task.list_id', projectIds)
+      .in('task.list_id', listIds)
       .not('duration_minutes', 'is', null)
 
     if (entriesError || !entries || entries.length === 0) return { data: [] }
@@ -275,16 +275,16 @@ export async function getProjectTimeReportAction(filters: {
       .in('id', userIds)
     const profileMap = Object.fromEntries((profiles ?? []).map((p: any) => [p.id, p.full_name]))
 
-    // Aggregate by project + user
-    const aggregated: Record<string, ProjectTimeRow> = {}
+    // Aggregate by list + user
+    const aggregated: Record<string, ListTimeRow> = {}
     for (const entry of entries) {
-      const projectId = (entry as any).task?.list_id
-      if (!projectId) continue
-      const key = `${projectId}__${entry.user_id}`
+      const listId = (entry as any).task?.list_id
+      if (!listId) continue
+      const key = `${listId}__${entry.user_id}`
       if (!aggregated[key]) {
         aggregated[key] = {
-          list_id: projectId,
-          project_name: projectMap[projectId] ?? 'Unknown Project',
+          list_id: listId,
+          list_name: listMap[listId] ?? 'Unknown List',
           user_id: entry.user_id,
           user_name: profileMap[entry.user_id] ?? 'Unknown User',
           total_minutes: 0,
@@ -310,7 +310,7 @@ export async function getProjectTimeReportAction(filters: {
 export async function getTaskCompletionReportAction(filters: {
   startDate: string
   endDate: string
-  projectId?: string
+  listId?: string
 }): Promise<{ data?: TaskCompletionData; error?: string }> {
   try {
     const { orgId, error: orgError } = await getOrgId()
@@ -318,43 +318,43 @@ export async function getTaskCompletionReportAction(filters: {
 
     const admin = createAdminClient()
 
-    // Get workspace + project IDs for org
-    const { data: workspaces } = await admin
+    // Get space + list IDs for org
+    const { data: spaces } = await admin
       .from('spaces')
       .select('id')
       .eq('organization_id', orgId)
-    const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
-    if (workspaceIds.length === 0) {
+    const spaceIds = (spaces ?? []).map((w: any) => w.id)
+    if (spaceIds.length === 0) {
       return {
-        data: { total: 0, completed: 0, in_progress: 0, overdue: 0, by_status: [], by_project: [] },
+        data: { total: 0, completed: 0, in_progress: 0, overdue: 0, by_status: [], by_list: [] },
       }
     }
 
-    let projectQuery = admin
+    let listQuery = admin
       .from('lists')
       .select('id, name')
-      .in('space_id', workspaceIds)
-    if (filters.projectId) projectQuery = projectQuery.eq('id', filters.projectId)
-    const { data: projects } = await projectQuery
-    const projectIds = (projects ?? []).map((p: any) => p.id)
-    const projectMap = Object.fromEntries((projects ?? []).map((p: any) => [p.id, p.name]))
+      .in('space_id', spaceIds)
+    if (filters.listId) listQuery = listQuery.eq('id', filters.listId)
+    const { data: lists } = await listQuery
+    const listIds = (lists ?? []).map((p: any) => p.id)
+    const listMap = Object.fromEntries((lists ?? []).map((p: any) => [p.id, p.name]))
 
-    if (projectIds.length === 0) {
+    if (listIds.length === 0) {
       return {
-        data: { total: 0, completed: 0, in_progress: 0, overdue: 0, by_status: [], by_project: [] },
+        data: { total: 0, completed: 0, in_progress: 0, overdue: 0, by_status: [], by_list: [] },
       }
     }
 
     const { data: tasks, error: tasksError } = await admin
       .from('tasks')
       .select('id, status, due_date, list_id')
-      .in('list_id', projectIds)
+      .in('list_id', listIds)
       .gte('created_at', `${filters.startDate}T00:00:00`)
       .lte('created_at', `${filters.endDate}T23:59:59`)
 
     if (tasksError || !tasks) {
       return {
-        data: { total: 0, completed: 0, in_progress: 0, overdue: 0, by_status: [], by_project: [] },
+        data: { total: 0, completed: 0, in_progress: 0, overdue: 0, by_status: [], by_list: [] },
       }
     }
 
@@ -377,19 +377,19 @@ export async function getTaskCompletionReportAction(filters: {
     }
     const by_status = Object.entries(statusCounts).map(([status, count]) => ({ status, count }))
 
-    // by_project aggregation
-    const byProjectMap: Record<string, { total: number; completed: number }> = {}
+    // by_list aggregation
+    const byListMap: Record<string, { total: number; completed: number }> = {}
     for (const t of tasks) {
-      if (!byProjectMap[t.list_id]) byProjectMap[t.list_id] = { total: 0, completed: 0 }
-      byProjectMap[t.list_id].total += 1
-      if (t.status === 'done') byProjectMap[t.list_id].completed += 1
+      if (!byListMap[t.list_id]) byListMap[t.list_id] = { total: 0, completed: 0 }
+      byListMap[t.list_id].total += 1
+      if (t.status === 'done') byListMap[t.list_id].completed += 1
     }
-    const by_project = Object.entries(byProjectMap).map(([projectId, counts]) => ({
-      project_name: projectMap[projectId] ?? 'Unknown Project',
+    const by_list = Object.entries(byListMap).map(([listId, counts]) => ({
+      list_name: listMap[listId] ?? 'Unknown List',
       ...counts,
     }))
 
-    return { data: { total, completed, in_progress, overdue, by_status, by_project } }
+    return { data: { total, completed, in_progress, overdue, by_status, by_list } }
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unknown error' }
   }
@@ -398,7 +398,7 @@ export async function getTaskCompletionReportAction(filters: {
 // ── 4. Overdue Tasks Report ───────────────────────────────────────────────────
 
 export async function getOverdueTasksReportAction(filters: {
-  projectId?: string
+  listId?: string
   priority?: string
 }): Promise<{ data?: OverdueTaskRow[]; error?: string }> {
   try {
@@ -407,30 +407,30 @@ export async function getOverdueTasksReportAction(filters: {
 
     const admin = createAdminClient()
 
-    const { data: workspaces } = await admin
+    const { data: spaces } = await admin
       .from('spaces')
       .select('id')
       .eq('organization_id', orgId)
-    const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
-    if (workspaceIds.length === 0) return { data: [] }
+    const spaceIds = (spaces ?? []).map((w: any) => w.id)
+    if (spaceIds.length === 0) return { data: [] }
 
-    let projectQuery = admin
+    let listQuery = admin
       .from('lists')
       .select('id, name')
-      .in('space_id', workspaceIds)
-    if (filters.projectId) projectQuery = projectQuery.eq('id', filters.projectId)
-    const { data: projects } = await projectQuery
-    const projectIds = (projects ?? []).map((p: any) => p.id)
-    const projectMap = Object.fromEntries((projects ?? []).map((p: any) => [p.id, p.name]))
+      .in('space_id', spaceIds)
+    if (filters.listId) listQuery = listQuery.eq('id', filters.listId)
+    const { data: lists } = await listQuery
+    const listIds = (lists ?? []).map((p: any) => p.id)
+    const listMap = Object.fromEntries((lists ?? []).map((p: any) => [p.id, p.name]))
 
-    if (projectIds.length === 0) return { data: [] }
+    if (listIds.length === 0) return { data: [] }
 
     const today = new Date().toISOString().slice(0, 10)
 
     let taskQuery = admin
       .from('tasks')
       .select('id, title, priority, due_date, list_id, task_assignees(user_id)')
-      .in('list_id', projectIds)
+      .in('list_id', listIds)
       .lt('due_date', today)
       .not('status', 'in', '("done","cancelled")')
       .not('due_date', 'is', null)
@@ -472,7 +472,7 @@ export async function getOverdueTasksReportAction(filters: {
       return {
         id: t.id,
         title: t.title,
-        project_name: projectMap[t.list_id] ?? 'Unknown Project',
+        list_name: listMap[t.list_id] ?? 'Unknown List',
         priority: t.priority,
         due_date: t.due_date,
         days_overdue,
@@ -506,7 +506,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 }
 
 export async function getTaskDistributionReportAction(filters: {
-  projectId?: string
+  listId?: string
 }): Promise<{ data?: TaskDistributionData; error?: string }> {
   try {
     const { orgId, error: orgError } = await getOrgId()
@@ -514,31 +514,31 @@ export async function getTaskDistributionReportAction(filters: {
 
     const admin = createAdminClient()
 
-    const { data: workspaces } = await admin
+    const { data: spaces } = await admin
       .from('spaces')
       .select('id')
       .eq('organization_id', orgId)
-    const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
-    if (workspaceIds.length === 0) {
+    const spaceIds = (spaces ?? []).map((w: any) => w.id)
+    if (spaceIds.length === 0) {
       return { data: { by_status: [], by_priority: [], by_assignee: [] } }
     }
 
-    let projectQuery = admin
+    let listQuery = admin
       .from('lists')
       .select('id')
-      .in('space_id', workspaceIds)
-    if (filters.projectId) projectQuery = projectQuery.eq('id', filters.projectId)
-    const { data: projects } = await projectQuery
-    const projectIds = (projects ?? []).map((p: any) => p.id)
+      .in('space_id', spaceIds)
+    if (filters.listId) listQuery = listQuery.eq('id', filters.listId)
+    const { data: lists } = await listQuery
+    const listIds = (lists ?? []).map((p: any) => p.id)
 
-    if (projectIds.length === 0) {
+    if (listIds.length === 0) {
       return { data: { by_status: [], by_priority: [], by_assignee: [] } }
     }
 
     const { data: tasks, error: tasksError } = await admin
       .from('tasks')
       .select('id, status, priority, task_assignees(user_id)')
-      .in('list_id', projectIds)
+      .in('list_id', listIds)
 
     if (tasksError || !tasks) {
       return { data: { by_status: [], by_priority: [], by_assignee: [] } }
@@ -608,7 +608,7 @@ export async function getTaskDistributionReportAction(filters: {
 export async function getTimeLogReportAction(filters: {
   startDate: string
   endDate: string
-  projectId?: string
+  listId?: string
   userId?: string
 }): Promise<{ data?: TimeLogRow[]; error?: string }> {
   try {
@@ -617,23 +617,23 @@ export async function getTimeLogReportAction(filters: {
 
     const admin = createAdminClient()
 
-    const { data: workspaces } = await admin
+    const { data: spaces } = await admin
       .from('spaces')
       .select('id')
       .eq('organization_id', orgId)
-    const workspaceIds = (workspaces ?? []).map((w: any) => w.id)
-    if (workspaceIds.length === 0) return { data: [] }
+    const spaceIds = (spaces ?? []).map((w: any) => w.id)
+    if (spaceIds.length === 0) return { data: [] }
 
-    let projectQuery = admin
+    let listQuery = admin
       .from('lists')
       .select('id, name')
-      .in('space_id', workspaceIds)
-    if (filters.projectId) projectQuery = projectQuery.eq('id', filters.projectId)
-    const { data: projects } = await projectQuery
-    const projectIds = (projects ?? []).map((p: any) => p.id)
-    const projectMap = Object.fromEntries((projects ?? []).map((p: any) => [p.id, p.name]))
+      .in('space_id', spaceIds)
+    if (filters.listId) listQuery = listQuery.eq('id', filters.listId)
+    const { data: lists } = await listQuery
+    const listIds = (lists ?? []).map((p: any) => p.id)
+    const listMap = Object.fromEntries((lists ?? []).map((p: any) => [p.id, p.name]))
 
-    if (projectIds.length === 0) return { data: [] }
+    if (listIds.length === 0) return { data: [] }
 
     let entryQuery = admin
       .from('time_entries')
@@ -642,7 +642,7 @@ export async function getTimeLogReportAction(filters: {
       )
       .gte('started_at', `${filters.startDate}T00:00:00`)
       .lte('started_at', `${filters.endDate}T23:59:59`)
-      .in('task.list_id', projectIds)
+      .in('task.list_id', listIds)
       .not('duration_minutes', 'is', null)
       .order('started_at', { ascending: false })
 
@@ -668,7 +668,7 @@ export async function getTimeLogReportAction(filters: {
       id: e.id,
       date: (e.started_at as string).slice(0, 10),
       user_name: profileMap[e.user_id] ?? 'Unknown User',
-      project_name: projectMap[e.task?.list_id] ?? 'Unknown Project',
+      list_name: listMap[e.task?.list_id] ?? 'Unknown List',
       task_title: e.task?.title ?? 'Unknown Task',
       duration_minutes: e.duration_minutes ?? 0,
       description: e.description ?? null,

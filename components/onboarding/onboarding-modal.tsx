@@ -28,7 +28,7 @@ const STAFF_FEATURES = [
 
 const ROLE_FEATURES: Record<Role, typeof STAFF_FEATURES> = {
   super_admin: [
-    { icon: <FolderKanban className="h-5 w-5 text-blue-500" />,   title: 'Workspaces & Projects', desc: 'Organise work into workspaces and create projects for each client.' },
+    { icon: <FolderKanban className="h-5 w-5 text-blue-500" />,   title: 'Spaces & Lists', desc: 'Organise work into spaces and create lists for each client.' },
     { icon: <Users className="h-5 w-5 text-purple-500" />,        title: 'Team Management',       desc: 'Invite staff, assign roles, and manage permissions.' },
     { icon: <CalendarCheck className="h-5 w-5 text-green-500" />, title: 'Attendance',            desc: 'Monitor daily check-ins and approve leave requests.' },
   ],
@@ -36,12 +36,12 @@ const ROLE_FEATURES: Record<Role, typeof STAFF_FEATURES> = {
   project_manager: STAFF_FEATURES,
   staff:           STAFF_FEATURES,
   client: [
-    { icon: <FolderKanban className="h-5 w-5 text-blue-500" />,  title: 'Your Projects',   desc: "Bird's-eye view of every project we're running for you." },
+    { icon: <FolderKanban className="h-5 w-5 text-blue-500" />,  title: 'Your Lists',   desc: "Bird's-eye view of every list we're running for you." },
     { icon: <BarChart3 className="h-5 w-5 text-purple-500" />,   title: 'Progress',        desc: 'Live progress bars and status updates keep you informed.' },
     { icon: <Eye className="h-5 w-5 text-green-500" />,          title: 'Task Visibility', desc: 'Drill into tasks and milestones to see exactly where things stand.' },
   ],
   partner: [
-    { icon: <FolderKanban className="h-5 w-5 text-blue-500" />,  title: 'Your Projects',   desc: "Bird's-eye view of every project we're running with you." },
+    { icon: <FolderKanban className="h-5 w-5 text-blue-500" />,  title: 'Your Lists',   desc: "Bird's-eye view of every list we're running with you." },
     { icon: <BarChart3 className="h-5 w-5 text-purple-500" />,   title: 'Progress',        desc: 'Live progress bars and status updates keep you informed.' },
     { icon: <Eye className="h-5 w-5 text-green-500" />,          title: 'Task Visibility', desc: 'Drill into tasks to see exactly where things stand.' },
   ],
@@ -55,7 +55,7 @@ const STAFF_TIPS = [
 
 const ROLE_TIPS: Record<Role, { title: string; body: string }[]> = {
   super_admin: [
-    { title: 'Create your first space', body: 'Head to Spaces to create one and start adding projects.' },
+    { title: 'Create your first space', body: 'Head to Spaces to create one and start adding lists.' },
     { title: 'Invite your team',            body: 'Go to Settings → Team to invite staff members.' },
     { title: 'Configure attendance rules',  body: 'Visit Attendance → Settings to set check-in windows.' },
   ],
@@ -63,12 +63,12 @@ const ROLE_TIPS: Record<Role, { title: string; body: string }[]> = {
   project_manager: STAFF_TIPS,
   staff:           STAFF_TIPS,
   client: [
-    { title: 'Bookmark your dashboard', body: 'Your dashboard gives a real-time summary of all active projects.' },
+    { title: 'Bookmark your dashboard', body: 'Your dashboard gives a real-time summary of all active lists.' },
     { title: 'Explore task details',    body: 'Click any task to see its description, assignees, and activity.' },
     { title: 'Reach out if needed',     body: 'Use task comments to ask questions directly to the team.' },
   ],
   partner: [
-    { title: 'Bookmark your dashboard', body: 'Your dashboard gives a real-time summary of all active projects.' },
+    { title: 'Bookmark your dashboard', body: 'Your dashboard gives a real-time summary of all active lists.' },
     { title: 'Explore task details',    body: 'Click any task to see its description, assignees, and activity.' },
     { title: 'Reach out if needed',     body: 'Use task comments to ask questions directly to the team.' },
   ],
@@ -164,7 +164,7 @@ export function OnboardingModal({ open, role, fullName, onSkip, onFinish }: Onbo
             <div className="space-y-2">
               <h1 className="text-3xl font-bold tracking-tight">Welcome to IWW PM</h1>
               <p className="text-muted-foreground text-sm leading-relaxed max-w-xs mx-auto">
-                A purpose-built system for managing projects, teams, and client work — all in one place.
+                A purpose-built system for managing lists, teams, and client work — all in one place.
               </p>
             </div>
             <Button

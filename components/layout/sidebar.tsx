@@ -37,8 +37,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { createClient } from '@/lib/supabase/client'
-import { CreateWorkspaceDialog } from '@/components/workspaces/create-workspace-dialog'
-import { CreateProjectDialog } from '@/components/projects/create-project-dialog'
+import { CreateSpaceDialog } from '@/components/spaces/create-space-dialog'
+import { CreateListDialog } from '@/components/lists/create-list-dialog'
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { getSidebarDataAction } from '@/app/actions/sidebar'
 
@@ -188,21 +188,21 @@ function NavItem({
 // ─── space item ────────────────────────────────────────────────────────────────
 
 function SpaceItem({
-  workspace,
-  projects,
+  space,
+  lists,
   pathname,
   onClose,
   onCreateList,
   onCreateTask,
 }: {
-  workspace: Space
-  projects: List[]
+  space: Space
+  lists: List[]
   pathname: string
   onClose: () => void
   onCreateList: (spaceId: string) => void
   onCreateTask: (listId: string) => void
 }) {
-  const hasActiveProject = projects.some(p => pathname.startsWith(`/lists/${p.id}`))
+  const hasActiveList = lists.some(p => pathname.startsWith(`/lists/${p.id}`))
   const [open, setOpen] = useState(true)
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false)
   const [listMenuOpen, setListMenuOpen] = useState<string | null>(null)
@@ -210,11 +210,11 @@ function SpaceItem({
   const listPlusBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   useEffect(() => {
-    if (hasActiveProject) setOpen(true)
-  }, [hasActiveProject])
+    if (hasActiveList) setOpen(true)
+  }, [hasActiveList])
 
-  const color = getSpaceColor(workspace.id)
-  const initial = workspace.name.slice(0, 1).toUpperCase()
+  const color = getSpaceColor(space.id)
+  const initial = space.name.slice(0, 1).toUpperCase()
 
   return (
     <div>
@@ -232,7 +232,7 @@ function SpaceItem({
             {initial}
           </span>
           <span className="flex-1 truncate text-[13px] font-semibold text-sidebar-foreground/80 group-hover:text-white transition-colors">
-            {workspace.name}
+            {space.name}
           </span>
         </button>
         {/* Actions: ... and + */}
@@ -253,7 +253,7 @@ function SpaceItem({
               anchorRef={spacePlusBtnRef}
               onClose={() => setSpaceMenuOpen(false)}
               items={[
-                { icon: ListChecks, label: 'List', description: 'Track tasks, projects, people & more', onClick: () => { setSpaceMenuOpen(false); onCreateList(workspace.id) } },
+                { icon: ListChecks, label: 'List', description: 'Track tasks, lists, people & more', onClick: () => { setSpaceMenuOpen(false); onCreateList(space.id) } },
                 { icon: FolderOpen, label: 'Folder', description: 'Group Lists, Docs & more', onClick: () => setSpaceMenuOpen(false) },
               ]}
             />
@@ -264,12 +264,12 @@ function SpaceItem({
       {/* Lists */}
       {open && (
         <div className="pb-0.5">
-          {projects.length === 0 ? (
+          {lists.length === 0 ? (
             <p className="py-1.5 text-[12px] text-sidebar-foreground/25 font-medium pl-9 pr-3">
               No lists yet
             </p>
           ) : (
-            projects.map(proj => {
+            lists.map(proj => {
               const active = pathname.startsWith(`/lists/${proj.id}`)
               return (
                 <div key={proj.id} className="group/list relative flex items-center rounded-lg transition-colors hover:bg-white/5">
@@ -308,7 +308,7 @@ function SpaceItem({
                         onClose={() => setListMenuOpen(null)}
                         items={[
                           { icon: CircleDot, label: 'Task', description: 'Create individual tasks to manage your work', onClick: () => { setListMenuOpen(null); onCreateTask(proj.id) } },
-                          { icon: ListChecks, label: 'List', description: 'Track tasks, projects, people & more', onClick: () => { setListMenuOpen(null); onCreateList(workspace.id) } },
+                          { icon: ListChecks, label: 'List', description: 'Track tasks, lists, people & more', onClick: () => { setListMenuOpen(null); onCreateList(space.id) } },
                         ]}
                       />
                     )}
@@ -343,8 +343,8 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
   const searchParams = useSearchParams()
   const supabase = createClient()
 
-  const [workspaces,        setWorkspaces]        = useState<Space[]>(initialSpaces)
-  const [projects,          setProjects]          = useState<List[]>(initialLists)
+  const [spaces,        setSpaces]        = useState<Space[]>(initialSpaces)
+  const [lists,          setLists]          = useState<List[]>(initialLists)
   const [showCreateSpace,   setShowCreateSpace]   = useState(false)
   const [staffProfiles,     setStaffProfiles]     = useState<Profile[]>([])
   const [showCreateList,    setShowCreateList]    = useState(false)
@@ -354,10 +354,10 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
 
   // Server-action-based fetch — uses admin client, bypasses RLS restrictions
   async function fetchSidebarData() {
-    const { workspaces: ws, projects: proj } = await getSidebarDataAction()
+    const { spaces: ws, lists: proj } = await getSidebarDataAction()
     if (ws.length > 0 || proj.length > 0) {
-      setWorkspaces(ws)
-      setProjects(proj)
+      setSpaces(ws)
+      setLists(proj)
     }
   }
 
@@ -559,11 +559,11 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
                   </Link>
 
                   {/* Space items */}
-                  {workspaces.map(ws => (
+                  {spaces.map(ws => (
                     <SpaceItem
                       key={ws.id}
-                      workspace={ws}
-                      projects={projects.filter(p => p.space_id === ws.id)}
+                      space={ws}
+                      lists={lists.filter(p => p.space_id === ws.id)}
                       pathname={pathname}
                       onClose={onClose}
                       onCreateList={openCreateList}
@@ -650,23 +650,23 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
       </aside>
 
       {/* ── Create Space Dialog ── */}
-      <CreateWorkspaceDialog
+      <CreateSpaceDialog
         open={showCreateSpace}
         onOpenChange={setShowCreateSpace}
         staffProfiles={staffProfiles}
         onSuccess={(newWs) => {
-          setWorkspaces(prev => [...prev, { ...newWs }])
+          setSpaces(prev => [...prev, { ...newWs }])
           setShowCreateSpace(false)
         }}
       />
 
       {/* ── Create List Dialog ── */}
-      <CreateProjectDialog
+      <CreateListDialog
         open={showCreateList}
         onOpenChange={setShowCreateList}
-        workspaces={createListSpaceId ? workspaces.filter(w => w.id === createListSpaceId) : workspaces}
+        spaces={createListSpaceId ? spaces.filter(w => w.id === createListSpaceId) : spaces}
         onCreated={(newList) => {
-          setProjects(prev => [...prev, newList].sort((a, b) => a.name.localeCompare(b.name)))
+          setLists(prev => [...prev, newList].sort((a, b) => a.name.localeCompare(b.name)))
           setShowCreateList(false)
         }}
         profile={profile}
@@ -677,9 +677,9 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
         <CreateTaskDialog
           open={showCreateTask}
           onOpenChange={setShowCreateTask}
-          projects={projects}
+          lists={lists}
           profile={profile}
-          projectId={createTaskListId}
+          listId={createTaskListId}
           onCreated={() => { setShowCreateTask(false) }}
         />
       )}

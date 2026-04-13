@@ -50,7 +50,7 @@ export interface DashboardTimeEntry {
   task_id: string
   task_title: string
   list_id: string
-  project_name: string
+  list_name: string
   user_full_name: string
   user_avatar_url: string | null
   duration_minutes: number | null
@@ -61,14 +61,14 @@ export interface DashboardTimeEntry {
 interface DashboardPageProps {
   profile: Profile
   // Super admin
-  totalProjects?: number
-  activeProjects?: number
+  totalLists?: number
+  activeLists?: number
   overdueTasks?: number
   pendingLeaveRequests?: number
   todayAttendanceCount?: number
   totalStaff?: number
   recentActivity?: ActivityLog[]
-  recentProjects?: List[]
+  recentLists?: List[]
   recentTeamTimeEntries?: DashboardTimeEntry[]
   // Staff / Manager
   myTasks?: Task[]
@@ -77,7 +77,7 @@ interface DashboardPageProps {
   timeTrackedTodayMinutes?: number
   myRecentTimeEntries?: DashboardTimeEntry[]
   // Client
-  clientProjects?: List[]
+  clientLists?: List[]
 }
 
 function getGreeting(name: string) {
@@ -88,21 +88,21 @@ function getGreeting(name: string) {
 
 export function DashboardPage({
   profile,
-  totalProjects,
-  activeProjects,
+  totalLists,
+  activeLists,
   overdueTasks,
   pendingLeaveRequests,
   todayAttendanceCount,
   totalStaff,
   recentActivity,
-  recentProjects,
+  recentLists,
   recentTeamTimeEntries,
   myTasks,
   myAttendanceToday,
   myLeaveBalance,
   timeTrackedTodayMinutes,
   myRecentTimeEntries,
-  clientProjects,
+  clientLists,
 }: DashboardPageProps) {
   const router = useRouter()
   const role = profile.role
@@ -114,14 +114,14 @@ export function DashboardPage({
       {role === 'super_admin' && (
         <SuperAdminDashboard
           profile={profile}
-          totalProjects={totalProjects ?? 0}
-          activeProjects={activeProjects ?? 0}
+          totalLists={totalLists ?? 0}
+          activeLists={activeLists ?? 0}
           overdueTasks={overdueTasks ?? 0}
           pendingLeaveRequests={pendingLeaveRequests ?? 0}
           todayAttendanceCount={todayAttendanceCount ?? 0}
           totalStaff={totalStaff ?? 0}
           recentActivity={recentActivity ?? []}
-          recentProjects={recentProjects ?? []}
+          recentLists={recentLists ?? []}
           recentTeamTimeEntries={recentTeamTimeEntries ?? []}
           router={router}
         />
@@ -151,11 +151,11 @@ export function DashboardPage({
             </p>
           </div>
           <div data-tour="dashboard-stats" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard title="Total Lists" value={clientProjects?.length ?? 0} icon={FolderKanban} variant="blue" />
-            <StatCard title="In Progress" value={clientProjects?.filter(p => p.status === 'in_progress').length ?? 0} icon={TrendingUp} variant="green" />
-            <StatCard title="Completed" value={clientProjects?.filter(p => p.status === 'completed').length ?? 0} icon={CheckSquare} variant="purple" />
+            <StatCard title="Total Lists" value={clientLists?.length ?? 0} icon={FolderKanban} variant="blue" />
+            <StatCard title="In Progress" value={clientLists?.filter(p => p.status === 'in_progress').length ?? 0} icon={TrendingUp} variant="green" />
+            <StatCard title="Completed" value={clientLists?.filter(p => p.status === 'completed').length ?? 0} icon={CheckSquare} variant="purple" />
           </div>
-          <ClientProjectsList projects={clientProjects ?? []} router={router} />
+          <ClientListsList lists={clientLists ?? []} router={router} />
         </>
       )}
     </div>
@@ -166,26 +166,26 @@ export function DashboardPage({
 
 function SuperAdminDashboard({
   profile,
-  totalProjects,
-  activeProjects,
+  totalLists,
+  activeLists,
   overdueTasks,
   pendingLeaveRequests,
   todayAttendanceCount,
   totalStaff,
   recentActivity,
-  recentProjects,
+  recentLists,
   recentTeamTimeEntries,
   router,
 }: {
   profile: Profile
-  totalProjects: number
-  activeProjects: number
+  totalLists: number
+  activeLists: number
   overdueTasks: number
   pendingLeaveRequests: number
   todayAttendanceCount: number
   totalStaff: number
   recentActivity: ActivityLog[]
-  recentProjects: List[]
+  recentLists: List[]
   recentTeamTimeEntries: DashboardTimeEntry[]
   router: ReturnType<typeof useRouter>
 }) {
@@ -202,14 +202,14 @@ function SuperAdminDashboard({
       </div>
 
       {/* Recents */}
-      {recentProjects.length > 0 && (
-        <RecentsStrip items={recentProjects.map(p => ({ id: p.id, name: p.name, subtitle: formatStatus(p.status), href: `/lists/${p.id}`, type: 'project' as const }))} router={router} />
+      {recentLists.length > 0 && (
+        <RecentsStrip items={recentLists.map(p => ({ id: p.id, name: p.name, subtitle: formatStatus(p.status), href: `/lists/${p.id}`, type: 'list' as const }))} router={router} />
       )}
 
       {/* Stats */}
       <div data-tour="dashboard-stats" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard title="Total Lists"  value={totalProjects}        icon={FolderKanban}  variant="blue"    />
-        <StatCard title="Active"          value={activeProjects}       icon={TrendingUp}    variant="green"   />
+        <StatCard title="Total Lists"  value={totalLists}        icon={FolderKanban}  variant="blue"    />
+        <StatCard title="Active"          value={activeLists}       icon={TrendingUp}    variant="green"   />
         <StatCard title="Overdue Tasks"   value={overdueTasks}         icon={AlertTriangle} variant="red"     />
         <StatCard title="Pending Leaves"  value={pendingLeaveRequests} icon={CalendarDays}  variant="yellow"  />
         <StatCard title="Present Today"   value={todayAttendanceCount} subtitle={`of ${totalStaff} staff`} icon={Users} variant="purple" />
@@ -227,7 +227,7 @@ function SuperAdminDashboard({
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_340px]">
         {/* Left */}
         <div className="space-y-5">
-          <RecentProjectsCard projects={recentProjects} router={router} />
+          <RecentListsCard lists={recentLists} router={router} />
           <ActivityFeedCard activities={recentActivity} />
         </div>
         {/* Right */}
@@ -315,7 +315,7 @@ function StaffDashboard({
         items={myTasks.slice(0, 6).map(t => ({
           id: t.id,
           name: t.title,
-          subtitle: t.project?.name ?? '',
+          subtitle: t.list?.name ?? '',
           href: `/lists/${t.list_id}/tasks/${t.id}`,
           type: 'task' as const,
         }))}
@@ -456,7 +456,7 @@ function RecentsStrip({
   items,
   router,
 }: {
-  items: { id: string; name: string; subtitle: string; href: string; type: 'project' | 'task' }[]
+  items: { id: string; name: string; subtitle: string; href: string; type: 'list' | 'task' }[]
   router: ReturnType<typeof useRouter>
 }) {
   if (items.length === 0) return null
@@ -472,9 +472,9 @@ function RecentsStrip({
           >
             <div className={cn(
               'flex h-5 w-5 shrink-0 items-center justify-center rounded',
-              item.type === 'project' ? 'bg-violet-100' : 'bg-blue-100',
+              item.type === 'list' ? 'bg-violet-100' : 'bg-blue-100',
             )}>
-              {item.type === 'project'
+              {item.type === 'list'
                 ? <Hash className="h-3 w-3 text-violet-600" />
                 : <CheckSquare className="h-3 w-3 text-blue-600" />
               }
@@ -573,9 +573,9 @@ function WorkTaskRow({ task, color, router }: { task: Task; color: string; route
 
       {/* Tags */}
       <div className="flex items-center gap-1.5 shrink-0">
-        {task.project?.name && (
+        {task.list?.name && (
           <span className="rounded px-1.5 py-0.5 text-[11px] font-medium bg-violet-50 text-violet-700 border border-violet-100">
-            {task.project.name}
+            {task.list.name}
           </span>
         )}
         <StatusChip status={task.status} />
@@ -626,8 +626,8 @@ function AssignedToMePanel({
               <StatusChip status={task.status} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-medium text-foreground leading-snug">{task.title}</p>
-                {task.project?.name && (
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/60">{task.project.name}</p>
+                {task.list?.name && (
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/60">{task.list.name}</p>
                 )}
               </div>
               <PriorityDot priority={task.priority} />
@@ -691,36 +691,36 @@ function PriorityDot({ priority }: { priority: string }) {
   )
 }
 
-// ─── Recent Projects Card ─────────────────────────────────────────────────────
+// ─── Recent Lists Card ─────────────────────────────────────────────────────
 
-function RecentProjectsCard({ projects, router }: { projects: List[]; router: ReturnType<typeof useRouter> }) {
+function RecentListsCard({ lists, router }: { lists: List[]; router: ReturnType<typeof useRouter> }) {
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
-        <h3 className="text-[14px] font-semibold text-foreground">Recent Projects</h3>
+        <h3 className="text-[14px] font-semibold text-foreground">Recent Lists</h3>
         <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-7" onClick={() => router.push('/lists')}>View all</Button>
       </div>
-      {projects.length === 0 ? (
+      {lists.length === 0 ? (
         <p className="px-5 py-8 text-center text-sm text-muted-foreground/70">No lists yet</p>
       ) : (
         <ul className="divide-y divide-border/40">
-          {projects.slice(0, 5).map(project => (
+          {lists.slice(0, 5).map(list => (
             <li
-              key={project.id}
+              key={list.id}
               className="flex cursor-pointer items-center justify-between gap-4 px-5 py-3 transition-colors hover:bg-muted/30"
-              onClick={() => router.push(`/lists/${project.id}`)}
+              onClick={() => router.push(`/lists/${list.id}`)}
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-medium text-foreground">{project.name}</p>
+                <p className="truncate text-[13px] font-medium text-foreground">{list.name}</p>
                 <div className="mt-1 flex items-center gap-2">
-                  <Progress value={project.progress} className="h-1.5 w-20" />
-                  <span className="text-[11px] text-muted-foreground/70">{project.progress}%</span>
+                  <Progress value={list.progress} className="h-1.5 w-20" />
+                  <span className="text-[11px] text-muted-foreground/70">{list.progress}%</span>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <StatusChip status={project.status} />
-                {project.due_date && (
-                  <span className="text-[11px] text-muted-foreground/70">{formatDate(project.due_date)}</span>
+                <StatusChip status={list.status} />
+                {list.due_date && (
+                  <span className="text-[11px] text-muted-foreground/70">{formatDate(list.due_date)}</span>
                 )}
               </div>
             </li>
@@ -853,7 +853,7 @@ function TimeLogWidget({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-medium text-foreground">{running.task_title}</p>
                 <p className="truncate text-[11px] text-muted-foreground/60">
-                  {running.project_name}{showUser && ` · ${running.user_full_name}`}
+                  {running.list_name}{showUser && ` · ${running.user_full_name}`}
                 </p>
               </div>
               <div className="shrink-0 text-right">
@@ -879,7 +879,7 @@ function TimeLogWidget({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-medium text-foreground">{entry.task_title}</p>
                 <p className="truncate text-[11px] text-muted-foreground/60">
-                  {entry.project_name}{showUser && ` · ${entry.user_full_name}`}
+                  {entry.list_name}{showUser && ` · ${entry.user_full_name}`}
                 </p>
               </div>
               <div className="shrink-0 text-right">
@@ -896,38 +896,38 @@ function TimeLogWidget({
   )
 }
 
-// ─── Client Projects List ─────────────────────────────────────────────────────
+// ─── Client Lists List ─────────────────────────────────────────────────────
 
-function ClientProjectsList({ projects, router }: { projects: List[]; router: ReturnType<typeof useRouter> }) {
+function ClientListsList({ lists, router }: { lists: List[]; router: ReturnType<typeof useRouter> }) {
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm">
       <div className="border-b border-border/60 px-5 py-4">
-        <h3 className="text-[14px] font-semibold text-foreground">Your Projects</h3>
+        <h3 className="text-[14px] font-semibold text-foreground">Your Lists</h3>
       </div>
-      {projects.length === 0 ? (
+      {lists.length === 0 ? (
         <p className="px-5 py-8 text-center text-sm text-muted-foreground/70">No lists assigned</p>
       ) : (
         <ul className="divide-y divide-border/40">
-          {projects.map(project => (
+          {lists.map(list => (
             <li
-              key={project.id}
+              key={list.id}
               className="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/30"
-              onClick={() => router.push(`/lists/${project.id}`)}
+              onClick={() => router.push(`/lists/${list.id}`)}
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-foreground">{project.name}</p>
-                {project.description && (
-                  <p className="mt-0.5 truncate text-sm text-muted-foreground">{project.description}</p>
+                <p className="truncate font-medium text-foreground">{list.name}</p>
+                {list.description && (
+                  <p className="mt-0.5 truncate text-sm text-muted-foreground">{list.description}</p>
                 )}
                 <div className="mt-2 flex items-center gap-2">
-                  <Progress value={project.progress} className="h-1.5 w-32" />
-                  <span className="text-[11px] text-muted-foreground/70">{project.progress}% complete</span>
+                  <Progress value={list.progress} className="h-1.5 w-32" />
+                  <span className="text-[11px] text-muted-foreground/70">{list.progress}% complete</span>
                 </div>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <StatusChip status={project.status} />
-                {project.due_date && (
-                  <span className="text-[11px] text-muted-foreground/70">Due {formatDate(project.due_date)}</span>
+                <StatusChip status={list.status} />
+                {list.due_date && (
+                  <span className="text-[11px] text-muted-foreground/70">Due {formatDate(list.due_date)}</span>
                 )}
               </div>
             </li>

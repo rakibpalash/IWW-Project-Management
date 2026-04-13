@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Profile, Space } from '@/types'
 import { BarChart2, FolderKanban, CheckSquare, AlertTriangle, PieChart, Timer, Users, Clock, CalendarDays, ChevronRight } from 'lucide-react'
-import { ProjectProgressReport } from './project-progress-report'
-import { ProjectTimeReport } from './project-time-report'
+import { ListProgressReport } from './list-progress-report'
+import { ListTimeReport } from './list-time-report'
 import { TaskCompletionReport } from './task-completion-report'
 import { OverdueTasksReport } from './overdue-tasks-report'
 import { TaskDistributionReport } from './task-distribution-report'
@@ -21,8 +21,8 @@ interface Props {
 }
 
 type ReportId =
-  | 'project-progress'
-  | 'project-time'
+  | 'list-progress'
+  | 'list-time'
   | 'task-completion'
   | 'overdue-tasks'
   | 'task-distribution'
@@ -45,10 +45,10 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    group: 'Projects',
+    group: 'Lists',
     items: [
-      { id: 'project-progress', label: 'Project Progress', icon: <FolderKanban className="h-4 w-4" />, description: 'Status, tasks, and timeline health' },
-      { id: 'project-time', label: 'Project Time', icon: <Timer className="h-4 w-4" />, description: 'Hours logged per project & member' },
+      { id: 'list-progress', label: 'List Progress', icon: <FolderKanban className="h-4 w-4" />, description: 'Status, tasks, and timeline health' },
+      { id: 'list-time', label: 'List Time', icon: <Timer className="h-4 w-4" />, description: 'Hours logged per list & member' },
     ],
   },
   {
@@ -75,25 +75,25 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-const DEFAULT_REPORT: ReportId = 'project-progress'
+const DEFAULT_REPORT: ReportId = 'list-progress'
 
 export function ReportsPage({ profile, isAdmin, defaultReport }: Props) {
   const [activeReport, setActiveReport] = useState<ReportId>(
     (defaultReport as ReportId) ?? DEFAULT_REPORT
   )
-  const [workspaces, setWorkspaces] = useState<Space[]>([])
+  const [spaces, setSpaces] = useState<Space[]>([])
 
-  // Fetch workspaces for filter dropdowns
+  // Fetch spaces for filter dropdowns
   useEffect(() => {
-    async function fetchWorkspaces() {
+    async function fetchSpaces() {
       const supabase = createClient()
       const { data } = await supabase
         .from('spaces')
         .select('id, name, description, created_by, created_at, updated_at')
         .order('name')
-      setWorkspaces(data ?? [])
+      setSpaces(data ?? [])
     }
-    fetchWorkspaces()
+    fetchSpaces()
   }, [])
 
   function handleNavClick(id: ReportId) {
@@ -156,23 +156,23 @@ export function ReportsPage({ profile, isAdmin, defaultReport }: Props) {
           </div>
 
           {/* Report content */}
-          {activeReport === 'project-progress' && (
-            <ProjectProgressReport workspaces={workspaces} isAdmin={isAdmin} />
+          {activeReport === 'list-progress' && (
+            <ListProgressReport spaces={spaces} isAdmin={isAdmin} />
           )}
-          {activeReport === 'project-time' && (
-            <ProjectTimeReport workspaces={workspaces} isAdmin={isAdmin} />
+          {activeReport === 'list-time' && (
+            <ListTimeReport spaces={spaces} isAdmin={isAdmin} />
           )}
           {activeReport === 'task-completion' && (
-            <TaskCompletionReport workspaces={workspaces} isAdmin={isAdmin} />
+            <TaskCompletionReport spaces={spaces} isAdmin={isAdmin} />
           )}
           {activeReport === 'overdue-tasks' && (
-            <OverdueTasksReport workspaces={workspaces} isAdmin={isAdmin} />
+            <OverdueTasksReport spaces={spaces} isAdmin={isAdmin} />
           )}
           {activeReport === 'task-distribution' && (
-            <TaskDistributionReport workspaces={workspaces} isAdmin={isAdmin} />
+            <TaskDistributionReport spaces={spaces} isAdmin={isAdmin} />
           )}
           {activeReport === 'time-log' && (
-            <TimeLogReport workspaces={workspaces} isAdmin={isAdmin} />
+            <TimeLogReport spaces={spaces} isAdmin={isAdmin} />
           )}
           {activeReport === 'member-productivity' && (
             <MemberProductivityReport isAdmin={isAdmin} />

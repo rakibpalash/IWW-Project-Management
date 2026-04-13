@@ -25,7 +25,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { Loader2 } from 'lucide-react'
-import { renameWorkspaceAction } from '@/app/actions/workspaces'
+import { renameSpaceAction } from '@/app/actions/spaces'
 import { Space } from '@/types'
 
 const formSchema = z.object({
@@ -39,19 +39,19 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-interface RenameWorkspaceDialogProps {
-  workspace: Space | null
+interface RenameSpaceDialogProps {
+  space: Space | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: (id: string, name: string, description: string | null) => void
 }
 
-export function RenameWorkspaceDialog({
-  workspace,
+export function RenameSpaceDialog({
+  space,
   open,
   onOpenChange,
   onSuccess,
-}: RenameWorkspaceDialogProps) {
+}: RenameSpaceDialogProps) {
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
 
@@ -60,22 +60,22 @@ export function RenameWorkspaceDialog({
     defaultValues: { name: '', description: '' },
   })
 
-  // Populate form when workspace changes
+  // Populate form when space changes
   useEffect(() => {
-    if (workspace) {
+    if (space) {
       form.reset({
-        name: workspace.name,
-        description: workspace.description ?? '',
+        name: space.name,
+        description: space.description ?? '',
       })
     }
-  }, [workspace, form])
+  }, [space, form])
 
   async function onSubmit(values: FormValues) {
-    if (!workspace) return
+    if (!space) return
     setSaving(true)
     try {
-      const result = await renameWorkspaceAction(
-        workspace.id,
+      const result = await renameSpaceAction(
+        space.id,
         values.name,
         values.description
       )
@@ -87,7 +87,7 @@ export function RenameWorkspaceDialog({
 
       toast({ title: 'Space renamed', description: `Renamed to "${values.name}"` })
       onOpenChange(false)
-      onSuccess(workspace.id, values.name, values.description?.trim() || null)
+      onSuccess(space.id, values.name, values.description?.trim() || null)
     } finally {
       setSaving(false)
     }

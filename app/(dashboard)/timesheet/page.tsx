@@ -25,21 +25,21 @@ export default async function TimesheetServerPage() {
   const result = await getTimesheetEntriesAction({ dateFrom, dateTo })
   const entries = result.entries ?? []
 
-  // Fetch all workspaces for workspace filter (scoped to org)
-  const { data: workspaces } = orgId
+  // Fetch all spaces for space filter (scoped to org)
+  const { data: spaces } = orgId
     ? await admin.from('spaces').select('id, name').eq('organization_id', orgId).order('name')
     : { data: [] }
 
-  // Fetch project→workspace mapping (projects are scoped via workspaces)
-  const wsIds = (workspaces ?? []).map((w: { id: string }) => w.id)
-  const { data: projectsRaw } = wsIds.length > 0
+  // Fetch list→space mapping (lists are scoped via spaces)
+  const wsIds = (spaces ?? []).map((w: { id: string }) => w.id)
+  const { data: listsRaw } = wsIds.length > 0
     ? await admin.from('lists').select('id, name, space_id').in('space_id', wsIds).order('name')
     : { data: [] }
-  const projectWorkspaceMap: Record<string, string> = {}
-  for (const p of projectsRaw ?? []) {
-    projectWorkspaceMap[p.id] = p.space_id
+  const listSpaceMap: Record<string, string> = {}
+  for (const p of listsRaw ?? []) {
+    listSpaceMap[p.id] = p.space_id
   }
-  const allProjects = (projectsRaw ?? []).map((p) => ({ id: p.id, name: p.name, space_id: p.space_id }))
+  const allLists = (listsRaw ?? []).map((p) => ({ id: p.id, name: p.name, space_id: p.space_id }))
 
   // For admin: fetch all profiles for people filter (scoped to org)
   let allProfiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url' | 'role'>[] = []
@@ -54,9 +54,9 @@ export default async function TimesheetServerPage() {
       initialEntries={entries}
       initialDateFrom={dateFrom}
       initialDateTo={dateTo}
-      allWorkspaces={(workspaces ?? []) as { id: string; name: string }[]}
-      allProjects={allProjects}
-      projectWorkspaceMap={projectWorkspaceMap}
+      allSpaces={(spaces ?? []) as { id: string; name: string }[]}
+      allLists={allLists}
+      listSpaceMap={listSpaceMap}
       allProfiles={allProfiles}
     />
   )

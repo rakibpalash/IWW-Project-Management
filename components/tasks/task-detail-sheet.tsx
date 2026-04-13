@@ -277,7 +277,7 @@ export function TaskDetailSheet({
     setLoading(true)
     const { data: raw } = await supabase
       .from('tasks')
-      .select(`*, project:projects(id,name,space_id), assignees:task_assignees(user:profiles(${profileSelect}))`)
+      .select(`*, list:lists(id,name,space_id), assignees:task_assignees(user:profiles(${profileSelect}))`)
       .eq('id', id)
       .single()
 
@@ -329,7 +329,7 @@ export function TaskDetailSheet({
 
     // Fetch members if not passed in
     if (!externalMembers) {
-      const wsId = (raw as any).project?.space_id
+      const wsId = (raw as any).list?.space_id
       const [wsMems, admins] = await Promise.all([
         wsId ? supabase.from('space_assignments').select(`user:profiles(${profileSelect})`).eq('space_id', wsId) : Promise.resolve({ data: [] }),
         supabase.from('profiles').select(profileSelect).eq('role', 'super_admin'),
@@ -567,13 +567,13 @@ export function TaskDetailSheet({
               {/* ── Top bar ── */}
               <div className="flex items-center gap-2 border-b px-4 h-11 shrink-0 bg-background/95">
                 {/* Breadcrumb */}
-                {task.project && (
+                {task.list && (
                   <>
                     <button
                       className="text-xs text-muted-foreground hover:text-foreground transition-colors truncate max-w-[140px]"
                       onClick={() => router.push(`/lists/${task.list_id}`)}
                     >
-                      {task.project.name}
+                      {task.list.name}
                     </button>
                     <span className="text-muted-foreground/40 shrink-0 text-xs">/</span>
                   </>
@@ -956,16 +956,16 @@ export function TaskDetailSheet({
                       </div>
                     )}
 
-                    {/* Project */}
-                    {task.project && (
+                    {/* List */}
+                    {task.list && (
                       <>
                         <Separator className="my-2" />
-                        <PropRow icon={Hash} label="Project">
+                        <PropRow icon={Hash} label="List">
                           <button
                             onClick={() => router.push(`/lists/${task.list_id}`)}
                             className="text-xs px-2 text-primary hover:underline truncate"
                           >
-                            {task.project.name}
+                            {task.list.name}
                           </button>
                         </PropRow>
                       </>

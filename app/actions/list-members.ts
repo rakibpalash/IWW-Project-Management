@@ -8,8 +8,8 @@ import { notify } from '@/lib/notifications'
 
 const PROFILE_SELECT = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, custom_role_id'
 
-// ── Get project members ───────────────────────────────────────────────────────
-export async function getProjectMembersAction(projectId: string): Promise<{
+// ── Get list members ───────────────────────────────────────────────────────
+export async function getListMembersAction(listId: string): Promise<{
   members?: ListMember[]
   error?: string
 }> {
@@ -18,7 +18,7 @@ export async function getProjectMembersAction(projectId: string): Promise<{
   const { data: membersData, error: membersErr } = await admin
     .from('list_members')
     .select('*')
-    .eq('list_id', projectId)
+    .eq('list_id', listId)
     .order('created_at', { ascending: true })
 
   if (membersErr) return { error: membersErr.message }
@@ -44,8 +44,8 @@ export async function getProjectMembersAction(projectId: string): Promise<{
 }
 
 // ── Add member ────────────────────────────────────────────────────────────────
-export async function addProjectMemberAction(
-  projectId: string,
+export async function addListMemberAction(
+  listId: string,
   userId: string,
   role: 'lead' | 'member'
 ) {
@@ -56,7 +56,7 @@ export async function addProjectMemberAction(
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('list_members')
-    .insert({ list_id: projectId, user_id: userId, project_role: role })
+    .insert({ list_id: listId, user_id: userId, list_role: role })
     .select()
     .single()
 
@@ -64,30 +64,30 @@ export async function addProjectMemberAction(
 
   // Notify the added member (unless they added themselves)
   if (userId !== user.id) {
-    const { data: project } = await admin
+    const { data: list } = await admin
       .from('lists')
       .select('name')
-      .eq('id', projectId)
+      .eq('id', listId)
       .single()
 
     await notify({
       userId,
       type: 'project_member_added',
-      title: 'Added to project',
-      message: `You've been added to "${project?.name ?? 'a project'}" as ${role === 'lead' ? 'Team Lead' : 'Member'}.`,
-      link: `/lists/${projectId}`,
+      title: 'Added to list',
+      message: `You've been added to "${list?.name ?? 'a list'}" as ${role === 'lead' ? 'Team Lead' : 'Member'}.`,
+      link: `/lists/${listId}`,
     })
   }
 
-  revalidatePath(`/lists/${projectId}`)
+  revalidatePath(`/lists/${listId}`)
   return { member: data }
 }
 
 // ── Update member role ────────────────────────────────────────────────────────
-export async function updateProjectMemberRoleAction(
+export async function updateListMemberRoleAction(
   memberId: string,
   role: 'lead' | 'member',
-  projectId: string
+  listId: string
 ) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -96,18 +96,18 @@ export async function updateProjectMemberRoleAction(
   const admin = createAdminClient()
   const { error } = await admin
     .from('list_members')
-    .update({ project_role: role })
+    .update({ list_role: role })
     .eq('id', memberId)
 
   if (error) return { error: error.message }
-  revalidatePath(`/lists/${projectId}`)
+  revalidatePath(`/lists/${listId}`)
   return { success: true }
 }
 
 // ── Remove member ─────────────────────────────────────────────────────────────
-export async function removeProjectMemberAction(
+export async function removeListMemberAction(
   memberId: string,
-  projectId: string
+  listId: string
 ) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -120,6 +120,6 @@ export async function removeProjectMemberAction(
     .eq('id', memberId)
 
   if (error) return { error: error.message }
-  revalidatePath(`/lists/${projectId}`)
+  revalidatePath(`/lists/${listId}`)
   return { success: true }
 }

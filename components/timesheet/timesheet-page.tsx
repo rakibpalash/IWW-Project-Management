@@ -171,19 +171,19 @@ function StatCard({ icon: Icon, label, value, color }: {
   )
 }
 
-function WorkspaceFilter({
-  workspaces,
+function SpaceFilter({
+  spaces,
   selected,
   onChange,
 }: {
-  workspaces: { id: string; name: string }[]
+  spaces: { id: string; name: string }[]
   selected: string[]
   onChange: (ids: string[]) => void
 }) {
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
 
-  const filtered = workspaces.filter((w) =>
+  const filtered = spaces.filter((w) =>
     w.name.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -191,7 +191,7 @@ function WorkspaceFilter({
   const label = allSelected
     ? 'All Spaces'
     : selected.length === 1
-    ? (workspaces.find((w) => w.id === selected[0])?.name ?? '1 Space')
+    ? (spaces.find((w) => w.id === selected[0])?.name ?? '1 Space')
     : `${selected.length} Spaces`
 
   const toggle = (id: string) => {
@@ -225,7 +225,7 @@ function WorkspaceFilter({
           </div>
         </div>
         <div className="max-h-52 overflow-y-auto pb-2">
-          {/* All Workspaces option */}
+          {/* All Spaces option */}
           <button
             type="button"
             onClick={() => onChange([])}
@@ -267,19 +267,19 @@ function WorkspaceFilter({
   )
 }
 
-function ProjectFilter({
-  projects,
+function ListFilter({
+  lists,
   selected,
   onChange,
 }: {
-  projects: { id: string; name: string; space_id: string }[]
+  lists: { id: string; name: string; space_id: string }[]
   selected: string[]
   onChange: (ids: string[]) => void
 }) {
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
 
-  const filtered = projects.filter((p) =>
+  const filtered = lists.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -287,7 +287,7 @@ function ProjectFilter({
   const label = allSelected
     ? 'All Lists'
     : selected.length === 1
-    ? (projects.find((p) => p.id === selected[0])?.name ?? '1 List')
+    ? (lists.find((p) => p.id === selected[0])?.name ?? '1 List')
     : `${selected.length} Lists`
 
   const toggle = (id: string) => {
@@ -313,7 +313,7 @@ function ProjectFilter({
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
             <Input
-              placeholder="Search projects"
+              placeholder="Search lists"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm"
@@ -470,9 +470,9 @@ interface TimesheetPageProps {
   initialEntries: TimesheetRow[]
   initialDateFrom: string
   initialDateTo: string
-  allWorkspaces: { id: string; name: string }[]
-  allProjects: { id: string; name: string; space_id: string }[]
-  projectWorkspaceMap: Record<string, string>
+  allSpaces: { id: string; name: string }[]
+  allLists: { id: string; name: string; space_id: string }[]
+  listSpaceMap: Record<string, string>
   allProfiles: { id: string; full_name: string; avatar_url: string | null; role: string }[]
 }
 
@@ -481,9 +481,9 @@ export function TimesheetPage({
   initialEntries,
   initialDateFrom,
   initialDateTo,
-  allWorkspaces,
-  allProjects,
-  projectWorkspaceMap,
+  allSpaces,
+  allLists,
+  listSpaceMap,
   allProfiles,
 }: TimesheetPageProps) {
   const { toast } = useToast()
@@ -495,8 +495,8 @@ export function TimesheetPage({
   const [entries, setEntries] = useState<TimesheetRow[]>(initialEntries)
 
   // Filters
-  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([])
-  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([])
+  const [selectedSpaceIds, setSelectedSpaceIds] = useState<string[]>([])
+  const [selectedListIds, setSelectedListIds] = useState<string[]>([])
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
   const [datePreset, setDatePreset] = useState<DatePreset>('month')
   const [customFrom, setCustomFrom] = useState(initialDateFrom.slice(0, 10))
@@ -574,17 +574,17 @@ export function TimesheetPage({
     fetchEntries(dateFrom, dateTo, userIds)
   }
 
-  // ── Client-side workspace + project filter (fast, no refetch) ──
+  // ── Client-side space + list filter (fast, no refetch) ──
   const filteredEntries = useMemo(() => {
     let result = entries
-    if (selectedWorkspaceIds.length > 0) {
-      result = result.filter((e) => selectedWorkspaceIds.includes(projectWorkspaceMap[e.list_id]))
+    if (selectedSpaceIds.length > 0) {
+      result = result.filter((e) => selectedSpaceIds.includes(listSpaceMap[e.list_id]))
     }
-    if (selectedProjectIds.length > 0) {
-      result = result.filter((e) => selectedProjectIds.includes(e.list_id))
+    if (selectedListIds.length > 0) {
+      result = result.filter((e) => selectedListIds.includes(e.list_id))
     }
     return result
-  }, [entries, selectedWorkspaceIds, selectedProjectIds, projectWorkspaceMap])
+  }, [entries, selectedSpaceIds, selectedListIds, listSpaceMap])
 
   // ── Group by date ──
   const groupedByDate = useMemo(() => {
@@ -622,7 +622,7 @@ export function TimesheetPage({
       <tr>
         <td>${new Date(e.started_at).toLocaleDateString()}</td>
         <td>${e.task_title.replace(/</g, '&lt;')}</td>
-        <td>${e.project_name.replace(/</g, '&lt;')}</td>
+        <td>${e.list_name.replace(/</g, '&lt;')}</td>
         <td>${e.user_full_name.replace(/</g, '&lt;')}</td>
         <td>${e.is_running ? formatRunningDuration(e.started_at, tick) : formatDuration(e.duration_minutes)}</td>
         <td>${(e.description ?? '').replace(/</g, '&lt;')}</td>
@@ -636,11 +636,11 @@ export function TimesheetPage({
 
   // ── Export CSV ──
   const exportCsv = () => {
-    const headers = ['Date', 'Task', 'Project', 'Added By', 'Duration', 'Description']
+    const headers = ['Date', 'Task', 'List', 'Added By', 'Duration', 'Description']
     const rows = filteredEntries.map((e) => [
       new Date(e.started_at).toLocaleDateString(),
       `"${e.task_title.replace(/"/g, '""')}"`,
-      `"${e.project_name.replace(/"/g, '""')}"`,
+      `"${e.list_name.replace(/"/g, '""')}"`,
       `"${e.user_full_name.replace(/"/g, '""')}"`,
       e.is_running ? formatRunningDuration(e.started_at, tick) : formatDuration(e.duration_minutes),
       `"${(e.description ?? '').replace(/"/g, '""')}"`,
@@ -718,13 +718,13 @@ export function TimesheetPage({
     custom: 'Custom Range',
   }
 
-  // Workspace label for breadcrumb
+  // Space label for breadcrumb
   const boardLabel =
-    selectedWorkspaceIds.length === 0
+    selectedSpaceIds.length === 0
       ? 'All Spaces'
-      : selectedWorkspaceIds.length === 1
-      ? (allWorkspaces.find((w) => w.id === selectedWorkspaceIds[0])?.name ?? 'Space')
-      : `${selectedWorkspaceIds.length} Spaces`
+      : selectedSpaceIds.length === 1
+      ? (allSpaces.find((w) => w.id === selectedSpaceIds[0])?.name ?? 'Space')
+      : `${selectedSpaceIds.length} Spaces`
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -775,18 +775,18 @@ export function TimesheetPage({
 
           {/* ─── Filters ─── */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Workspace filter */}
-            <WorkspaceFilter
-              workspaces={allWorkspaces}
-              selected={selectedWorkspaceIds}
-              onChange={setSelectedWorkspaceIds}
+            {/* Space filter */}
+            <SpaceFilter
+              spaces={allSpaces}
+              selected={selectedSpaceIds}
+              onChange={setSelectedSpaceIds}
             />
 
-            {/* Project filter */}
-            <ProjectFilter
-              projects={allProjects}
-              selected={selectedProjectIds}
-              onChange={setSelectedProjectIds}
+            {/* List filter */}
+            <ListFilter
+              lists={allLists}
+              selected={selectedListIds}
+              onChange={setSelectedListIds}
             />
 
             {/* Date preset */}
@@ -991,9 +991,9 @@ function EntryRow({
         <span className="text-sm text-foreground/80 truncate">{entry.user_full_name}</span>
       </div>
 
-      {/* Board / Project */}
+      {/* Board / List */}
       <div className="min-w-0">
-        <span className="text-sm text-muted-foreground truncate block">{entry.project_name}</span>
+        <span className="text-sm text-muted-foreground truncate block">{entry.list_name}</span>
       </div>
 
       {/* Approval status */}

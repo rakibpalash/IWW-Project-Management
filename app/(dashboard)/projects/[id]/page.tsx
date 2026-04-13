@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-export default async function ProjectDetailRedirect({
+export default async function ListDetailRedirect({
   params,
 }: {
   params: Promise<{ id: string }>

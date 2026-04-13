@@ -12,7 +12,7 @@ const SUPER_ADMIN_STEPS: DriveStep[] = [
     popover: {
       title: 'Navigation Sidebar',
       description:
-        'Use the sidebar to move between Spaces, Projects, Tasks, Attendance, and Settings.',
+        'Use the sidebar to move between Spaces, Lists, Tasks, Attendance, and Settings.',
       side: 'right',
       align: 'start',
     },
@@ -22,27 +22,27 @@ const SUPER_ADMIN_STEPS: DriveStep[] = [
     popover: {
       title: 'Dashboard Overview',
       description:
-        "These cards give you a real-time snapshot of active projects, overdue tasks, and today's attendance.",
+        "These cards give you a real-time snapshot of active lists, overdue tasks, and today's attendance.",
       side: 'bottom',
       align: 'start',
     },
   },
   {
-    element: '[data-tour="nav-workspaces"]',
+    element: '[data-tour="nav-spaces"]',
     popover: {
       title: 'Spaces',
       description:
-        'Create and manage spaces to organise projects by client, department, or team.',
+        'Create and manage spaces to organise lists by client, department, or team.',
       side: 'right',
       align: 'start',
     },
   },
   {
-    element: '[data-tour="nav-projects"]',
+    element: '[data-tour="nav-lists"]',
     popover: {
-      title: 'Projects',
+      title: 'Lists',
       description:
-        'Browse all projects, filter by status or priority, and create new ones with a single click.',
+        'Browse all lists, filter by status or priority, and create new ones with a single click.',
       side: 'right',
       align: 'start',
     },
@@ -62,7 +62,7 @@ const SUPER_ADMIN_STEPS: DriveStep[] = [
     popover: {
       title: 'Reports',
       description:
-        'Deep-dive into project time, task completion, member productivity, attendance, and leave usage across your whole organisation.',
+        'Deep-dive into list time, task completion, member productivity, attendance, and leave usage across your whole organisation.',
       side: 'right',
       align: 'start',
     },
@@ -124,11 +124,11 @@ const STAFF_STEPS: DriveStep[] = [
 
 const CLIENT_STEPS: DriveStep[] = [
   {
-    element: '[data-tour="nav-projects"]',
+    element: '[data-tour="nav-lists"]',
     popover: {
-      title: 'Your Projects',
+      title: 'Your Lists',
       description:
-        'This section shows all projects the team is running on your behalf. Click any project to see details.',
+        'This section shows all lists the team is running on your behalf. Click any list to see details.',
       side: 'right',
       align: 'start',
     },
@@ -136,9 +136,9 @@ const CLIENT_STEPS: DriveStep[] = [
   {
     element: '[data-tour="dashboard-stats"]',
     popover: {
-      title: 'Project Progress',
+      title: 'List Progress',
       description:
-        'Progress bars and status badges give you an instant view of how each project is tracking.',
+        'Progress bars and status badges give you an instant view of how each list is tracking.',
       side: 'bottom',
       align: 'start',
     },

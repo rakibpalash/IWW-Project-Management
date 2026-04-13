@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
 
-export default function WorkspacesRedirect() {
+export default function SpacesRedirect() {
   redirect('/spaces')
 }

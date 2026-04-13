@@ -29,8 +29,8 @@ import { Profile } from '@/types'
 // ── Icon map ──────────────────────────────────────────────────────────────────
 
 const RESOURCE_ICONS: Record<Resource, React.ElementType> = {
-  workspaces: Building2,
-  projects:   FolderKanban,
+  spaces: Building2,
+  lists:   FolderKanban,
   tasks:      CheckSquare,
   team:       Users,
   timesheet:  Timer,

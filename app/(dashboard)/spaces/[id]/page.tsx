@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/server'
-import { WorkspaceDetailPage } from '@/components/workspaces/workspace-detail-page'
+import { SpaceDetailPage } from '@/components/spaces/space-detail-page'
 import { Space, Profile, List, Task, ActivityLog } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 import { getMyPermissionsAction } from '@/app/actions/permissions'
@@ -9,8 +9,8 @@ import { can } from '@/lib/permissions'
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const admin = createAdminClient()
-  const { data: workspace } = await admin.from('spaces').select('name').eq('id', id).single()
-  return { title: workspace ? `${workspace.name} — IWW PM` : 'Space — IWW PM' }
+  const { data: space } = await admin.from('spaces').select('name').eq('id', id).single()
+  return { title: space ? `${space.name} — IWW PM` : 'Space — IWW PM' }
 }
 
 const profileSelect =
@@ -30,20 +30,20 @@ export default async function SpaceDetailRoute({
 
   const perms = await getMyPermissionsAction()
 
-  if (!can(perms, 'workspaces', 'view')) redirect('/dashboard')
+  if (!can(perms, 'spaces', 'view')) redirect('/dashboard')
 
-  const isAdmin = can(perms, 'workspaces', 'edit') || can(perms, 'workspaces', 'delete')
+  const isAdmin = can(perms, 'spaces', 'edit') || can(perms, 'spaces', 'delete')
 
   const admin = createAdminClient()
 
-  const { data: workspace, error: wsError } = await admin
+  const { data: space, error: wsError } = await admin
     .from('spaces')
     .select('*')
     .eq('id', id)
     .eq('organization_id', profile.organization_id)
     .single()
 
-  if (wsError || !workspace) notFound()
+  if (wsError || !space) notFound()
 
   const { data: assignments } = await admin
     .from('space_assignments')
@@ -61,26 +61,26 @@ export default async function SpaceDetailRoute({
     members = (memberProfiles as Profile[]) ?? []
   }
 
-  const { data: projects } = await admin
+  const { data: lists } = await admin
     .from('lists')
     .select('*')
     .eq('space_id', id)
     .order('created_at', { ascending: false })
 
-  const projectList = (projects as List[]) ?? []
-  const projectIds = projectList.map((p) => p.id)
+  const listList = (lists as List[]) ?? []
+  const listIds = listList.map((p) => p.id)
 
   let tasks: Task[] = []
-  if (projectIds.length > 0) {
+  if (listIds.length > 0) {
     const { data: tasksRaw } = await admin
       .from('tasks')
       .select(`
         *,
-        project:projects(id, name),
+        list:lists(id, name),
         assignees:task_assignees(user:profiles(${profileSelect})),
         creator:profiles!tasks_created_by_fkey(${profileSelect})
       `)
-      .in('list_id', projectIds)
+      .in('list_id', listIds)
       .order('created_at', { ascending: false })
 
     tasks = (tasksRaw ?? []).map((t: any) => ({
@@ -90,7 +90,7 @@ export default async function SpaceDetailRoute({
   }
 
   let activityLogs: ActivityLog[] = []
-  if (projectIds.length > 0) {
+  if (listIds.length > 0) {
     const taskIds = tasks.map((t) => t.id)
     if (taskIds.length > 0) {
       const { data: logsRaw } = await admin
@@ -110,10 +110,10 @@ export default async function SpaceDetailRoute({
     .single()
 
   return (
-    <WorkspaceDetailPage
-      workspace={workspace as Space}
+    <SpaceDetailPage
+      space={space as Space}
       members={members}
-      projects={projectList}
+      lists={listList}
       tasks={tasks}
       activityLogs={activityLogs}
       isAdmin={isAdmin}

@@ -22,7 +22,7 @@ export default async function DashboardLayout({
     redirect('/setup-org')
   }
 
-  const [permissions, { workspaces, projects }] = await Promise.all([
+  const [permissions, { spaces, lists }] = await Promise.all([
     getMyPermissionsAction(),
     getSidebarData(user.id, profile.role, profile.organization_id ?? null),
   ])
@@ -31,8 +31,8 @@ export default async function DashboardLayout({
     <DashboardShell
       profile={profile as Profile}
       permissions={permissions}
-      initialSpaces={workspaces as Space[]}
-      initialLists={projects as List[]}
+      initialSpaces={spaces as Space[]}
+      initialLists={lists as List[]}
     >
       {children}
     </DashboardShell>

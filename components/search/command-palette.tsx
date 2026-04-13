@@ -18,7 +18,7 @@ import { FolderKanban, CheckSquare, Building2, Loader2 } from 'lucide-react'
 interface SearchResult {
   id: string
   label: string
-  type: 'project' | 'task' | 'workspace'
+  type: 'list' | 'task' | 'space'
   href: string
   sub?: string
 }
@@ -55,9 +55,9 @@ export function CommandPalette() {
     const term = `%${q}%`
 
     const [
-      { data: projects },
+      { data: lists },
       { data: tasks },
-      { data: workspaces },
+      { data: spaces },
     ] = await Promise.all([
       supabase
         .from('lists')
@@ -66,7 +66,7 @@ export function CommandPalette() {
         .limit(5),
       supabase
         .from('tasks')
-        .select('id, title, status, project:projects(id, name)')
+        .select('id, title, status, list:lists(id, name)')
         .ilike('title', term)
         .limit(5),
       supabase
@@ -77,16 +77,16 @@ export function CommandPalette() {
     ])
 
     const combined: SearchResult[] = [
-      ...(workspaces ?? []).map((w) => ({
+      ...(spaces ?? []).map((w) => ({
         id: w.id,
         label: w.name,
-        type: 'workspace' as const,
+        type: 'space' as const,
         href: `/spaces/${w.id}`,
       })),
-      ...(projects ?? []).map((p) => ({
+      ...(lists ?? []).map((p) => ({
         id: p.id,
         label: p.name,
-        type: 'project' as const,
+        type: 'list' as const,
         href: `/lists/${p.id}`,
         sub: p.status.replace(/_/g, ' '),
       })),
@@ -95,7 +95,7 @@ export function CommandPalette() {
         label: t.title,
         type: 'task' as const,
         href: `/tasks/${t.id}`,
-        sub: (t.project as { name?: string } | null)?.name,
+        sub: (t.list as { name?: string } | null)?.name,
       })),
     ]
 
@@ -123,14 +123,14 @@ export function CommandPalette() {
     }
   }
 
-  const projectResults = results.filter((r) => r.type === 'project')
+  const listResults = results.filter((r) => r.type === 'list')
   const taskResults = results.filter((r) => r.type === 'task')
-  const workspaceResults = results.filter((r) => r.type === 'workspace')
+  const spaceResults = results.filter((r) => r.type === 'space')
 
   return (
     <CommandDialog open={commandPaletteOpen} onOpenChange={handleOpenChange}>
       <CommandInput
-        placeholder="Search projects, tasks, spaces…"
+        placeholder="Search lists, tasks, spaces…"
         value={query}
         onValueChange={setQuery}
       />
@@ -150,13 +150,13 @@ export function CommandPalette() {
           <CommandEmpty>Start typing to search…</CommandEmpty>
         )}
 
-        {workspaceResults.length > 0 && (
+        {spaceResults.length > 0 && (
           <>
             <CommandGroup heading="Spaces">
-              {workspaceResults.map((r) => (
+              {spaceResults.map((r) => (
                 <CommandItem
                   key={r.id}
-                  value={`workspace-${r.id}-${r.label}`}
+                  value={`space-${r.id}-${r.label}`}
                   onSelect={() => handleSelect(r.href)}
                   className="flex items-center gap-2 cursor-pointer"
                 >
@@ -165,19 +165,19 @@ export function CommandPalette() {
                 </CommandItem>
               ))}
             </CommandGroup>
-            {(projectResults.length > 0 || taskResults.length > 0) && (
+            {(listResults.length > 0 || taskResults.length > 0) && (
               <CommandSeparator />
             )}
           </>
         )}
 
-        {projectResults.length > 0 && (
+        {listResults.length > 0 && (
           <>
-            <CommandGroup heading="Projects">
-              {projectResults.map((r) => (
+            <CommandGroup heading="Lists">
+              {listResults.map((r) => (
                 <CommandItem
                   key={r.id}
-                  value={`project-${r.id}-${r.label}`}
+                  value={`list-${r.id}-${r.label}`}
                   onSelect={() => handleSelect(r.href)}
                   className="flex items-center gap-2 cursor-pointer"
                 >

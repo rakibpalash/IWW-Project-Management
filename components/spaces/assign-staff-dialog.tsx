@@ -19,7 +19,7 @@ import { Profile } from '@/types'
 import { Search, Users } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-import { listOrgMembersForAssignmentAction, updateWorkspaceMembersAction } from '@/app/actions/workspaces'
+import { listOrgMembersForAssignmentAction, updateSpaceMembersAction } from '@/app/actions/spaces'
 
 type RoleTab = 'staff' | 'client' | 'partner'
 
@@ -42,7 +42,7 @@ function avatarColor(name: string) {
 interface AssignStaffDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  spaceId: string
   currentMemberIds: string[]
   onSuccess: () => void
 }
@@ -50,7 +50,7 @@ interface AssignStaffDialogProps {
 export function AssignStaffDialog({
   open,
   onOpenChange,
-  workspaceId,
+  spaceId,
   currentMemberIds,
   onSuccess,
 }: AssignStaffDialogProps) {
@@ -99,10 +99,10 @@ export function AssignStaffDialog({
       const toAdd = [...selected].filter((id) => !currentMemberIds.includes(id))
       const toRemove = currentMemberIds.filter((id) => !selected.has(id))
 
-      const result = await updateWorkspaceMembersAction(workspaceId, toAdd, toRemove)
+      const result = await updateSpaceMembersAction(spaceId, toAdd, toRemove)
       if (!result.success) throw new Error(result.error)
 
-      toast({ title: 'Workspace members updated' })
+      toast({ title: 'Space members updated' })
       onOpenChange(false)
       onSuccess()
     } catch (err) {

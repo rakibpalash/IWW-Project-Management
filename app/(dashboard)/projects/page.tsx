@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
 
-export default function ProjectsRedirect() {
+export default function ListsRedirect() {
   redirect('/lists')
 }

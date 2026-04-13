@@ -13,7 +13,7 @@ const profileSelect = 'id, full_name, email, avatar_url, role, is_temp_password,
 async function fetchTimeEntriesWithMeta(admin: ReturnType<typeof createAdminClient>, userIds?: string[], limit = 8) {
   const query = admin
     .from('time_entries')
-    .select('id, task_id, user_id, duration_minutes, is_running, started_at, task:tasks(id, title, project:projects(id, name))')
+    .select('id, task_id, user_id, duration_minutes, is_running, started_at, task:tasks(id, title, list:lists(id, name))')
     .order('started_at', { ascending: false })
     .limit(limit)
 
@@ -29,8 +29,8 @@ async function fetchTimeEntriesWithMeta(admin: ReturnType<typeof createAdminClie
     id: e.id,
     task_id: e.task_id,
     task_title: e.task?.title ?? 'Deleted task',
-    list_id: e.task?.project?.id ?? '',
-    project_name: e.task?.project?.name ?? 'Unknown project',
+    list_id: e.task?.list?.id ?? '',
+    list_name: e.task?.list?.name ?? 'Unknown list',
     user_full_name: (profilesById[e.user_id] as any)?.full_name ?? 'Unknown',
     user_avatar_url: (profilesById[e.user_id] as any)?.avatar_url ?? null,
     duration_minutes: e.duration_minutes,
@@ -62,43 +62,43 @@ export default async function DashboardRoute() {
       : await admin.from('profiles').select('id')
     const orgUserIds = (orgUsers ?? []).map((u) => u.id)
 
-    // Get workspace IDs for this org to scope projects
-    const { data: orgWorkspaces } = orgId
+    // Get space IDs for this org to scope lists
+    const { data: orgSpaces } = orgId
       ? await admin.from('spaces').select('id').eq('organization_id', orgId)
       : await admin.from('spaces').select('id')
-    const orgWorkspaceIds = (orgWorkspaces ?? []).map((w) => w.id)
+    const orgSpaceIds = (orgSpaces ?? []).map((w) => w.id)
 
-    // If org has no workspaces yet, skip all workspace-scoped queries
-    if (orgWorkspaceIds.length === 0) {
+    // If org has no spaces yet, skip all space-scoped queries
+    if (orgSpaceIds.length === 0) {
       return (
         <DashboardPage
           profile={profile as Profile}
-          totalProjects={0}
-          activeProjects={0}
+          totalLists={0}
+          activeLists={0}
           overdueTasks={0}
           pendingLeaveRequests={0}
           todayAttendanceCount={0}
           totalStaff={0}
           recentActivity={[]}
-          recentProjects={[]}
+          recentLists={[]}
           recentTeamTimeEntries={[]}
         />
       )
     }
 
     const [
-      { data: projects },
+      { data: lists },
       { data: overdueTasks },
       { data: pendingLeaves },
       { data: todayAttendance },
       { data: staffProfiles },
       { data: recentActivity },
-      { data: recentProjects },
+      { data: recentLists },
       recentTeamTimeEntries,
     ] = await Promise.all([
-      admin.from('lists').select('id, status').in('space_id', orgWorkspaceIds),
-      // Overdue tasks scoped to org workspaces via project join
-      admin.from('tasks').select('id, project:projects!inner(space_id)').lt('due_date', new Date().toISOString()).not('status', 'in', '("done","cancelled")').in('project.space_id', orgWorkspaceIds),
+      admin.from('lists').select('id, status').in('space_id', orgSpaceIds),
+      // Overdue tasks scoped to org spaces via list join
+      admin.from('tasks').select('id, list:lists!inner(space_id)').lt('due_date', new Date().toISOString()).not('status', 'in', '("done","cancelled")').in('list.space_id', orgSpaceIds),
       orgUserIds.length > 0
         ? admin.from('leave_requests').select('id').eq('status', 'pending').in('user_id', orgUserIds)
         : Promise.resolve({ data: [] }),
@@ -111,21 +111,21 @@ export default async function DashboardRoute() {
       orgUserIds.length > 0
         ? admin.from('activity_logs').select('*, user:profiles(id, full_name, avatar_url)').in('user_id', orgUserIds).order('created_at', { ascending: false }).limit(5)
         : Promise.resolve({ data: [] }),
-      admin.from('lists').select('id, name, status, priority, progress, due_date, created_at').in('space_id', orgWorkspaceIds).order('created_at', { ascending: false }).limit(5),
+      admin.from('lists').select('id, name, status, priority, progress, due_date, created_at').in('space_id', orgSpaceIds).order('created_at', { ascending: false }).limit(5),
       fetchTimeEntriesWithMeta(admin, orgUserIds.length > 0 ? orgUserIds : undefined, 10),
     ])
 
     return (
       <DashboardPage
         profile={profile as Profile}
-        totalProjects={projects?.length ?? 0}
-        activeProjects={projects?.filter((p) => p.status === 'in_progress').length ?? 0}
+        totalLists={lists?.length ?? 0}
+        activeLists={lists?.filter((p) => p.status === 'in_progress').length ?? 0}
         overdueTasks={overdueTasks?.length ?? 0}
         pendingLeaveRequests={pendingLeaves?.length ?? 0}
         todayAttendanceCount={todayAttendance?.length ?? 0}
         totalStaff={staffProfiles?.length ?? 0}
         recentActivity={(recentActivity as unknown as ActivityLog[]) ?? []}
-        recentProjects={(recentProjects as unknown as List[]) ?? []}
+        recentLists={(recentLists as unknown as List[]) ?? []}
         recentTeamTimeEntries={recentTeamTimeEntries}
       />
     )
@@ -146,7 +146,7 @@ export default async function DashboardRoute() {
       { data: todayTimeEntries },
     ] = await Promise.all([
       assignedTaskIds.length > 0
-        ? supabase.from('tasks').select('id, title, description, status, priority, due_date, created_at, project:projects(id, name)').in('id', assignedTaskIds).not('status', 'in', '("done","cancelled")').order('due_date', { ascending: true, nullsFirst: false }).limit(20)
+        ? supabase.from('tasks').select('id, title, description, status, priority, due_date, created_at, list:lists(id, name)').in('id', assignedTaskIds).not('status', 'in', '("done","cancelled")').order('due_date', { ascending: true, nullsFirst: false }).limit(20)
         : Promise.resolve({ data: [] }),
       supabase.from('attendance_records').select('*').eq('user_id', user.id).eq('date', today).maybeSingle(),
       supabase.from('leave_balances').select('*').eq('user_id', user.id).eq('year', new Date().getFullYear()).maybeSingle(),
@@ -170,7 +170,7 @@ export default async function DashboardRoute() {
   }
 
   // ── Client ───────────────────────────────────────────────────────────────────
-  const { data: clientProjects } = await supabase
+  const { data: clientLists } = await supabase
     .from('lists')
     .select('id, name, description, status, priority, progress, due_date, created_at')
     .eq('client_id', user.id)
@@ -179,7 +179,7 @@ export default async function DashboardRoute() {
   return (
     <DashboardPage
       profile={profile as Profile}
-      clientProjects={(clientProjects as unknown as List[]) ?? []}
+      clientLists={(clientLists as unknown as List[]) ?? []}
     />
   )
 }

@@ -85,12 +85,12 @@ export const getSidebarData = cache(async (userId: string, role: string, orgId: 
       const { data: assignments } = await supabase
         .from('space_assignments').select('space_id').eq('user_id', userId)
       const wsIds = (assignments ?? []).map((a: any) => a.space_id as string)
-      if (wsIds.length === 0) return { workspaces: [], projects: [] }
+      if (wsIds.length === 0) return { spaces: [], lists: [] }
       const [wsRes, projRes] = await Promise.all([
         supabase.from('spaces').select(SIDEBAR_WS_SELECT).in('id', wsIds).order('name'),
         supabase.from('lists').select(SIDEBAR_PROJ_SELECT).in('space_id', wsIds).order('name'),
       ])
-      return { workspaces: wsRes.data ?? [], projects: projRes.data ?? [] }
+      return { spaces: wsRes.data ?? [], lists: projRes.data ?? [] }
     }
 
     if (role === 'client') {
@@ -98,7 +98,7 @@ export const getSidebarData = cache(async (userId: string, role: string, orgId: 
         supabase.from('spaces').select(SIDEBAR_WS_SELECT).order('name'),
         supabase.from('lists').select(SIDEBAR_PROJ_SELECT).eq('client_id', userId).order('name'),
       ])
-      return { workspaces: wsRes.data ?? [], projects: projRes.data ?? [] }
+      return { spaces: wsRes.data ?? [], lists: projRes.data ?? [] }
     }
 
     // super_admin / account_manager / others — same explicit logic as Lists page
@@ -106,16 +106,16 @@ export const getSidebarData = cache(async (userId: string, role: string, orgId: 
       ? supabase.from('spaces').select(SIDEBAR_WS_SELECT).eq('organization_id', orgId).order('name')
       : supabase.from('spaces').select(SIDEBAR_WS_SELECT).order('name')
     const { data: wsData } = await wsQuery
-    const workspaces = wsData ?? []
-    const wsIds = workspaces.map((w: any) => w.id as string)
+    const spaces = wsData ?? []
+    const wsIds = spaces.map((w: any) => w.id as string)
 
     const { data: projData } = wsIds.length > 0
       ? await supabase.from('lists').select(SIDEBAR_PROJ_SELECT).in('space_id', wsIds).order('name')
       : await supabase.from('lists').select(SIDEBAR_PROJ_SELECT).order('name')
 
-    return { workspaces, projects: projData ?? [] }
+    return { spaces, lists: projData ?? [] }
   } catch {
-    return { workspaces: [], projects: [] }
+    return { spaces: [], lists: [] }
   }
 })
 

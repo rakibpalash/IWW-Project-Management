@@ -7,12 +7,12 @@ import { Space } from '@/types'
 import { format, parseISO, subDays } from 'date-fns'
 import { Clock } from 'lucide-react'
 
-interface Props { workspaces: Space[]; isAdmin: boolean }
+interface Props { spaces: Space[]; isAdmin: boolean }
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
 
-export function TimeLogReport({ workspaces, isAdmin }: Props) {
+export function TimeLogReport({ spaces, isAdmin }: Props) {
   const [data, setData] = useState<TimeLogRow[]>([])
   const [loading, setLoading] = useState(true)
   const [startDate, setStartDate] = useState(thirtyDaysAgo)
@@ -56,9 +56,9 @@ export function TimeLogReport({ workspaces, isAdmin }: Props) {
           <ExportButton
             title="Time Log Report"
             filename="time-log"
-            headers={['Date', 'Member', 'Project', 'Task', 'Duration', 'Billable', 'Description']}
+            headers={['Date', 'Member', 'List', 'Task', 'Duration', 'Billable', 'Description']}
             buildRows={() => data.map(r => [
-              r.date, r.user_name, r.project_name, r.task_title,
+              r.date, r.user_name, r.list_name, r.task_title,
               fmtHours(r.duration_minutes),
               r.is_billable ? 'Yes' : 'No',
               r.description ?? '',
@@ -97,7 +97,7 @@ export function TimeLogReport({ workspaces, isAdmin }: Props) {
                       {format(parseISO(r.date), 'MMM d, yyyy')}
                     </td>
                     <td className="px-4 py-3 font-medium">{r.user_name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{r.project_name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{r.list_name}</td>
                     <td className="px-4 py-3">
                       <span className="truncate max-w-[200px] block">{r.task_title}</span>
                       {r.description && (

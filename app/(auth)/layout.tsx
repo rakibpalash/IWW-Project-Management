@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'IWW Project Management — Sign In',
+  title: 'IWW List Management — Sign In',
 }
 
 export default function AuthLayout({
@@ -30,10 +30,10 @@ export default function AuthLayout({
           </span>
         </div>
         <h1 className="text-white text-xl font-semibold tracking-tight mt-1">
-          IWW Project Management
+          IWW List Management
         </h1>
         <p className="text-blue-200/70 text-sm">
-          Project &amp; Team Management System
+          List &amp; Team Management System
         </p>
       </div>
 

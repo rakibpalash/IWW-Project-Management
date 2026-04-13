@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/server'
-import { WorkspacesPage } from '@/components/workspaces/workspaces-page'
+import { SpacesPage } from '@/components/spaces/spaces-page'
 import { Space, Profile } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 import { getMyPermissionsAction } from '@/app/actions/permissions'
@@ -28,20 +28,20 @@ export default async function SpacesRoute() {
 
   const perms = await getMyPermissionsAction()
 
-  if (!can(perms, 'workspaces', 'view')) redirect('/dashboard')
+  if (!can(perms, 'spaces', 'view')) redirect('/dashboard')
 
-  const canCreate = can(perms, 'workspaces', 'create')
-  const canEdit   = can(perms, 'workspaces', 'edit')
-  const canDelete = can(perms, 'workspaces', 'delete')
+  const canCreate = can(perms, 'spaces', 'create')
+  const canEdit   = can(perms, 'spaces', 'edit')
+  const canDelete = can(perms, 'spaces', 'delete')
 
   const orgId = profile.organization_id
 
   try {
     const admin = createAdminClient()
 
-    if (!orgId) return <WorkspacesPage workspaces={[]} staffProfiles={[]} canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} />
+    if (!orgId) return <SpacesPage spaces={[]} staffProfiles={[]} canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} />
 
-    const [{ data: workspaces, error: wsErr }, { data: assignments }, { data: projects }, { data: staffProfiles }] =
+    const [{ data: spaces, error: wsErr }, { data: assignments }, { data: lists }, { data: staffProfiles }] =
       await Promise.all([
         admin.from('spaces').select('*').eq('organization_id', orgId).order('created_at', { ascending: false }),
         admin.from('space_assignments').select('space_id, user_id').in(
@@ -59,19 +59,19 @@ export default async function SpacesRoute() {
       console.error('[SpacesRoute] DB error:', wsErr.message)
     }
 
-    const workspacesWithCounts = (workspaces ?? []).map((ws: Space) => ({
+    const spacesWithCounts = (spaces ?? []).map((ws: Space) => ({
       ...ws,
       member_count: (assignments ?? []).filter(
         (a: { space_id: string }) => a.space_id === ws.id
       ).length,
-      project_count: (projects ?? []).filter(
+      list_count: (lists ?? []).filter(
         (p: { space_id: string }) => p.space_id === ws.id
       ).length,
     }))
 
     return (
-      <WorkspacesPage
-        workspaces={workspacesWithCounts}
+      <SpacesPage
+        spaces={spacesWithCounts}
         staffProfiles={(staffProfiles as Profile[]) ?? []}
         canCreate={canCreate}
         canEdit={canEdit}
@@ -81,6 +81,6 @@ export default async function SpacesRoute() {
   } catch (err) {
     if (err && typeof err === 'object' && 'digest' in err) throw err
     console.error('[SpacesRoute] Unexpected error:', err)
-    return <WorkspacesPage workspaces={[]} staffProfiles={[]} canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} />
+    return <SpacesPage spaces={[]} staffProfiles={[]} canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} />
   }
 }

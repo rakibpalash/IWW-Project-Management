@@ -44,7 +44,7 @@ const ROLE_OPTIONS = [
 ]
 
 const RESOURCE_ICONS: Record<Resource, React.ElementType> = {
-  workspaces: Building2, projects: FolderKanban, tasks: CheckSquare,
+  spaces: Building2, lists: FolderKanban, tasks: CheckSquare,
   team: Users, timesheet: Timer, attendance: Clock, leave: CalendarDays, settings: Settings,
 }
 

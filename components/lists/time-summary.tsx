@@ -146,7 +146,7 @@ export function TimeSummary({
           {isExceeded && (
             <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" />
-              This project has exceeded its estimated time by {formatHours(exceededBy)}.
+              This list has exceeded its estimated time by {formatHours(exceededBy)}.
             </p>
           )}
         </div>

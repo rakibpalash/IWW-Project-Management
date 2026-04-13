@@ -47,7 +47,7 @@ type TaskPriority = { slug: string; name: string; color: string; is_default: boo
 
 const BILLING_TYPES: { value: BillingType; label: string; description: string }[] = [
   { value: 'hourly',       label: 'Hourly',      description: 'Billed by hours worked' },
-  { value: 'fixed',        label: 'Fixed Price',  description: 'Fixed project cost' },
+  { value: 'fixed',        label: 'Fixed Price',  description: 'Fixed list cost' },
   { value: 'retainer',     label: 'Retainer',     description: 'Monthly retainer fee' },
   { value: 'non_billable', label: 'Non-Billable', description: 'Internal / no billing' },
 ]
@@ -64,8 +64,8 @@ function avatarColor(id: string) {
 }
 
 const formSchema = z.object({
-  name:            z.string().min(1, 'Project name is required').max(255),
-  space_id:    z.string().min(1, 'Workspace is required'),
+  name:            z.string().min(1, 'List name is required').max(255),
+  space_id:    z.string().min(1, 'Space is required'),
   client_id:       z.string().optional(),
   partner_id:      z.string().optional(),
   is_internal:     z.boolean().default(false),
@@ -82,26 +82,26 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-interface EditProjectDialogProps {
+interface EditListDialogProps {
   open:          boolean
   onOpenChange:  (open: boolean) => void
-  project:       List
+  list:       List
   isSuperAdmin?: boolean
-  onUpdated?:    (project: List) => void
+  onUpdated?:    (list: List) => void
 }
 
-export function EditProjectDialog({
+export function EditListDialog({
   open,
   onOpenChange,
-  project,
+  list,
   isSuperAdmin = false,
   onUpdated,
-}: EditProjectDialogProps) {
+}: EditListDialogProps) {
   const supabase   = createClient()
   const [loading,    setLoading]    = useState(false)
   const [clients,    setClients]    = useState<Profile[]>([])
   const [partners,   setPartners]   = useState<Profile[]>([])
-  const [workspaces, setWorkspaces] = useState<Space[]>([])
+  const [spaces, setSpaces] = useState<Space[]>([])
   const [statuses,   setStatuses]   = useState<TaskStatus[]>([])
   const [priorities, setPriorities] = useState<TaskPriority[]>([])
   const [startOpen,  setStartOpen]  = useState(false)
@@ -109,30 +109,30 @@ export function EditProjectDialog({
 
   // Team assignment
   const [allUsers,       setAllUsers]       = useState<Profile[]>([])
-  const [projectManager, setProjectManager] = useState<string>('')
+  const [listManager, setListManager] = useState<string>('')
   const [pmSearch,       setPmSearch]       = useState('')
   const [staffSearch,    setStaffSearch]    = useState('')
   const [selectedStaff,  setSelectedStaff]  = useState<Set<string>>(new Set())
   // Track existing member record IDs so we can delete removed ones
-  const [existingMembers, setExistingMembers] = useState<{ id: string; user_id: string; project_role: string }[]>([])
+  const [existingMembers, setExistingMembers] = useState<{ id: string; user_id: string; list_role: string }[]>([])
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name:            project.name,
-      space_id:    project.space_id,
-      client_id:       project.client_id ?? undefined,
-      partner_id:      project.partner_id ?? undefined,
-      is_internal:     project.is_internal ?? false,
-      billing_type:    (project.billing_type as BillingType) ?? 'hourly',
-      fixed_price:     project.fixed_price ?? '',
-      start_date:      project.start_date ? parseISO(project.start_date) : undefined,
-      due_date:        project.due_date   ? parseISO(project.due_date)   : undefined,
-      status:          project.status,
-      priority:        project.priority,
-      progress:        project.progress,
-      estimated_hours: project.estimated_hours ?? '',
-      description:     project.description ?? '',
+      name:            list.name,
+      space_id:    list.space_id,
+      client_id:       list.client_id ?? undefined,
+      partner_id:      list.partner_id ?? undefined,
+      is_internal:     list.is_internal ?? false,
+      billing_type:    (list.billing_type as BillingType) ?? 'hourly',
+      fixed_price:     list.fixed_price ?? '',
+      start_date:      list.start_date ? parseISO(list.start_date) : undefined,
+      due_date:        list.due_date   ? parseISO(list.due_date)   : undefined,
+      status:          list.status,
+      priority:        list.priority,
+      progress:        list.progress,
+      estimated_hours: list.estimated_hours ?? '',
+      description:     list.description ?? '',
     },
   })
 
@@ -143,7 +143,7 @@ export function EditProjectDialog({
     if (!open) return
 
     supabase.from('spaces').select('*').order('name')
-      .then(({ data }) => setWorkspaces(data ?? []))
+      .then(({ data }) => setSpaces(data ?? []))
 
     supabase.from('profiles')
       .select('id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at')
@@ -175,16 +175,16 @@ export function EditProjectDialog({
         }
       })
 
-    // Load existing project members
+    // Load existing list members
     supabase.from('list_members')
-      .select('id, user_id, project_role')
-      .eq('list_id', project.id)
+      .select('id, user_id, list_role')
+      .eq('list_id', list.id)
       .then(({ data }) => {
         if (!data) return
         setExistingMembers(data)
-        const lead = data.find(m => m.project_role === 'lead')
-        const members = data.filter(m => m.project_role === 'member').map(m => m.user_id)
-        setProjectManager(lead?.user_id ?? '')
+        const lead = data.find(m => m.list_role === 'lead')
+        const members = data.filter(m => m.list_role === 'member').map(m => m.user_id)
+        setListManager(lead?.user_id ?? '')
         setSelectedStaff(new Set(members))
       })
   }, [open])
@@ -208,10 +208,10 @@ export function EditProjectDialog({
       u.email.toLowerCase().includes(pmSearch.toLowerCase())
     )
   )
-  const selectedPmUser = allUsers.find(u => u.id === projectManager)
+  const selectedPmUser = allUsers.find(u => u.id === listManager)
 
   // Staff candidates — exclude PM
-  const teamCandidates = allUsers.filter(u => u.role === 'staff' && u.id !== projectManager)
+  const teamCandidates = allUsers.filter(u => u.role === 'staff' && u.id !== listManager)
 
   const staffByManager = teamCandidates.reduce<Record<string, Profile[]>>((acc, s) => {
     const key = s.manager_id ?? '__none__'
@@ -257,26 +257,26 @@ export function EditProjectDialog({
       const { data, error } = await supabase
         .from('lists')
         .update(payload)
-        .eq('id', project.id)
+        .eq('id', list.id)
         .select(`
           *,
-          workspace:workspaces(*),
-          client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at),
-          partner:profiles!projects_partner_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
+          space:spaces(*),
+          client:profiles!lists_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at),
+          partner:profiles!lists_partner_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
         `)
         .single()
 
       if (error) {
-        toast({ title: 'Failed to update project', description: error.message, variant: 'destructive' })
+        toast({ title: 'Failed to update list', description: error.message, variant: 'destructive' })
         return
       }
 
       // ── Sync team members ──────────────────────────────────────────────────
       // Build desired state
-      const desired: { user_id: string; project_role: 'lead' | 'member' }[] = []
-      if (projectManager) desired.push({ user_id: projectManager, project_role: 'lead' })
+      const desired: { user_id: string; list_role: 'lead' | 'member' }[] = []
+      if (listManager) desired.push({ user_id: listManager, list_role: 'lead' })
       selectedStaff.forEach(uid => {
-        if (uid !== projectManager) desired.push({ user_id: uid, project_role: 'member' })
+        if (uid !== listManager) desired.push({ user_id: uid, list_role: 'member' })
       })
 
       // Remove members that are no longer desired
@@ -289,23 +289,23 @@ export function EditProjectDialog({
       // Add new members not already in existingMembers
       const existingUserIds = new Set(existingMembers.map(m => m.user_id))
       const toAdd = desired.filter(d => !existingUserIds.has(d.user_id))
-        .map(d => ({ list_id: project.id, user_id: d.user_id, project_role: d.project_role }))
+        .map(d => ({ list_id: list.id, user_id: d.user_id, list_role: d.list_role }))
       if (toAdd.length > 0) {
         await supabase.from('list_members').insert(toAdd)
       }
 
       // Update role if existing lead changed
-      const existingLead = existingMembers.find(m => m.project_role === 'lead')
-      if (existingLead && projectManager && existingLead.user_id !== projectManager && existingUserIds.has(projectManager)) {
+      const existingLead = existingMembers.find(m => m.list_role === 'lead')
+      if (existingLead && listManager && existingLead.user_id !== listManager && existingUserIds.has(listManager)) {
         await supabase.from('list_members')
-          .update({ project_role: 'lead' })
-          .eq('list_id', project.id)
-          .eq('user_id', projectManager)
+          .update({ list_role: 'lead' })
+          .eq('list_id', list.id)
+          .eq('user_id', listManager)
       }
       // Demote old lead to member if they're now in selectedStaff
-      if (existingLead && existingLead.user_id !== projectManager && selectedStaff.has(existingLead.user_id) && existingUserIds.has(existingLead.user_id)) {
+      if (existingLead && existingLead.user_id !== listManager && selectedStaff.has(existingLead.user_id) && existingUserIds.has(existingLead.user_id)) {
         await supabase.from('list_members')
-          .update({ project_role: 'member' })
+          .update({ list_role: 'member' })
           .eq('id', existingLead.id)
       }
 
@@ -321,8 +321,8 @@ export function EditProjectDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Project</DialogTitle>
-          <DialogDescription>Update the project details below.</DialogDescription>
+          <DialogTitle>Edit List</DialogTitle>
+          <DialogDescription>Update the list details below.</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -337,14 +337,14 @@ export function EditProjectDialog({
               </FormItem>
             )} />
 
-            {/* Workspace */}
+            {/* Space */}
             <FormField control={form.control} name="space_id" render={({ field }) => (
               <FormItem>
                 <FormLabel>Space *</FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl><SelectTrigger><SelectValue placeholder="Select a space" /></SelectTrigger></FormControl>
                   <SelectContent>
-                    {workspaces.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                    {spaces.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -355,7 +355,7 @@ export function EditProjectDialog({
             <FormField control={form.control} name="is_internal" render={({ field }) => (
               <FormItem className="flex items-center justify-between rounded-lg border p-3">
                 <div>
-                  <FormLabel className="text-sm font-medium">Internal Project</FormLabel>
+                  <FormLabel className="text-sm font-medium">Internal List</FormLabel>
                   <p className="text-xs text-muted-foreground mt-0.5">No client or billing — internal work only</p>
                 </div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
@@ -447,8 +447,8 @@ export function EditProjectDialog({
                     </div>
                   </div>
                   <p className="mt-1 text-sm font-semibold">
-                    {project.fixed_price != null
-                      ? `$${Number(project.fixed_price).toLocaleString('en-AU', { minimumFractionDigits: 2 })}`
+                    {list.fixed_price != null
+                      ? `$${Number(list.fixed_price).toLocaleString('en-AU', { minimumFractionDigits: 2 })}`
                       : <span className="text-muted-foreground font-normal">Not set</span>
                     }
                   </p>
@@ -572,10 +572,10 @@ export function EditProjectDialog({
             <div className="border-t border-border pt-4 space-y-4">
               <p className="text-sm font-semibold">Team</p>
 
-              {/* Project Manager */}
+              {/* List Manager */}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">
-                  Project Manager <span className="text-xs text-muted-foreground font-normal">(lead)</span>
+                  List Manager <span className="text-xs text-muted-foreground font-normal">(lead)</span>
                 </label>
 
                 {selectedPmUser && (
@@ -587,7 +587,7 @@ export function EditProjectDialog({
                       <p className="truncate text-sm font-medium">{selectedPmUser.full_name}</p>
                       <p className="truncate text-xs text-muted-foreground capitalize">{selectedPmUser.role.replace(/_/g, ' ')}</p>
                     </div>
-                    <button type="button" onClick={() => setProjectManager('')}
+                    <button type="button" onClick={() => setListManager('')}
                       className="text-xs text-muted-foreground hover:text-destructive transition-colors px-1">
                       Remove
                     </button>
@@ -598,7 +598,7 @@ export function EditProjectDialog({
                   <div className="p-2 border-b">
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
-                      <Input placeholder="Search for project manager…" value={pmSearch}
+                      <Input placeholder="Search for list manager…" value={pmSearch}
                         onChange={e => setPmSearch(e.target.value)} className="pl-8 h-8 text-sm" />
                     </div>
                   </div>
@@ -609,10 +609,10 @@ export function EditProjectDialog({
                       <ul className="p-1">
                         {filteredPm.map(u => (
                           <li key={u.id}>
-                            <button type="button" onClick={() => { setProjectManager(u.id); setPmSearch('') }}
+                            <button type="button" onClick={() => { setListManager(u.id); setPmSearch('') }}
                               className={cn(
                                 'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors',
-                                projectManager === u.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50'
+                                listManager === u.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50'
                               )}>
                               <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', avatarColor(u.id))}>
                                 {getInitials(u.full_name)}
@@ -719,7 +719,7 @@ export function EditProjectDialog({
               <FormItem>
                 <FormLabel>Description</FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Describe the project goals, scope, and any relevant details…" rows={4}
+                  <Textarea placeholder="Describe the list goals, scope, and any relevant details…" rows={4}
                     {...field} value={field.value ?? ''} />
                 </FormControl>
                 <FormMessage />

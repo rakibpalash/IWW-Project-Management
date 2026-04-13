@@ -1,14 +1,14 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { ProjectDetailPage } from '@/components/projects/project-detail-page'
+import { ListDetailPage } from '@/components/lists/list-detail-page'
 import { List, Task, Profile, ActivityLog, ListMember, CustomRole } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 
-interface ProjectPageProps {
+interface ListPageProps {
   params: Promise<{ id: string }>
 }
 
-export async function generateMetadata({ params }: ProjectPageProps) {
+export async function generateMetadata({ params }: ListPageProps) {
   const { id } = await params
   const supabase = await createClient()
   const { data } = await supabase
@@ -17,10 +17,10 @@ export async function generateMetadata({ params }: ProjectPageProps) {
     .eq('id', id)
     .single()
 
-  return { title: data?.name ?? 'Project' }
+  return { title: data?.name ?? 'List' }
 }
 
-export default async function ProjectPage({ params }: ProjectPageProps) {
+export default async function ListPage({ params }: ListPageProps) {
   const { id } = await params
   const user = await getUser()
   if (!user) redirect('/login')
@@ -30,24 +30,24 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   const supabase = await createClient()
 
-  // Fetch project with joins
-  const { data: project, error: projectError } = await supabase
+  // Fetch list with joins
+  const { data: list, error: listError } = await supabase
     .from('lists')
     .select(`
       *,
-      workspace:workspaces(*),
-      client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at),
-      partner:profiles!projects_partner_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
+      space:spaces(*),
+      client:profiles!lists_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at),
+      partner:profiles!lists_partner_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
     `)
     .eq('id', id)
     .single()
 
-  if (projectError || !project) {
+  if (listError || !list) {
     notFound()
   }
 
   // Access control
-  if (profile.role === 'client' && project.client_id !== user.id) {
+  if (profile.role === 'client' && list.client_id !== user.id) {
     notFound()
   }
 
@@ -56,7 +56,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       .from('space_assignments')
       .select('id')
       .eq('user_id', user.id)
-      .eq('space_id', project.space_id)
+      .eq('space_id', list.space_id)
       .single()
 
     if (!assignment) {
@@ -125,7 +125,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     }
   }
 
-  // Fetch activity logs for timeline — filter by task IDs belonging to this project
+  // Fetch activity logs for timeline — filter by task IDs belonging to this list
   const allTaskIds = (tasksRaw ?? []).map((t: any) => t.id)
   const { data: activityLogs } = allTaskIds.length > 0
     ? await supabase
@@ -139,19 +139,19 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         .limit(50)
     : { data: [] }
 
-  // Fetch workspace members
+  // Fetch space members
   const { data: assignments } = await supabase
     .from('space_assignments')
     .select(`
       user:profiles(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)
     `)
-    .eq('space_id', project.space_id)
+    .eq('space_id', list.space_id)
 
   const members: Profile[] = (assignments ?? [])
     .map((a: any) => a.user)
     .filter(Boolean) as Profile[]
 
-  // Fetch project members (two-step: project_members → profiles)
+  // Fetch list members (two-step: list_members → profiles)
   // Includes custom_role_id for job title display; columns fall back to null if not yet migrated
   const admin = createAdminClient()
   const pmProfileSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at, custom_role_id'
@@ -186,24 +186,24 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   const pmProfileById: Record<string, Profile> = {}
   for (const p of pmProfiles) pmProfileById[p.id] = p
 
-  const projectMembers: ListMember[] = (pmData ?? []).map((m: any) => ({
+  const listMembers: ListMember[] = (pmData ?? []).map((m: any) => ({
     ...m,
     profile: pmProfileById[m.user_id],
   }))
 
-  const projectWithHours = {
-    ...project,
+  const listWithHours = {
+    ...list,
     actual_hours: actualHours,
   } as List
 
   return (
-    <ProjectDetailPage
-      project={projectWithHours}
+    <ListDetailPage
+      list={listWithHours}
       tasks={topLevelTasks}
       activityLogs={(activityLogs as ActivityLog[]) ?? []}
       members={members}
       profile={profile as Profile}
-      projectMembers={projectMembers}
+      listMembers={listMembers}
       allProfiles={(allProfilesData as Profile[]) ?? []}
       customRoles={(customRolesData as CustomRole[]) ?? []}
     />

@@ -17,7 +17,7 @@ export default function Loading() {
         <Skeleton className="h-9 w-9 rounded-md" />
       </div>
 
-      {/* Project cards */}
+      {/* List cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {[1, 2, 3, 4, 5, 6].map((i) => (
           <div key={i} className="rounded-xl border bg-card p-4 flex flex-col gap-3">

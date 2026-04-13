@@ -12,23 +12,23 @@ import { useTaskConfig } from '@/hooks/use-task-config'
 
 // ─── props ────────────────────────────────────────────────────────────────────
 
-interface CreateProjectDialogProps {
+interface CreateListDialogProps {
   open:         boolean
   onOpenChange: (open: boolean) => void
-  workspaces:   Space[]
-  onCreated?:   (project: List) => void
+  spaces:   Space[]
+  onCreated?:   (list: List) => void
   profile?:     Profile
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export function CreateProjectDialog({
+export function CreateListDialog({
   open,
   onOpenChange,
-  workspaces,
+  spaces,
   onCreated,
   profile,
-}: CreateProjectDialogProps) {
+}: CreateListDialogProps) {
   const router   = useRouter()
   const supabase = createClient()
   const { defaultStatus, defaultPriority } = useTaskConfig()
@@ -36,7 +36,7 @@ export function CreateProjectDialog({
   // ── Form state ───────────────────────────────────────────────────────────────
   const [name,        setName]        = useState('')
   const [description, setDescription] = useState('')
-  const [workspaceId, setWorkspaceId] = useState('')
+  const [spaceId, setSpaceId] = useState('')
   const [isPrivate,   setIsPrivate]   = useState(false)
   const [nameError,   setNameError]   = useState('')
   const [wsError,     setWsError]     = useState('')
@@ -54,17 +54,17 @@ export function CreateProjectDialog({
   const [wsOpen, setWsOpen] = useState(false)
   const wsRef   = useRef<HTMLDivElement>(null)
 
-  // Pre-select first workspace
+  // Pre-select first space
   useEffect(() => {
     if (open) {
-      if (workspaces.length === 1) setWorkspaceId(workspaces[0].id)
+      if (spaces.length === 1) setSpaceId(spaces[0].id)
       setTimeout(() => nameRef.current?.focus(), 80)
       // Fetch members lazily
       const baseSelect = 'id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at'
       supabase.from('profiles').select(baseSelect).not('role', 'in', '("client","partner")').order('full_name')
         .then(({ data }) => setAllUsers((data as Profile[]) ?? []))
     } else {
-      setName(''); setDescription(''); setWorkspaceId('')
+      setName(''); setDescription(''); setSpaceId('')
       setIsPrivate(false); setNameError(''); setWsError('')
       setMemberSearch(''); setSelectedStaff(new Set())
       setShareOpen(false); setWsOpen(false)
@@ -92,7 +92,7 @@ export function CreateProjectDialog({
   async function handleCreate() {
     let valid = true
     if (!name.trim()) { setNameError('List name is required'); nameRef.current?.focus(); valid = false }
-    const wsId = workspaceId || (workspaces.length === 1 ? workspaces[0].id : '')
+    const wsId = spaceId || (spaces.length === 1 ? spaces[0].id : '')
     if (!wsId) { setWsError('Please select a space'); valid = false }
     if (!valid) return
 
@@ -111,14 +111,14 @@ export function CreateProjectDialog({
         is_internal:  true,
         progress:     0,
         created_by:   user.id,
-      }).select(`*, workspace:workspaces(*), client:profiles!projects_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at), partner:profiles!projects_partner_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)`).single()
+      }).select(`*, space:spaces(*), client:profiles!lists_client_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at), partner:profiles!lists_partner_id_fkey(id, full_name, email, avatar_url, role, is_temp_password, onboarding_completed, created_at, updated_at)`).single()
 
       if (error) { toast({ title: 'Failed to create list', description: error.message, variant: 'destructive' }); return }
 
       // Add members
-      const memberInserts: { list_id: string; user_id: string; project_role: 'member' }[] = []
+      const memberInserts: { list_id: string; user_id: string; list_role: 'member' }[] = []
       selectedStaff.forEach(uid => {
-        if (uid !== user.id) memberInserts.push({ list_id: data.id, user_id: uid, project_role: 'member' })
+        if (uid !== user.id) memberInserts.push({ list_id: data.id, user_id: uid, list_role: 'member' })
       })
       if (memberInserts.length > 0) await supabase.from('list_members').insert(memberInserts)
 
@@ -129,7 +129,7 @@ export function CreateProjectDialog({
     } finally { setLoading(false) }
   }
 
-  const selectedWs      = workspaces.find(w => w.id === workspaceId)
+  const selectedWs      = spaces.find(w => w.id === spaceId)
   const selectedMembers = allUsers.filter(u => selectedStaff.has(u.id))
   const filteredUsers   = allUsers.filter(u =>
     !memberSearch ||
@@ -175,7 +175,7 @@ export function CreateProjectDialog({
               value={name}
               onChange={e => { setName(e.target.value); if (e.target.value.trim()) setNameError('') }}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreate() } }}
-              placeholder="e.g. Project, List of items, Campaign"
+              placeholder="e.g. List, List of items, Campaign"
               className={cn(
                 'w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-colors',
                 'placeholder:text-muted-foreground/50',
@@ -228,10 +228,10 @@ export function CreateProjectDialog({
 
               {wsOpen && (
                 <div className="absolute left-0 top-full mt-1 z-50 w-full rounded-lg border border-border bg-background shadow-xl py-1">
-                  {workspaces.map(ws => (
+                  {spaces.map(ws => (
                     <button
                       key={ws.id}
-                      onClick={() => { setWorkspaceId(ws.id); setWsError(''); setWsOpen(false) }}
+                      onClick={() => { setSpaceId(ws.id); setWsError(''); setWsOpen(false) }}
                       className="flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left"
                     >
                       <span
@@ -241,10 +241,10 @@ export function CreateProjectDialog({
                         {ws.name.slice(0,1).toUpperCase()}
                       </span>
                       <span className="flex-1 truncate">{ws.name}</span>
-                      {workspaceId === ws.id && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                      {spaceId === ws.id && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                     </button>
                   ))}
-                  {workspaces.length === 0 && (
+                  {spaces.length === 0 && (
                     <p className="px-3 py-2 text-xs text-muted-foreground">No spaces found</p>
                   )}
                 </div>

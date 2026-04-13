@@ -1,4 +1,4 @@
-export const APP_NAME = 'IWW Project Management'
+export const APP_NAME = 'IWW List Management'
 export const APP_SHORT_NAME = 'IWW PM'
 
 export const ROLES = {
@@ -18,7 +18,7 @@ export const ROLE_LABELS: Record<string, string> = {
   partner: 'Partner',
 }
 
-export const PROJECT_STATUSES = [
+export const LIST_STATUSES = [
   { value: 'planning', label: 'Planning' },
   { value: 'in_progress', label: 'In Progress' },
   { value: 'on_hold', label: 'On Hold' },
@@ -69,21 +69,21 @@ export const DEFAULT_ATTENDANCE_SETTINGS = {
   wfh_days: 10,
 }
 
-// Staff, Team Lead — no workspace visibility, task-focused
+// Staff, Team Lead — no space visibility, task-focused
 const STAFF_NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-  { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
+  { href: '/lists', label: 'Lists', icon: 'FolderKanban' },
   { href: '/tasks', label: 'My Tasks', icon: 'CheckSquare' },
   { href: '/timesheet', label: 'Timesheet', icon: 'Timer' },
   { href: '/attendance', label: 'Attendance', icon: 'Clock' },
   { href: '/leave', label: 'Leave', icon: 'CalendarDays' },
 ]
 
-// Org Admin — sees workspaces for org oversight, but no Team/Settings management
+// Org Admin — sees spaces for org oversight, but no Team/Settings management
 const ORG_ADMIN_NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-  { href: '/workspaces', label: 'Workspaces', icon: 'Building2' },
-  { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
+  { href: '/spaces', label: 'Spaces', icon: 'Building2' },
+  { href: '/lists', label: 'Lists', icon: 'FolderKanban' },
   { href: '/tasks', label: 'My Tasks', icon: 'CheckSquare' },
   { href: '/timesheet', label: 'Timesheet', icon: 'Timer' },
   { href: '/attendance', label: 'Attendance', icon: 'Clock' },
@@ -93,8 +93,8 @@ const ORG_ADMIN_NAV = [
 export const NAV_ITEMS: Record<string, { href: string; label: string; icon: string }[]> = {
   super_admin: [
     { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-    { href: '/workspaces', label: 'Workspaces', icon: 'Building2' },
-    { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
+    { href: '/spaces', label: 'Spaces', icon: 'Building2' },
+    { href: '/lists', label: 'Lists', icon: 'FolderKanban' },
     { href: '/tasks', label: 'My Tasks', icon: 'CheckSquare' },
     { href: '/timesheet', label: 'Timesheet', icon: 'Timer' },
     { href: '/attendance', label: 'Attendance', icon: 'Clock' },
@@ -103,15 +103,15 @@ export const NAV_ITEMS: Record<string, { href: string; label: string; icon: stri
     { href: '/reports', label: 'Reports', icon: 'BarChart2' },
     { href: '/settings', label: 'Settings', icon: 'Settings' },
   ],
-  account_manager: ORG_ADMIN_NAV,  // Org Admin sees workspaces
-  project_manager: STAFF_NAV,       // Team Lead: task-focused, no workspaces
-  staff: STAFF_NAV,                 // Staff: task-focused, no workspaces
+  account_manager: ORG_ADMIN_NAV,  // Org Admin sees spaces
+  project_manager: STAFF_NAV,       // Team Lead: task-focused, no spaces
+  staff: STAFF_NAV,                 // Staff: task-focused, no spaces
   client: [
     { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-    { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
+    { href: '/lists', label: 'Lists', icon: 'FolderKanban' },
   ],
   partner: [
     { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-    { href: '/projects', label: 'Projects', icon: 'FolderKanban' },
+    { href: '/lists', label: 'Lists', icon: 'FolderKanban' },
   ],
 }

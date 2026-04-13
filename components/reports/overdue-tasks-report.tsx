@@ -8,9 +8,9 @@ import { Space } from '@/types'
 import { format, parseISO } from 'date-fns'
 import { AlertTriangle } from 'lucide-react'
 
-interface Props { workspaces: Space[]; isAdmin: boolean }
+interface Props { spaces: Space[]; isAdmin: boolean }
 
-export function OverdueTasksReport({ workspaces, isAdmin }: Props) {
+export function OverdueTasksReport({ spaces, isAdmin }: Props) {
   const [data, setData] = useState<OverdueTaskRow[]>([])
   const [loading, setLoading] = useState(true)
   const [priority, setPriority] = useState('all')
@@ -48,9 +48,9 @@ export function OverdueTasksReport({ workspaces, isAdmin }: Props) {
           <ExportButton
             title="Overdue Tasks Report"
             filename="overdue-tasks"
-            headers={['Task', 'Project', 'Priority', 'Due Date', 'Days Overdue', 'Assignees']}
+            headers={['Task', 'List', 'Priority', 'Due Date', 'Days Overdue', 'Assignees']}
             buildRows={() => data.map(t => [
-              t.title, t.project_name, t.priority,
+              t.title, t.list_name, t.priority,
               format(parseISO(t.due_date), 'yyyy-MM-dd'),
               t.days_overdue,
               t.assignees.map(a => a.name).join(', '),
@@ -93,7 +93,7 @@ export function OverdueTasksReport({ workspaces, isAdmin }: Props) {
                         <span className="font-medium">{t.title}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{t.project_name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{t.list_name}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${priorityColor(t.priority)}`}>
                         {t.priority}

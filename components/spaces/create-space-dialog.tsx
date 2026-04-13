@@ -3,17 +3,17 @@
 import { useState, useEffect, useRef } from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
-import { createWorkspaceAction } from '@/app/actions/workspaces'
+import { createSpaceAction } from '@/app/actions/spaces'
 import { Profile, Space } from '@/types'
 import { X, Search, Shield, ChevronDown, Lock, Check } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 
-type WorkspaceWithCounts = Space & { member_count: number; project_count: number }
+type SpaceWithCounts = Space & { member_count: number; list_count: number }
 
-interface CreateWorkspaceDialogProps {
+interface CreateSpaceDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSuccess: (workspace: WorkspaceWithCounts) => void
+  onSuccess: (space: SpaceWithCounts) => void
   staffProfiles: Profile[]
 }
 
@@ -30,12 +30,12 @@ function pickColor(name: string) {
   return SPACE_COLORS[h % SPACE_COLORS.length]
 }
 
-export function CreateWorkspaceDialog({
+export function CreateSpaceDialog({
   open,
   onOpenChange,
   onSuccess,
   staffProfiles,
-}: CreateWorkspaceDialogProps) {
+}: CreateSpaceDialogProps) {
   const { toast } = useToast()
 
   const [name,          setName]          = useState('')
@@ -83,18 +83,18 @@ export function CreateWorkspaceDialog({
     setNameError('')
     setIsSubmitting(true)
     try {
-      const result = await createWorkspaceAction({
+      const result = await createSpaceAction({
         name: name.trim(),
         description: description.trim() || undefined,
         memberIds: [...selectedStaff],
       })
-      if (!result.success || !result.workspace) {
+      if (!result.success || !result.space) {
         toast({ title: 'Failed to create space', description: result.error ?? 'Unknown error', variant: 'destructive' })
         return
       }
       toast({ title: 'Space created', description: `"${name.trim()}" has been created.` })
       onOpenChange(false)
-      onSuccess({ ...result.workspace, member_count: selectedStaff.size, project_count: 0 })
+      onSuccess({ ...result.space, member_count: selectedStaff.size, list_count: 0 })
     } finally {
       setIsSubmitting(false)
     }

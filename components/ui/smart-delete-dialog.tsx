@@ -37,7 +37,7 @@ import Link from 'next/link'
 import { cn, getInitials } from '@/lib/utils'
 import { DeleteImpact } from '@/app/actions/delete-impact'
 
-type EntityType = 'workspace' | 'project' | 'task' | 'staff'
+type EntityType = 'space' | 'list' | 'task' | 'staff'
 
 interface SmartDeleteDialogProps {
   open: boolean
@@ -48,15 +48,15 @@ interface SmartDeleteDialogProps {
   allowForceDelete?: boolean
   onFetchImpact: () => Promise<{ success: boolean; impact?: DeleteImpact; error?: string }>
   onConfirmDelete: (opts: {
-    moveTasksToProjectId?: string
-    moveProjectsToWorkspaceId?: string
+    moveTasksToListId?: string
+    moveListsToSpaceId?: string
     reassignToUserId?: string
   }) => Promise<void>
 }
 
 const ENTITY_LABELS: Record<EntityType, { label: string }> = {
-  workspace: { label: 'Space' },
-  project:   { label: 'List' },
+  space: { label: 'Space' },
+  list:   { label: 'List' },
   task:      { label: 'Task' },
   staff:     { label: 'Staff Member' },
 }
@@ -78,14 +78,14 @@ export function SmartDeleteDialog({
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [moveToProject, setMoveToProject] = useState('')
-  const [moveToWorkspace, setMoveToWorkspace] = useState('')
+  const [moveToList, setMoveToList] = useState('')
+  const [moveToSpace, setMoveToSpace] = useState('')
   const [reassignToUser, setReassignToUser] = useState('')
   const [confirmValue, setConfirmValue] = useState('')
 
   const cfg = ENTITY_LABELS[entityType]
   const hasWarning = impact
-    ? impact.taskCount > 0 || impact.projectCount > 0 || impact.members.length > 0
+    ? impact.taskCount > 0 || impact.listCount > 0 || impact.members.length > 0
     : false
   const confirmReady = confirmValue === entityName
 
@@ -96,8 +96,8 @@ export function SmartDeleteDialog({
       setImpact(null)
       setFetchError(null)
       setDeleteError(null)
-      setMoveToProject('')
-      setMoveToWorkspace('')
+      setMoveToList('')
+      setMoveToSpace('')
       setReassignToUser('')
       setConfirmValue('')
       setIsForceDeleting(false)
@@ -134,8 +134,8 @@ export function SmartDeleteDialog({
     setStep('deleting')
     try {
       await onConfirmDelete({
-        moveTasksToProjectId: moveToProject || undefined,
-        moveProjectsToWorkspaceId: moveToWorkspace || undefined,
+        moveTasksToListId: moveToList || undefined,
+        moveListsToSpaceId: moveToSpace || undefined,
         reassignToUserId: reassignToUser || undefined,
       })
     } catch (err) {
@@ -147,16 +147,16 @@ export function SmartDeleteDialog({
   function buildSummary(): string {
     if (!impact) return 'This action cannot be undone.'
     const parts: string[] = []
-    if (entityType === 'workspace' && impact.projectCount > 0) {
+    if (entityType === 'space' && impact.listCount > 0) {
       parts.push(
-        moveToWorkspace
-          ? `${impact.projectCount} list${impact.projectCount !== 1 ? 's' : ''} will be moved`
-          : `${impact.projectCount} list${impact.projectCount !== 1 ? 's' : ''} & ${impact.taskCount} task${impact.taskCount !== 1 ? 's' : ''} will be permanently deleted`
+        moveToSpace
+          ? `${impact.listCount} list${impact.listCount !== 1 ? 's' : ''} will be moved`
+          : `${impact.listCount} list${impact.listCount !== 1 ? 's' : ''} & ${impact.taskCount} task${impact.taskCount !== 1 ? 's' : ''} will be permanently deleted`
       )
     }
-    if (entityType === 'project' && impact.taskCount > 0) {
+    if (entityType === 'list' && impact.taskCount > 0) {
       parts.push(
-        moveToProject
+        moveToList
           ? `${impact.taskCount} task${impact.taskCount !== 1 ? 's' : ''} will be moved`
           : `${impact.taskCount} task${impact.taskCount !== 1 ? 's' : ''} will be permanently deleted`
       )
@@ -243,16 +243,16 @@ export function SmartDeleteDialog({
                     </div>
                   )}
 
-                  {/* Projects inside workspace */}
-                  {impact.projects.length > 0 && (
+                  {/* Lists inside space */}
+                  {impact.lists.length > 0 && (
                     <div className="px-3 py-2.5 space-y-1.5">
                       <div className="flex items-center gap-1.5 text-xs text-amber-700 font-medium">
                         <FolderKanban className="h-3.5 w-3.5" />
-                        {impact.projects.length} {impact.projects.length === 1 ? 'list' : 'lists'} &amp;{' '}
+                        {impact.lists.length} {impact.lists.length === 1 ? 'list' : 'lists'} &amp;{' '}
                         {impact.taskCount} {impact.taskCount === 1 ? 'task' : 'tasks'} will be deleted
                       </div>
                       <div className="space-y-1">
-                        {impact.projects.slice(0, 4).map((p) => (
+                        {impact.lists.slice(0, 4).map((p) => (
                           <div key={p.id} className="flex items-center justify-between text-xs">
                             <Link
                               href={`/lists/${p.id}`}
@@ -267,15 +267,15 @@ export function SmartDeleteDialog({
                             </Badge>
                           </div>
                         ))}
-                        {impact.projects.length > 4 && (
-                          <p className="text-xs text-amber-600">+{impact.projects.length - 4} more</p>
+                        {impact.lists.length > 4 && (
+                          <p className="text-xs text-amber-600">+{impact.lists.length - 4} more</p>
                         )}
                       </div>
                     </div>
                   )}
 
                   {/* Tasks only */}
-                  {impact.tasks.length > 0 && impact.projects.length === 0 && (
+                  {impact.tasks.length > 0 && impact.lists.length === 0 && (
                     <div className="px-3 py-2.5 space-y-1.5">
                       <div className="flex items-center gap-1.5 text-xs text-amber-700 font-medium">
                         <CheckSquare className="h-3.5 w-3.5" />
@@ -371,16 +371,16 @@ export function SmartDeleteDialog({
             </div>
 
             <div className="px-5 py-4 space-y-4">
-              {entityType === 'workspace' && impact.projectCount > 0 && impact.otherWorkspaces.length > 0 && (
+              {entityType === 'space' && impact.listCount > 0 && impact.otherSpaces.length > 0 && (
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Move lists to another space</label>
-                  <Select value={moveToWorkspace} onValueChange={setMoveToWorkspace}>
+                  <Select value={moveToSpace} onValueChange={setMoveToSpace}>
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue placeholder="Delete all lists" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">Delete all lists</SelectItem>
-                      {impact.otherWorkspaces.map((w) => (
+                      {impact.otherSpaces.map((w) => (
                         <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -388,16 +388,16 @@ export function SmartDeleteDialog({
                 </div>
               )}
 
-              {entityType === 'project' && impact.taskCount > 0 && impact.otherProjects.length > 0 && (
+              {entityType === 'list' && impact.taskCount > 0 && impact.otherLists.length > 0 && (
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Move tasks to another list</label>
-                  <Select value={moveToProject} onValueChange={setMoveToProject}>
+                  <Select value={moveToList} onValueChange={setMoveToList}>
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue placeholder="Delete all tasks" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">Delete all tasks</SelectItem>
-                      {impact.otherProjects.map((p) => (
+                      {impact.otherLists.map((p) => (
                         <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}
                     </SelectContent>

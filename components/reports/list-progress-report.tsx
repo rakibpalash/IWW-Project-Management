@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getProjectProgressReportAction, ProjectProgressRow } from '@/app/actions/reports'
+import { getListProgressReportAction, ListProgressRow } from '@/app/actions/reports'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -10,25 +10,25 @@ import { format, parseISO } from 'date-fns'
 import { AlertTriangle } from 'lucide-react'
 import { Space } from '@/types'
 
-interface Props { workspaces: Space[]; isAdmin: boolean }
+interface Props { spaces: Space[]; isAdmin: boolean }
 
-export function ProjectProgressReport({ workspaces, isAdmin }: Props) {
-  const [data, setData] = useState<ProjectProgressRow[]>([])
+export function ListProgressReport({ spaces, isAdmin }: Props) {
+  const [data, setData] = useState<ListProgressRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [workspaceId, setWorkspaceId] = useState('all')
+  const [spaceId, setSpaceId] = useState('all')
   const [status, setStatus] = useState('all')
 
   async function load() {
     setLoading(true)
-    const res = await getProjectProgressReportAction({
-      workspaceId: workspaceId === 'all' ? undefined : workspaceId,
+    const res = await getListProgressReportAction({
+      spaceId: spaceId === 'all' ? undefined : spaceId,
       status: status === 'all' ? undefined : status,
     })
     setData(res.data ?? [])
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [workspaceId, status])
+  useEffect(() => { load() }, [spaceId, status])
 
   const total = data.length
   const overdue = data.filter(p => p.is_overdue).length
@@ -39,12 +39,12 @@ export function ProjectProgressReport({ workspaces, isAdmin }: Props) {
     <div className="space-y-5">
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        {isAdmin && workspaces.length > 1 && (
-          <Select value={workspaceId} onValueChange={setWorkspaceId}>
+        {isAdmin && spaces.length > 1 && (
+          <Select value={spaceId} onValueChange={setSpaceId}>
             <SelectTrigger className="w-[180px] h-8 text-sm"><SelectValue placeholder="All Spaces" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Spaces</SelectItem>
-              {workspaces.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+              {spaces.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
             </SelectContent>
           </Select>
         )}
@@ -61,17 +61,17 @@ export function ProjectProgressReport({ workspaces, isAdmin }: Props) {
         </Select>
         <div className="ml-auto">
           <ExportButton
-            title="Project Progress Report"
-            filename="project-progress"
-            headers={['Project', 'Space', 'Status', 'Priority', 'Progress %', 'Tasks Done', 'Total Tasks', 'Logged Hours', 'Est. Hours', 'Due Date', 'Overdue']}
-            buildRows={() => data.map(p => [p.name, p.workspace_name ?? '', p.status, p.priority, p.progress, p.completed_tasks, p.total_tasks, p.logged_hours, p.estimated_hours ?? '', p.due_date ?? '', p.is_overdue ? 'Yes' : 'No'])}
+            title="List Progress Report"
+            filename="list-progress"
+            headers={['List', 'Space', 'Status', 'Priority', 'Progress %', 'Tasks Done', 'Total Tasks', 'Logged Hours', 'Est. Hours', 'Due Date', 'Overdue']}
+            buildRows={() => data.map(p => [p.name, p.space_name ?? '', p.status, p.priority, p.progress, p.completed_tasks, p.total_tasks, p.logged_hours, p.estimated_hours ?? '', p.due_date ?? '', p.is_overdue ? 'Yes' : 'No'])}
           />
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Total Projects" value={total} />
+        <StatCard label="Total Lists" value={total} />
         <StatCard label="Completed" value={completed} color="bg-emerald-100 text-emerald-700" />
         <StatCard label="Overdue" value={overdue} color="bg-red-100 text-red-700" />
         <StatCard label="Avg Progress" value={`${avgProgress}%`} color="bg-blue-100 text-blue-700" />
@@ -101,7 +101,7 @@ export function ProjectProgressReport({ workspaces, isAdmin }: Props) {
                         {p.is_overdue && <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />}
                         <span className="font-medium">{p.name}</span>
                       </div>
-                      {p.workspace_name && <p className="text-xs text-muted-foreground mt-0.5">{p.workspace_name}</p>}
+                      {p.space_name && <p className="text-xs text-muted-foreground mt-0.5">{p.space_name}</p>}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(p.status)}`}>

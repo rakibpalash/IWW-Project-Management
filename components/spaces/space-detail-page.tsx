@@ -3,17 +3,17 @@
 import { useState, useTransition, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getWorkspaceMembersAction } from '@/app/actions/workspaces'
+import { getSpaceMembersAction } from '@/app/actions/spaces'
 import {
   format, parseISO, isAfter, isBefore, subDays, addDays,
   startOfMonth, endOfMonth, eachDayOfInterval, getDay,
   differenceInDays, startOfWeek, addMonths, subMonths,
   isSameMonth, isToday,
 } from 'date-fns'
-import { cloneWorkspaceAction } from '@/app/actions/workspaces'
+import { cloneSpaceAction } from '@/app/actions/spaces'
 import { AssignStaffDialog } from './assign-staff-dialog'
-import { RenameWorkspaceDialog } from './rename-workspace-dialog'
-import { CreateProjectDialog } from '@/components/projects/create-project-dialog'
+import { RenameSpaceDialog } from './rename-space-dialog'
+import { CreateListDialog } from '@/components/lists/create-list-dialog'
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -41,10 +41,10 @@ import { Label } from '@/components/ui/label'
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabType = 'summary' | 'list' | 'board' | 'calendar' | 'timeline'
 
-interface WorkspaceDetailPageProps {
-  workspace: Space
+interface SpaceDetailPageProps {
+  space: Space
   members: Profile[]
-  projects: List[]
+  lists: List[]
   tasks: Task[]
   activityLogs: ActivityLog[]
   isAdmin: boolean
@@ -137,19 +137,19 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export function WorkspaceDetailPage({
-  workspace, members: initialMembers, projects, tasks, activityLogs, isAdmin, profile,
-}: WorkspaceDetailPageProps) {
+export function SpaceDetailPage({
+  space, members: initialMembers, lists, tasks, activityLogs, isAdmin, profile,
+}: SpaceDetailPageProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [, startTransition] = useTransition()
   const [members, setMembers] = useState<Profile[]>(initialMembers)
   const [activeTab, setActiveTab] = useState<TabType>('summary')
   const [showAssign, setShowAssign] = useState(false)
-  const [showRenameWorkspace, setShowRenameWorkspace] = useState(false)
+  const [showRenameSpace, setShowRenameSpace] = useState(false)
   const [isCloning, setIsCloning] = useState(false)
-  const [workspaceName, setWorkspaceName] = useState(workspace.name)
-  const [showCreateProject, setShowCreateProject] = useState(false)
+  const [spaceName, setSpaceName] = useState(space.name)
+  const [showCreateList, setShowCreateList] = useState(false)
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -161,7 +161,7 @@ export function WorkspaceDetailPage({
   const [tlSearch, setTlSearch] = useState('')
   const [listView, setListView] = useState<'list' | 'grid'>('list')
 
-  // ── Tab customisation (persisted per-user per-workspace in localStorage) ──
+  // ── Tab customisation (persisted per-user per-space in localStorage) ──
   const ALL_TABS: { key: TabType; label: string; icon: React.ReactNode }[] = [
     { key: 'summary',  label: 'Summary',  icon: <Globe className="h-3.5 w-3.5" /> },
     { key: 'list',     label: 'List',     icon: <LayoutList className="h-3.5 w-3.5" /> },
@@ -175,8 +175,8 @@ export function WorkspaceDetailPage({
     summary: 'Summary', list: 'List', board: 'Board', calendar: 'Calendar', timeline: 'Timeline',
   }
 
-  // Unique key per user + workspace so each user has their own layout
-  const storageKey = `ws-tabs:${profile.id}:${workspace.id}`
+  // Unique key per user + space so each user has their own layout
+  const storageKey = `ws-tabs:${profile.id}:${space.id}`
 
   function loadTabPrefs() {
     if (typeof window === 'undefined') return null
@@ -243,7 +243,7 @@ export function WorkspaceDetailPage({
   function syncMembers() {
     if (memberFetchTimer.current) clearTimeout(memberFetchTimer.current)
     memberFetchTimer.current = setTimeout(async () => {
-      const result = await getWorkspaceMembersAction(workspace.id)
+      const result = await getSpaceMembersAction(space.id)
       if (result.success && result.members) {
         setMembers(result.members as Profile[])
       }
@@ -254,20 +254,20 @@ export function WorkspaceDetailPage({
     const supabase = createClient()
 
     const channel = supabase
-      .channel(`workspace:${workspace.id}`)
+      .channel(`space:${space.id}`)
       // Member assignments — update member list in-place without page refresh
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'space_assignments',
-        filter: `space_id=eq.${workspace.id}`,
+        filter: `space_id=eq.${space.id}`,
       }, () => syncMembers())
-      // Projects / tasks — still need a refresh to get full relational data
+      // Lists / tasks — still need a refresh to get full relational data
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'lists',
-        filter: `space_id=eq.${workspace.id}`,
+        filter: `space_id=eq.${space.id}`,
       }, () => refresh())
       .subscribe()
 
@@ -276,13 +276,13 @@ export function WorkspaceDetailPage({
       supabase.removeChannel(channel)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace.id])
+  }, [space.id])
 
-  // Guard: tasks require a project — redirect to project creation if none exist
+  // Guard: tasks require a list — redirect to list creation if none exist
   function openCreateTask() {
-    if (projects.length === 0) {
-      setShowCreateProject(true)
-      toast({ title: 'Create a project first', description: 'Tasks must belong to a project. Add one to get started.' })
+    if (lists.length === 0) {
+      setShowCreateList(true)
+      toast({ title: 'Create a list first', description: 'Tasks must belong to a list. Add one to get started.' })
     } else {
       setShowCreateTask(true)
     }
@@ -466,7 +466,7 @@ export function WorkspaceDetailPage({
             <div className="h-8 w-8 rounded-md bg-blue-600 flex items-center justify-center shrink-0">
               <FolderKanban className="h-4 w-4 text-white" />
             </div>
-            <h1 className="text-xl font-bold">{workspaceName}</h1>
+            <h1 className="text-xl font-bold">{spaceName}</h1>
             <div className="flex -space-x-1.5">
               {members.slice(0, 5).map(m => (
                 <Avatar key={m.id} className="h-6 w-6 border-2 border-background">
@@ -488,9 +488,9 @@ export function WorkspaceDetailPage({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 {isAdmin && (
-                  <DropdownMenuItem onClick={() => setShowRenameWorkspace(true)}>
+                  <DropdownMenuItem onClick={() => setShowRenameSpace(true)}>
                     <Pencil className="h-3.5 w-3.5 mr-2" />
-                    Edit workspace
+                    Edit space
                   </DropdownMenuItem>
                 )}
                 {isAdmin && (
@@ -499,7 +499,7 @@ export function WorkspaceDetailPage({
                   </DropdownMenuItem>
                 )}
                 {isAdmin && (
-                  <DropdownMenuItem onClick={() => setShowCreateProject(true)}>
+                  <DropdownMenuItem onClick={() => setShowCreateList(true)}>
                     New List
                   </DropdownMenuItem>
                 )}
@@ -508,11 +508,11 @@ export function WorkspaceDetailPage({
                   onClick={async () => {
                     setIsCloning(true)
                     try {
-                      const result = await cloneWorkspaceAction(workspace.id)
+                      const result = await cloneSpaceAction(space.id)
                       if (!result.success) {
                         toast({ title: 'Clone failed', description: result.error, variant: 'destructive' })
                       } else {
-                        toast({ title: 'Space cloned', description: `"${workspaceName} (Copy)" created.` })
+                        toast({ title: 'Space cloned', description: `"${spaceName} (Copy)" created.` })
                         router.push('/spaces')
                       }
                     } finally {
@@ -521,7 +521,7 @@ export function WorkspaceDetailPage({
                   }}
                 >
                   {isCloning ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <Copy className="h-3.5 w-3.5 mr-2" />}
-                  {isCloning ? 'Cloning…' : 'Clone workspace'}
+                  {isCloning ? 'Cloning…' : 'Clone space'}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -717,7 +717,7 @@ export function WorkspaceDetailPage({
                 <h3 className="font-semibold text-sm">Recent activity</h3>
                 <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
-              <p className="text-xs text-muted-foreground mb-4">Stay up to date with what's happening across the workspace.</p>
+              <p className="text-xs text-muted-foreground mb-4">Stay up to date with what's happening across the space.</p>
               {activityLogs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-6 text-center">
                   <Activity className="h-8 w-8 text-muted-foreground/30 mb-2" />
@@ -949,7 +949,7 @@ export function WorkspaceDetailPage({
                         {task.due_date ? format(parseISO(task.due_date), 'MMM dd, yyyy') : '—'}
                       </td>
                       <td className="px-3 py-2.5 text-xs text-muted-foreground truncate max-w-[100px]">
-                        {(task as any).project?.name ?? '—'}
+                        {(task as any).list?.name ?? '—'}
                       </td>
                       <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
                         <DropdownMenu>
@@ -1045,12 +1045,12 @@ export function WorkspaceDetailPage({
                   <LayoutGrid className="h-full w-full text-blue-200" />
                 </div>
                 <h3 className="text-lg font-bold mb-2">Visualize your tasks with a board</h3>
-                {projects.length === 0 ? (
+                {lists.length === 0 ? (
                   <>
                     <p className="text-sm text-muted-foreground mb-4 max-w-xs">
                       You need a list before you can create tasks. Start by creating a list in this space.
                     </p>
-                    <Button onClick={() => setShowCreateProject(true)}>
+                    <Button onClick={() => setShowCreateList(true)}>
                       <Plus className="h-4 w-4 mr-2" />New List
                     </Button>
                   </>
@@ -1325,29 +1325,29 @@ export function WorkspaceDetailPage({
       )}
 
       {/* ── Dialogs ── */}
-      <RenameWorkspaceDialog
-        workspace={{ ...workspace, name: workspaceName }}
-        open={showRenameWorkspace}
-        onOpenChange={setShowRenameWorkspace}
+      <RenameSpaceDialog
+        space={{ ...space, name: spaceName }}
+        open={showRenameSpace}
+        onOpenChange={setShowRenameSpace}
         onSuccess={(_, name) => {
-          setWorkspaceName(name)
+          setSpaceName(name)
         }}
       />
 
       <AssignStaffDialog open={showAssign} onOpenChange={setShowAssign}
-        workspaceId={workspace.id} currentMemberIds={members.map(m => m.id)}
+        spaceId={space.id} currentMemberIds={members.map(m => m.id)}
         onSuccess={refresh} />
 
       {isAdmin && (
-        <CreateProjectDialog open={showCreateProject} onOpenChange={setShowCreateProject}
-          workspaces={[workspace]} onCreated={refresh} profile={profile} />
+        <CreateListDialog open={showCreateList} onOpenChange={setShowCreateList}
+          spaces={[space]} onCreated={refresh} profile={profile} />
       )}
 
-      {projects.length > 0 && (
+      {lists.length > 0 && (
         <CreateTaskDialog
           open={showCreateTask}
           onOpenChange={setShowCreateTask}
-          projects={projects}
+          lists={lists}
           profile={profile}
           onCreated={refresh}
         />

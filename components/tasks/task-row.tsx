@@ -26,7 +26,7 @@ interface TaskRowProps {
   profile: Profile
   onTaskUpdated: (task: Task) => void
   onClick?: () => void
-  showProject?: boolean
+  showList?: boolean
   level?: number
   // Bulk selection
   selected?: boolean
@@ -45,7 +45,7 @@ export function TaskRow({
   profile,
   onTaskUpdated,
   onClick,
-  showProject = false,
+  showList = false,
   level = 0,
   selected = false,
   onSelect,
@@ -185,9 +185,9 @@ export function TaskRow({
             >
               {task.title}
             </span>
-            {showProject && task.project && (
+            {showList && task.list && (
               <span className="text-xs text-muted-foreground/50 truncate shrink-0 hidden sm:inline">
-                · {task.project.name}
+                · {task.list.name}
               </span>
             )}
             {hasSubtasks && (

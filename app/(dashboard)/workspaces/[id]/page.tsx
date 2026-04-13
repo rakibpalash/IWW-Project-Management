@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-export default async function WorkspaceDetailRedirect({
+export default async function SpaceDetailRedirect({
   params,
 }: {
   params: Promise<{ id: string }>

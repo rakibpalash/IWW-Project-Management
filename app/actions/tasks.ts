@@ -351,7 +351,7 @@ export async function deleteTaskAction(
       'task_deleted',
       'Task deleted',
       `"${taskTitle}" was deleted by ${deleterName}.`,
-      task?.list_id ? `/projects/${task.list_id}` : '/tasks'
+      task?.list_id ? `/lists/${task.list_id}` : '/tasks'
     )
 
     revalidatePath('/tasks')
@@ -450,7 +450,7 @@ async function cloneTaskRecursive(
   admin: ReturnType<typeof createAdminClient>,
   originalId: string,
   newParentId: string | null,
-  projectId: string,
+  listId: string,
   createdBy: string
 ): Promise<string | null> {
   const { data: original } = await admin
@@ -464,7 +464,7 @@ async function cloneTaskRecursive(
   const { data: cloned } = await admin
     .from('tasks')
     .insert({
-      list_id: projectId,
+      list_id: listId,
       parent_task_id: newParentId,
       title: newParentId ? original.title : `${original.title} (Copy)`,
       description: original.description,
@@ -494,7 +494,7 @@ async function cloneTaskRecursive(
     .eq('parent_task_id', originalId)
 
   for (const sub of subtasks ?? []) {
-    await cloneTaskRecursive(admin, sub.id, cloned.id, projectId, createdBy)
+    await cloneTaskRecursive(admin, sub.id, cloned.id, listId, createdBy)
   }
 
   return cloned.id

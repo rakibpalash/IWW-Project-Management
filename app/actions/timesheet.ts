@@ -16,7 +16,7 @@ export interface TimesheetRow {
   approved_by: string | null
   task_title: string
   list_id: string
-  project_name: string
+  list_name: string
   user_full_name: string
   user_avatar_url: string | null
   user_role: string
@@ -49,7 +49,7 @@ export async function getTimesheetEntriesAction(filters?: {
     .select(`
       id, task_id, user_id, description, started_at, ended_at, duration_minutes,
       is_running, is_billable, approval_status, approved_by,
-      task:tasks(id, title, project:projects(id, name)),
+      task:tasks(id, title, list:lists(id, name)),
       profile:profiles(id, full_name, avatar_url, role)
     `)
     .order('started_at', { ascending: false })
@@ -100,8 +100,8 @@ export async function getTimesheetEntriesAction(filters?: {
     approval_status: e.approval_status ?? 'pending',
     approved_by: e.approved_by ?? null,
     task_title: e.task?.title ?? 'Deleted task',
-    list_id: e.task?.project?.id ?? '',
-    project_name: e.task?.project?.name ?? 'Unknown project',
+    list_id: e.task?.list?.id ?? '',
+    list_name: e.task?.list?.name ?? 'Unknown list',
     user_full_name: e.profile?.full_name ?? 'Unknown user',
     user_avatar_url: e.profile?.avatar_url ?? null,
     user_role: e.profile?.role ?? '',

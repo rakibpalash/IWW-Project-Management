@@ -69,7 +69,7 @@ export function CreateTeamDialog({
   const ROLE_LABELS: Record<string, string> = {
     super_admin: 'Admin',
     account_manager: 'Account Manager',
-    project_manager: 'Project Manager',
+    project_manager: 'List Manager',
     staff: 'Staff',
     client: 'Client',
   }

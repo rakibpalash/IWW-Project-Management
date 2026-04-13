@@ -63,8 +63,8 @@ import { cn } from '@/lib/utils'
 
 interface TeamManagementProps {
   users: Profile[]
-  workspaces: Space[]
-  workspaceAssignments: (SpaceAssignment & { workspace?: Space })[]
+  spaces: Space[]
+  spaceAssignments: (SpaceAssignment & { space?: Space })[]
   customRoles?: CustomRole[]
 }
 
@@ -100,7 +100,7 @@ interface ToggleConfirm {
   activating: boolean
 }
 
-export function TeamManagement({ users, workspaces, workspaceAssignments, customRoles = [] }: TeamManagementProps) {
+export function TeamManagement({ users, spaces, spaceAssignments, customRoles = [] }: TeamManagementProps) {
   const router = useRouter()
   const [createOpen, setCreateOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -141,10 +141,10 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
     return matchesSearch && matchesRole && matchesStatus
   })
 
-  const getUserWorkspaces = (userId: string): Space[] => {
-    return workspaceAssignments
-      .filter((a) => a.user_id === userId && a.workspace)
-      .map((a) => a.workspace as Space)
+  const getUserSpaces = (userId: string): Space[] => {
+    return spaceAssignments
+      .filter((a) => a.user_id === userId && a.space)
+      .map((a) => a.space as Space)
   }
 
   const handleRoleChange = async (userId: string, newRole: string) => {
@@ -284,7 +284,7 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
             ) : (
               filteredUsers.map((user) => {
                 const rc = ROLE_CONFIG[user.role] ?? ROLE_CONFIG.staff
-                const userWorkspaces = getUserWorkspaces(user.id)
+                const userSpaces = getUserSpaces(user.id)
                 const isUpdating = updatingUserId === user.id
                 const isAssigningRole = assigningRoleUserId === user.id
                 const isAssigningManager = assigningManagerUserId === user.id
@@ -491,13 +491,13 @@ export function TeamManagement({ users, workspaces, workspaceAssignments, custom
                       )}
                     </TableCell>
 
-                    {/* Workspaces */}
+                    {/* Spaces */}
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {userWorkspaces.length === 0 ? (
+                        {userSpaces.length === 0 ? (
                           <span className="text-xs text-muted-foreground">No spaces</span>
                         ) : (
-                          userWorkspaces.map((ws) => (
+                          userSpaces.map((ws) => (
                             <Badge key={ws.id} variant="outline" className="text-xs">{ws.name}</Badge>
                           ))
                         )}

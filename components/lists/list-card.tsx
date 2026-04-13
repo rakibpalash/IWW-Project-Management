@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { EditProjectDialog } from './edit-project-dialog'
+import { EditListDialog } from './edit-list-dialog'
 import { SmartDeleteDialog } from '@/components/ui/smart-delete-dialog'
 import { useToast } from '@/components/ui/use-toast'
 import {
@@ -41,8 +41,8 @@ import {
   Lock,
 } from 'lucide-react'
 import { Role } from '@/types'
-import { deleteProjectAction, cloneProjectAction } from '@/app/actions/projects'
-import { getProjectDeleteImpact } from '@/app/actions/delete-impact'
+import { deleteListAction, cloneListAction } from '@/app/actions/lists'
+import { getListDeleteImpact } from '@/app/actions/delete-impact'
 
 const BILLING_LABELS: Record<string, string> = {
   hourly: 'Hourly',
@@ -51,25 +51,25 @@ const BILLING_LABELS: Record<string, string> = {
   non_billable: 'Non-Billable',
 }
 
-interface ProjectCardProps {
-  project: List
+interface ListCardProps {
+  list: List
   listMode?: boolean
   isAdmin?: boolean
   userRole?: Role
   onDeleted?: (id: string) => void
-  onUpdated?: (project: List) => void
-  onCloned?: (project: List) => void
+  onUpdated?: (list: List) => void
+  onCloned?: (list: List) => void
 }
 
-export function ProjectCard({
-  project,
+export function ListCard({
+  list,
   listMode = false,
   isAdmin = false,
   userRole,
   onDeleted,
   onUpdated,
   onCloned,
-}: ProjectCardProps) {
+}: ListCardProps) {
   const canSeePartner = userRole === 'super_admin' || userRole === 'account_manager'
   const canSeeBilling = canSeePartner || userRole === 'project_manager'
   const router = useRouter()
@@ -79,25 +79,25 @@ export function ProjectCard({
   const [isCloning, setIsCloning] = useState(false)
 
   const overdue =
-    isOverdue(project.due_date) &&
-    project.status !== 'completed' &&
-    project.status !== 'cancelled'
+    isOverdue(list.due_date) &&
+    list.status !== 'completed' &&
+    list.status !== 'cancelled'
 
-  const actualHours = project.actual_hours ?? 0
-  const estimatedHours = project.estimated_hours ?? null
+  const actualHours = list.actual_hours ?? 0
+  const estimatedHours = list.estimated_hours ?? null
 
   function handleCardClick() {
-    router.push(`/lists/${project.id}`)
+    router.push(`/lists/${list.id}`)
   }
 
   async function handleClone(e: React.MouseEvent) {
     e.stopPropagation()
     setIsCloning(true)
-    const result = await cloneProjectAction(project.id)
+    const result = await cloneListAction(list.id)
     setIsCloning(false)
-    if (result.success && result.project) {
-      toast({ title: 'Project cloned', description: `"${result.project.name}" created` })
-      onCloned?.(result.project)
+    if (result.success && result.list) {
+      toast({ title: 'List cloned', description: `"${result.list.name}" created` })
+      onCloned?.(result.list)
     } else {
       toast({ title: 'Failed to clone', description: result.error, variant: 'destructive' })
     }
@@ -153,52 +153,52 @@ export function ProjectCard({
           <div
             className={cn(
               'h-2.5 w-2.5 flex-shrink-0 rounded-full',
-              project.priority === 'urgent' && 'bg-red-500',
-              project.priority === 'high' && 'bg-orange-500',
-              project.priority === 'medium' && 'bg-yellow-500',
-              project.priority === 'low' && 'bg-green-500'
+              list.priority === 'urgent' && 'bg-red-500',
+              list.priority === 'high' && 'bg-orange-500',
+              list.priority === 'medium' && 'bg-yellow-500',
+              list.priority === 'low' && 'bg-green-500'
             )}
           />
 
           {/* Name */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-medium truncate">{project.name}</span>
+              <span className="font-medium truncate">{list.name}</span>
               {overdue && <AlertTriangle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />}
             </div>
-            {project.description && (
-              <p className="text-xs text-muted-foreground truncate mt-0.5">{project.description}</p>
+            {list.description && (
+              <p className="text-xs text-muted-foreground truncate mt-0.5">{list.description}</p>
             )}
           </div>
 
           {/* Status */}
-          <Badge className={cn('hidden sm:inline-flex flex-shrink-0', getStatusColor(project.status))} variant="outline">
-            {formatStatus(project.status)}
+          <Badge className={cn('hidden sm:inline-flex flex-shrink-0', getStatusColor(list.status))} variant="outline">
+            {formatStatus(list.status)}
           </Badge>
 
           {/* Priority */}
-          <Badge className={cn('hidden md:inline-flex flex-shrink-0', getPriorityColor(project.priority))} variant="outline">
-            {formatStatus(project.priority)}
+          <Badge className={cn('hidden md:inline-flex flex-shrink-0', getPriorityColor(list.priority))} variant="outline">
+            {formatStatus(list.priority)}
           </Badge>
 
           {/* Progress */}
           <div className="hidden lg:flex items-center gap-2 w-24 flex-shrink-0">
-            <Progress value={project.progress} className="h-1.5 flex-1" />
-            <span className="text-xs text-muted-foreground w-7 text-right">{project.progress}%</span>
+            <Progress value={list.progress} className="h-1.5 flex-1" />
+            <span className="text-xs text-muted-foreground w-7 text-right">{list.progress}%</span>
           </div>
 
-          {/* Workspace */}
-          {project.workspace && (
+          {/* Space */}
+          {list.space && (
             <div className="hidden xl:flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0 max-w-[120px]">
               <Building2 className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate">{project.workspace.name}</span>
+              <span className="truncate">{list.space.name}</span>
             </div>
           )}
 
           {/* Due date */}
           <div className={cn('hidden sm:flex items-center gap-1 text-xs flex-shrink-0', overdue ? 'text-red-600 font-medium' : 'text-muted-foreground')}>
             <Calendar className="h-3 w-3" />
-            {formatDate(project.due_date)}
+            {formatDate(list.due_date)}
           </div>
 
           {isAdmin && <ActionsMenu />}
@@ -224,10 +224,10 @@ export function ProjectCard({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-1">
                 {overdue && <AlertTriangle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />}
-                <h3 className="font-semibold text-sm leading-tight line-clamp-2">{project.name}</h3>
+                <h3 className="font-semibold text-sm leading-tight line-clamp-2">{list.name}</h3>
               </div>
-              {project.description && (
-                <p className="text-xs text-muted-foreground line-clamp-2">{project.description}</p>
+              {list.description && (
+                <p className="text-xs text-muted-foreground line-clamp-2">{list.description}</p>
               )}
             </div>
             {isAdmin && <ActionsMenu />}
@@ -235,22 +235,22 @@ export function ProjectCard({
 
           {/* Badges row */}
           <div className="flex flex-wrap gap-1.5 mt-2">
-            <Badge className={cn('text-xs', getStatusColor(project.status))} variant="outline">
-              {formatStatus(project.status)}
+            <Badge className={cn('text-xs', getStatusColor(list.status))} variant="outline">
+              {formatStatus(list.status)}
             </Badge>
-            <Badge className={cn('text-xs', getPriorityColor(project.priority))} variant="outline">
-              {formatStatus(project.priority)}
+            <Badge className={cn('text-xs', getPriorityColor(list.priority))} variant="outline">
+              {formatStatus(list.priority)}
             </Badge>
-            {project.is_internal && (
+            {list.is_internal && (
               <Badge variant="outline" className="text-xs text-amber-600 bg-amber-500/10 border-amber-200 dark:border-amber-800 gap-1">
                 <Lock className="h-2.5 w-2.5" />
                 Internal
               </Badge>
             )}
-            {canSeeBilling && project.billing_type && project.billing_type !== 'non_billable' && (
+            {canSeeBilling && list.billing_type && list.billing_type !== 'non_billable' && (
               <Badge variant="outline" className="text-xs text-blue-600 bg-blue-500/10 border-blue-200 dark:border-blue-800 gap-1">
                 <Banknote className="h-2.5 w-2.5" />
-                {BILLING_LABELS[project.billing_type]}
+                {BILLING_LABELS[list.billing_type]}
               </Badge>
             )}
           </div>
@@ -261,13 +261,13 @@ export function ProjectCard({
           <div>
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
               <span>Progress</span>
-              <span className="font-medium">{project.progress}%</span>
+              <span className="font-medium">{list.progress}%</span>
             </div>
             <Progress
-              value={project.progress}
+              value={list.progress}
               className={cn(
                 'h-2',
-                project.progress >= 100 ? '[&>div]:bg-green-500' : project.progress >= 80 ? '[&>div]:bg-orange-500' : ''
+                list.progress >= 100 ? '[&>div]:bg-green-500' : list.progress >= 80 ? '[&>div]:bg-orange-500' : ''
               )}
             />
           </div>
@@ -276,8 +276,8 @@ export function ProjectCard({
           <div className="flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
             <span className={cn('text-xs', overdue ? 'text-red-600 font-semibold' : 'text-muted-foreground')}>
-              {project.due_date ? (
-                <>Due {formatDate(project.due_date)}{overdue && ' — Overdue'}</>
+              {list.due_date ? (
+                <>Due {formatDate(list.due_date)}{overdue && ' — Overdue'}</>
               ) : (
                 'No due date'
               )}
@@ -285,26 +285,26 @@ export function ProjectCard({
           </div>
 
           {/* Client */}
-          {project.client && (
+          {list.client && (
             <div className="flex items-center gap-1.5">
               <User className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground truncate">{project.client.full_name}</span>
+              <span className="text-xs text-muted-foreground truncate">{list.client.full_name}</span>
             </div>
           )}
 
           {/* Partner (admin only) */}
-          {canSeePartner && project.partner && (
+          {canSeePartner && list.partner && (
             <div className="flex items-center gap-1.5">
               <Handshake className="h-3.5 w-3.5 text-violet-500" />
-              <span className="text-xs text-violet-600 truncate">via {project.partner.full_name}</span>
+              <span className="text-xs text-violet-600 truncate">via {list.partner.full_name}</span>
             </div>
           )}
 
-          {/* Workspace */}
-          {project.workspace && (
+          {/* Space */}
+          {list.space && (
             <div className="flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground truncate">{project.workspace.name}</span>
+              <span className="text-xs text-muted-foreground truncate">{list.space.name}</span>
             </div>
           )}
 
@@ -329,10 +329,10 @@ export function ProjectCard({
     return (
       <>
         {showEditDialog && (
-          <EditProjectDialog
+          <EditListDialog
             open={showEditDialog}
             onOpenChange={setShowEditDialog}
-            project={project}
+            list={list}
             isSuperAdmin={userRole === 'super_admin'}
             onUpdated={(updated) => {
               setShowEditDialog(false)
@@ -343,18 +343,18 @@ export function ProjectCard({
         <SmartDeleteDialog
           open={showDeleteDialog}
           onOpenChange={setShowDeleteDialog}
-          entityType="project"
-          entityName={project.name}
-          entityId={project.id}
-          onFetchImpact={() => getProjectDeleteImpact(project.id)}
+          entityType="list"
+          entityName={list.name}
+          entityId={list.id}
+          onFetchImpact={() => getListDeleteImpact(list.id)}
           onConfirmDelete={async (opts) => {
-            const result = await deleteProjectAction(project.id, { moveTasksToProjectId: opts.moveTasksToProjectId })
+            const result = await deleteListAction(list.id, { moveTasksToListId: opts.moveTasksToListId })
             if (!result.success) {
               toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
               return
             }
-            toast({ title: 'Project deleted', description: `"${project.name}" was deleted.` })
-            onDeleted?.(project.id)
+            toast({ title: 'List deleted', description: `"${list.name}" was deleted.` })
+            onDeleted?.(list.id)
           }}
         />
       </>

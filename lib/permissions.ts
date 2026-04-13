@@ -2,8 +2,8 @@
 // Central definitions for all resources, actions, and role default templates.
 
 export type Resource =
-  | 'workspaces'
-  | 'projects'
+  | 'spaces'
+  | 'lists'
   | 'tasks'
   | 'team'
   | 'timesheet'
@@ -14,7 +14,7 @@ export type Resource =
 export type Action =
   // General CRUD
   | 'view' | 'create' | 'edit' | 'delete'
-  // Projects extra
+  // Lists extra
   | 'manage_members'
   // Tasks extra
   | 'assign'
@@ -36,7 +36,7 @@ export interface ResourceDef { key: Resource; label: string; icon: string; actio
 
 export const RESOURCE_DEFS: ResourceDef[] = [
   {
-    key: 'workspaces', label: 'Workspaces', icon: 'Building2',
+    key: 'spaces', label: 'Spaces', icon: 'Building2',
     actions: [
       { key: 'view',   label: 'View'   },
       { key: 'create', label: 'Create' },
@@ -45,7 +45,7 @@ export const RESOURCE_DEFS: ResourceDef[] = [
     ],
   },
   {
-    key: 'projects', label: 'Projects', icon: 'FolderKanban',
+    key: 'lists', label: 'Lists', icon: 'FolderKanban',
     actions: [
       { key: 'view',           label: 'View'            },
       { key: 'create',         label: 'Create'          },
@@ -109,8 +109,8 @@ export const RESOURCE_DEFS: ResourceDef[] = [
 
 export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionSet> = {
   super_admin: {
-    workspaces: ['view', 'create', 'edit', 'delete'],
-    projects:   ['view', 'create', 'edit', 'delete', 'manage_members'],
+    spaces: ['view', 'create', 'edit', 'delete'],
+    lists:   ['view', 'create', 'edit', 'delete', 'manage_members'],
     tasks:      ['view', 'create', 'edit', 'delete', 'assign'],
     team:       ['view', 'invite', 'edit', 'remove'],
     timesheet:  ['view_own', 'view_all', 'edit_all'],
@@ -119,8 +119,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionSet> = {
     settings:   ['manage'],
   },
   account_manager: {
-    workspaces: ['view', 'create', 'edit'],
-    projects:   ['view', 'create', 'edit', 'manage_members'],
+    spaces: ['view', 'create', 'edit'],
+    lists:   ['view', 'create', 'edit', 'manage_members'],
     tasks:      ['view', 'create', 'edit', 'assign'],
     team:       ['view', 'invite', 'edit'],
     timesheet:  ['view_own', 'view_all'],
@@ -129,8 +129,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionSet> = {
     settings:   [],
   },
   project_manager: {
-    workspaces: ['view'],
-    projects:   ['view', 'create', 'edit', 'manage_members'],
+    spaces: ['view'],
+    lists:   ['view', 'create', 'edit', 'manage_members'],
     tasks:      ['view', 'create', 'edit', 'delete', 'assign'],
     team:       ['view'],
     timesheet:  ['view_own'],
@@ -139,8 +139,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionSet> = {
     settings:   [],
   },
   staff: {
-    workspaces: [],
-    projects:   ['view'],
+    spaces: [],
+    lists:   ['view'],
     tasks:      ['view', 'create', 'edit'],
     team:       ['view'],
     timesheet:  ['view_own'],
@@ -149,8 +149,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionSet> = {
     settings:   [],
   },
   client: {
-    workspaces: [],
-    projects:   ['view'],
+    spaces: [],
+    lists:   ['view'],
     tasks:      ['view'],
     team:       [],
     timesheet:  ['view_own'],
@@ -159,8 +159,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionSet> = {
     settings:   [],
   },
   partner: {
-    workspaces: [],
-    projects:   ['view'],
+    spaces: [],
+    lists:   ['view'],
     tasks:      ['view'],
     team:       [],
     timesheet:  [],

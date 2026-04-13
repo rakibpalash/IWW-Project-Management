@@ -12,7 +12,7 @@ import { createOrganizationAction } from '@/app/actions/organizations'
 const FEATURES = [
   { icon: ShieldCheck,     text: 'Fully isolated from other organizations' },
   { icon: Users,           text: 'Invite your team after setup' },
-  { icon: LayoutDashboard, text: 'Projects, tasks & attendance in one place' },
+  { icon: LayoutDashboard, text: 'Lists, tasks & attendance in one place' },
 ]
 
 export default function SetupOrgPage() {

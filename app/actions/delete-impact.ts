@@ -4,71 +4,71 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export interface DeleteImpact {
   members: { id: string; full_name: string; avatar_url: string | null }[]
-  projectCount: number
+  listCount: number
   taskCount: number
-  // For workspace: list of projects that tasks will be deleted from
-  projects: { id: string; name: string; task_count: number }[]
+  // For space: list of lists that tasks will be deleted from
+  lists: { id: string; name: string; task_count: number }[]
   // For reassignment options
-  otherWorkspaces: { id: string; name: string }[]
-  otherProjects: { id: string; name: string; space_id: string }[]
-  // Task list (for project/staff delete)
+  otherSpaces: { id: string; name: string }[]
+  otherLists: { id: string; name: string; space_id: string }[]
+  // Task list (for list/staff delete)
   tasks: { id: string; title: string; status: string; list_id: string }[]
   // Other users for reassignment (staff delete)
   otherUsers: { id: string; full_name: string; avatar_url: string | null }[]
 }
 
-export async function getWorkspaceDeleteImpact(
-  workspaceId: string
+export async function getSpaceDeleteImpact(
+  spaceId: string
 ): Promise<{ success: boolean; impact?: DeleteImpact; error?: string }> {
   try {
     const admin = createAdminClient()
 
-    const [{ data: members }, { data: projects }] = await Promise.all([
+    const [{ data: members }, { data: lists }] = await Promise.all([
       admin
         .from('space_assignments')
         .select('user:profiles(id, full_name, avatar_url)')
-        .eq('space_id', workspaceId),
+        .eq('space_id', spaceId),
       admin
         .from('lists')
         .select('id, name')
-        .eq('space_id', workspaceId),
+        .eq('space_id', spaceId),
     ])
 
-    const projectIds = (projects ?? []).map((p) => p.id)
+    const listIds = (lists ?? []).map((p) => p.id)
 
     let taskCount = 0
-    const projectsWithTasks: DeleteImpact['projects'] = []
+    const listsWithTasks: DeleteImpact['lists'] = []
 
-    if (projectIds.length > 0) {
+    if (listIds.length > 0) {
       const { data: tasks } = await admin
         .from('tasks')
         .select('id, list_id')
-        .in('list_id', projectIds)
+        .in('list_id', listIds)
         .is('parent_task_id', null)
 
       taskCount = tasks?.length ?? 0
-      for (const p of projects ?? []) {
+      for (const p of lists ?? []) {
         const count = tasks?.filter((t) => t.list_id === p.id).length ?? 0
-        projectsWithTasks.push({ id: p.id, name: p.name, task_count: count })
+        listsWithTasks.push({ id: p.id, name: p.name, task_count: count })
       }
     }
 
-    // Other workspaces for move option
-    const { data: otherWorkspaces } = await admin
+    // Other spaces for move option
+    const { data: otherSpaces } = await admin
       .from('spaces')
       .select('id, name')
-      .neq('id', workspaceId)
+      .neq('id', spaceId)
       .order('name')
 
     return {
       success: true,
       impact: {
         members: (members ?? []).map((m: any) => m.user).filter(Boolean),
-        projectCount: projects?.length ?? 0,
+        listCount: lists?.length ?? 0,
         taskCount,
-        projects: projectsWithTasks,
-        otherWorkspaces: otherWorkspaces ?? [],
-        otherProjects: [],
+        lists: listsWithTasks,
+        otherSpaces: otherSpaces ?? [],
+        otherLists: [],
         tasks: [],
         otherUsers: [],
       },
@@ -78,37 +78,37 @@ export async function getWorkspaceDeleteImpact(
   }
 }
 
-export async function getProjectDeleteImpact(
-  projectId: string
+export async function getListDeleteImpact(
+  listId: string
 ): Promise<{ success: boolean; impact?: DeleteImpact; error?: string }> {
   try {
     const admin = createAdminClient()
 
-    const [{ data: tasksRaw }, { data: taskDetails }, { data: projectMembers }] = await Promise.all([
+    const [{ data: tasksRaw }, { data: taskDetails }, { data: listMembers }] = await Promise.all([
       admin
         .from('tasks')
         .select('id, task_assignees(user:profiles(id, full_name, avatar_url))')
-        .eq('list_id', projectId)
+        .eq('list_id', listId)
         .is('parent_task_id', null),
       admin
         .from('tasks')
         .select('id, title, status, list_id')
-        .eq('list_id', projectId)
+        .eq('list_id', listId)
         .is('parent_task_id', null)
         .order('title')
         .limit(20),
-      // Fetch actual project team members
+      // Fetch actual list team members
       admin
         .from('list_members')
         .select('user:profiles(id, full_name, avatar_url)')
-        .eq('list_id', projectId),
+        .eq('list_id', listId),
     ])
 
-    // Unique members: project team members + task assignees
+    // Unique members: list team members + task assignees
     const memberMap = new Map<string, { id: string; full_name: string; avatar_url: string | null }>()
 
-    // Project team members (leads + members)
-    for (const pm of projectMembers ?? []) {
+    // List team members (leads + members)
+    for (const pm of listMembers ?? []) {
       const u = (pm as any).user
       if (u && !memberMap.has(u.id)) memberMap.set(u.id, u)
     }
@@ -121,12 +121,12 @@ export async function getProjectDeleteImpact(
       }
     }
 
-    // Other projects for move option
-    const [{ data: otherProjects }, { data: otherUsers }] = await Promise.all([
+    // Other lists for move option
+    const [{ data: otherLists }, { data: otherUsers }] = await Promise.all([
       admin
         .from('lists')
         .select('id, name, space_id')
-        .neq('id', projectId)
+        .neq('id', listId)
         .order('name'),
       admin
         .from('profiles')
@@ -139,11 +139,11 @@ export async function getProjectDeleteImpact(
       success: true,
       impact: {
         members: Array.from(memberMap.values()),
-        projectCount: 0,
+        listCount: 0,
         taskCount: tasksRaw?.length ?? 0,
-        projects: [],
-        otherWorkspaces: [],
-        otherProjects: otherProjects ?? [],
+        lists: [],
+        otherSpaces: [],
+        otherLists: otherLists ?? [],
         tasks: (taskDetails ?? []).map((t: any) => ({ id: t.id, title: t.title, status: t.status, list_id: t.list_id })),
         otherUsers: otherUsers ?? [],
       },
@@ -168,11 +168,11 @@ export async function getTaskDeleteImpact(
       success: true,
       impact: {
         members: (assignees ?? []).map((a: any) => a.user).filter(Boolean),
-        projectCount: 0,
+        listCount: 0,
         taskCount: 0,
-        projects: [],
-        otherWorkspaces: [],
-        otherProjects: [],
+        lists: [],
+        otherSpaces: [],
+        otherLists: [],
         tasks: [],
         otherUsers: [],
       },
@@ -188,7 +188,7 @@ export async function getStaffDeleteImpact(
   try {
     const admin = createAdminClient()
 
-    const [{ data: assignedTasks }, { count: projectCount }, { data: otherUsers }] = await Promise.all([
+    const [{ data: assignedTasks }, { count: listCount }, { data: otherUsers }] = await Promise.all([
       admin
         .from('task_assignees')
         .select('task:tasks(id, title, status, list_id)')
@@ -214,12 +214,12 @@ export async function getStaffDeleteImpact(
       success: true,
       impact: {
         members: [],
-        projectCount: projectCount ?? 0,
+        listCount: listCount ?? 0,
         taskCount: tasks.length,
-        projects: [],
+        lists: [],
         tasks,
-        otherWorkspaces: [],
-        otherProjects: [],
+        otherSpaces: [],
+        otherLists: [],
         otherUsers: otherUsers ?? [],
       },
     }

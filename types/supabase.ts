@@ -42,7 +42,7 @@ export interface Database {
           updated_at?: string
         }
       }
-      workspaces: {
+      spaces: {
         Row: {
           id: string
           name: string
@@ -65,25 +65,25 @@ export interface Database {
           updated_at?: string
         }
       }
-      workspace_assignments: {
+      space_assignments: {
         Row: {
           id: string
-          workspace_id: string
+          space_id: string
           user_id: string
           created_at: string
         }
         Insert: {
           id?: string
-          workspace_id: string
+          space_id: string
           user_id: string
           created_at?: string
         }
         Update: never
       }
-      projects: {
+      lists: {
         Row: {
           id: string
-          workspace_id: string
+          space_id: string
           name: string
           description: string | null
           client_id: string | null
@@ -99,7 +99,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          workspace_id: string
+          space_id: string
           name: string
           description?: string | null
           client_id?: string | null
@@ -129,7 +129,7 @@ export interface Database {
       tasks: {
         Row: {
           id: string
-          project_id: string
+          list_id: string
           parent_task_id: string | null
           title: string
           description: string | null
@@ -144,7 +144,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          project_id: string
+          list_id: string
           parent_task_id?: string | null
           title: string
           description?: string | null

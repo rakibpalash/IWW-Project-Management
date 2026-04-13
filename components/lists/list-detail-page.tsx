@@ -3,9 +3,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { List, Task, Profile, ActivityLog, ListMember, CustomRole } from '@/types'
-import { ProjectHeader } from './project-header'
+import { ListHeader } from './list-header'
 import { TimeSummary } from './time-summary'
-import { ProjectTeamSection } from './project-team-section'
+import { ListTeamSection } from './list-team-section'
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { TaskRow } from '@/components/tasks/task-row'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -56,17 +56,17 @@ const COL_DUE       = 'w-[90px]'
 const COL_PRIORITY  = 'w-[90px]'
 const COL_ACTION    = 'w-8'
 
-function ProjectTaskList({
+function ListTaskList({
   tasks,
   profile,
-  projectId,
+  listId,
   onTaskUpdated,
   onTaskCreated,
   onOpenDialog,
 }: {
   tasks: Task[]
   profile: Profile
-  projectId: string
+  listId: string
   onTaskUpdated: (t: Task) => void
   onTaskCreated: (t: Task) => void
   onOpenDialog: () => void
@@ -150,7 +150,7 @@ function ProjectTaskList({
       if (!user) return
       const { data, error } = await supabase.from('tasks').insert({
         title,
-        list_id:  projectId,
+        list_id:  listId,
         status:      statusId,
         priority:    defaultPriority || 'medium',
         created_by:  user.id,
@@ -277,7 +277,7 @@ function ProjectTaskList({
                         task={task}
                         profile={profile}
                         onTaskUpdated={onTaskUpdated}
-                        onClick={() => router.push(`/lists/${projectId}/tasks/${task.id}`)}
+                        onClick={() => router.push(`/lists/${listId}/tasks/${task.id}`)}
                         selected={selectedIds.has(task.id)}
                         onSelect={handleSelectTask}
                       />
@@ -691,17 +691,17 @@ function FilterDropdown({
 
 // ─── Board view ───────────────────────────────────────────────────────────────
 
-function ProjectBoardView({
+function ListBoardView({
   tasks,
   profile,
-  projectId,
+  listId,
   onTaskUpdated,
   onTaskCreated,
   router,
 }: {
   tasks: Task[]
   profile: Profile
-  projectId: string
+  listId: string
   onTaskUpdated: (t: Task) => void
   onTaskCreated: (t: Task) => void
   router: ReturnType<typeof useRouter>
@@ -726,7 +726,7 @@ function ProjectBoardView({
       if (!user) return
       const { data, error } = await supabase.from('tasks').insert({
         title,
-        list_id: projectId,
+        list_id: listId,
         status: statusId,
         priority: defaultPriority || 'medium',
         created_by: user.id,
@@ -776,7 +776,7 @@ function ProjectBoardView({
               return (
                 <div
                   key={task.id}
-                  onClick={() => router.push(`/lists/${projectId}/tasks/${task.id}`)}
+                  onClick={() => router.push(`/lists/${listId}/tasks/${task.id}`)}
                   className="rounded-lg border border-border bg-card p-3 cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all group"
                 >
                   {/* Title */}
@@ -879,29 +879,29 @@ function ProjectBoardView({
   )
 }
 
-interface ProjectDetailPageProps {
-  project: List
+interface ListDetailPageProps {
+  list: List
   tasks: Task[]
   activityLogs: ActivityLog[]
   members: Profile[]
   profile: Profile
-  projectMembers: ListMember[]
+  listMembers: ListMember[]
   allProfiles: Profile[]
   customRoles: CustomRole[]
 }
 
-export function ProjectDetailPage({
-  project: initialProject,
+export function ListDetailPage({
+  list: initialList,
   tasks,
   activityLogs,
   members,
   profile,
-  projectMembers,
+  listMembers,
   allProfiles,
   customRoles,
-}: ProjectDetailPageProps) {
+}: ListDetailPageProps) {
   const router = useRouter()
-  const [project, setProject] = useState<List>(initialProject)
+  const [list, setList] = useState<List>(initialList)
   const [taskList, setTaskList] = useState<Task[]>(tasks)
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [taskView, setTaskView] = useState<'list' | 'board'>('list')
@@ -909,8 +909,8 @@ export function ProjectDetailPage({
     search: '', assignee: 'all', priority: 'all', showClosed: false,
   })
 
-  function handleProjectUpdated(updated: List) {
-    setProject(updated)
+  function handleListUpdated(updated: List) {
+    setList(updated)
   }
 
   function handleTaskCreated(task: Task) {
@@ -938,11 +938,11 @@ export function ProjectDetailPage({
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Project header */}
-      <ProjectHeader
-        project={project}
+      {/* List header */}
+      <ListHeader
+        list={list}
         profile={profile}
-        onProjectUpdated={handleProjectUpdated}
+        onListUpdated={handleListUpdated}
       />
 
       <Separator />
@@ -1014,14 +1014,14 @@ export function ProjectDetailPage({
             </CardHeader>
             <CardContent>
               <TimeSummary
-                estimatedHours={project.estimated_hours}
-                actualHours={project.actual_hours ?? 0}
+                estimatedHours={list.estimated_hours}
+                actualHours={list.actual_hours ?? 0}
                 showProgressBar
               />
             </CardContent>
           </Card>
 
-          {/* Project details */}
+          {/* List details */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">List Details</CardTitle>
@@ -1031,10 +1031,10 @@ export function ProjectDetailPage({
                 <DetailRow
                   label="Space"
                   value={
-                    project.workspace ? (
+                    list.space ? (
                       <div className="flex items-center gap-1.5">
                         <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        {project.workspace.name}
+                        {list.space.name}
                       </div>
                     ) : (
                       '—'
@@ -1044,44 +1044,44 @@ export function ProjectDetailPage({
                 <DetailRow
                   label="Client"
                   value={
-                    project.client ? (
+                    list.client ? (
                       <div className="flex items-center gap-1.5">
                         <User className="h-3.5 w-3.5 text-muted-foreground" />
-                        {project.client.full_name}
+                        {list.client.full_name}
                       </div>
                     ) : (
                       'No client'
                     )
                   }
                 />
-                <DetailRow label="Start Date" value={formatDate(project.start_date)} />
+                <DetailRow label="Start Date" value={formatDate(list.start_date)} />
                 <DetailRow
                   label="Due Date"
                   value={
                     <span
                       className={cn(
-                        isOverdue(project.due_date) &&
-                          project.status !== 'completed' &&
-                          project.status !== 'cancelled'
+                        isOverdue(list.due_date) &&
+                          list.status !== 'completed' &&
+                          list.status !== 'cancelled'
                           ? 'text-red-600 font-semibold'
                           : ''
                       )}
                     >
-                      {formatDate(project.due_date)}
+                      {formatDate(list.due_date)}
                     </span>
                   }
                 />
-                <DetailRow label="Created" value={formatDate(project.created_at)} />
-                <DetailRow label="Last Updated" value={formatDate(project.updated_at)} />
+                <DetailRow label="Created" value={formatDate(list.created_at)} />
+                <DetailRow label="Last Updated" value={formatDate(list.updated_at)} />
               </dl>
 
-              {project.description && (
+              {list.description && (
                 <div className="mt-4 pt-4 border-t">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                     Description
                   </p>
                   <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                    {project.description}
+                    {list.description}
                   </p>
                 </div>
               )}
@@ -1108,10 +1108,10 @@ export function ProjectDetailPage({
             {/* Main task area */}
             <div className="flex-1 min-w-0 overflow-hidden">
               {taskView === 'list' ? (
-                <ProjectTaskList
+                <ListTaskList
                   tasks={filteredTasks}
                   profile={profile}
-                  projectId={project.id}
+                  listId={list.id}
                   onTaskUpdated={(updated) =>
                     setTaskList((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
                   }
@@ -1119,10 +1119,10 @@ export function ProjectDetailPage({
                   onOpenDialog={() => setShowCreateTask(true)}
                 />
               ) : (
-                <ProjectBoardView
+                <ListBoardView
                   tasks={filteredTasks}
                   profile={profile}
-                  projectId={project.id}
+                  listId={list.id}
                   onTaskUpdated={(updated) =>
                     setTaskList((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
                   }
@@ -1132,7 +1132,7 @@ export function ProjectDetailPage({
               )}
             </div>
 
-            {/* Right info panel — ClickUp-style project details */}
+            {/* Right info panel — ClickUp-style list details */}
             <div className="w-[240px] shrink-0 hidden xl:block">
               <div className="rounded-lg border border-border bg-card overflow-hidden">
                 {/* Header */}
@@ -1145,29 +1145,29 @@ export function ProjectDetailPage({
                   <div className="flex items-center gap-2 px-4 py-2.5">
                     <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <span className="text-xs text-muted-foreground w-16 shrink-0">Status</span>
-                    <span className="text-xs font-medium capitalize">{project.status?.replace(/_/g, ' ')}</span>
+                    <span className="text-xs font-medium capitalize">{list.status?.replace(/_/g, ' ')}</span>
                   </div>
 
                   {/* Priority */}
                   <div className="flex items-center gap-2 px-4 py-2.5">
                     <Flag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <span className="text-xs text-muted-foreground w-16 shrink-0">Priority</span>
-                    <span className="text-xs font-medium capitalize">{project.priority?.replace(/_/g, ' ') ?? '—'}</span>
+                    <span className="text-xs font-medium capitalize">{list.priority?.replace(/_/g, ' ') ?? '—'}</span>
                   </div>
 
-                  {/* Workspace */}
+                  {/* Space */}
                   <div className="flex items-center gap-2 px-4 py-2.5">
                     <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <span className="text-xs text-muted-foreground w-16 shrink-0">Space</span>
-                    <span className="text-xs font-medium truncate">{project.workspace?.name ?? '—'}</span>
+                    <span className="text-xs font-medium truncate">{list.space?.name ?? '—'}</span>
                   </div>
 
                   {/* Client */}
-                  {project.client && (
+                  {list.client && (
                     <div className="flex items-center gap-2 px-4 py-2.5">
                       <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       <span className="text-xs text-muted-foreground w-16 shrink-0">Client</span>
-                      <span className="text-xs font-medium truncate">{project.client.full_name}</span>
+                      <span className="text-xs font-medium truncate">{list.client.full_name}</span>
                     </div>
                   )}
 
@@ -1175,7 +1175,7 @@ export function ProjectDetailPage({
                   <div className="flex items-center gap-2 px-4 py-2.5">
                     <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <span className="text-xs text-muted-foreground w-16 shrink-0">Start</span>
-                    <span className="text-xs font-medium">{formatDate(project.start_date)}</span>
+                    <span className="text-xs font-medium">{formatDate(list.start_date)}</span>
                   </div>
 
                   {/* Due date */}
@@ -1184,10 +1184,10 @@ export function ProjectDetailPage({
                     <span className="text-xs text-muted-foreground w-16 shrink-0">Due</span>
                     <span className={cn(
                       'text-xs font-medium',
-                      isOverdue(project.due_date) && project.status !== 'completed' && project.status !== 'cancelled'
+                      isOverdue(list.due_date) && list.status !== 'completed' && list.status !== 'cancelled'
                         ? 'text-red-500' : ''
                     )}>
-                      {formatDate(project.due_date)}
+                      {formatDate(list.due_date)}
                     </span>
                   </div>
 
@@ -1195,12 +1195,12 @@ export function ProjectDetailPage({
                   <div className="px-4 py-3">
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs text-muted-foreground">Progress</span>
-                      <span className="text-xs font-semibold">{project.progress ?? 0}%</span>
+                      <span className="text-xs font-semibold">{list.progress ?? 0}%</span>
                     </div>
                     <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${project.progress ?? 0}%` }}
+                        style={{ width: `${list.progress ?? 0}%` }}
                       />
                     </div>
                   </div>
@@ -1235,11 +1235,11 @@ export function ProjectDetailPage({
                   </div>
 
                   {/* Description */}
-                  {project.description && (
+                  {list.description && (
                     <div className="px-4 py-3">
                       <span className="text-xs text-muted-foreground block mb-1.5">Description</span>
                       <p className="text-xs text-foreground/80 leading-relaxed line-clamp-4">
-                        {project.description}
+                        {list.description}
                       </p>
                     </div>
                   )}
@@ -1316,20 +1316,20 @@ export function ProjectDetailPage({
         {/* MEMBERS TAB                                                       */}
         {/* ---------------------------------------------------------------- */}
         <TabsContent value="members" className="space-y-4">
-          {/* Project team (leads + assigned members) */}
-          <ProjectTeamSection
-            projectId={project.id}
-            initialMembers={projectMembers}
+          {/* List team (leads + assigned members) */}
+          <ListTeamSection
+            listId={list.id}
+            initialMembers={listMembers}
             allProfiles={allProfiles}
             customRoles={customRoles}
             canManage={profile.role === 'super_admin'}
           />
 
-          {/* Workspace members */}
+          {/* Space members */}
           {members.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                Workspace Members
+                Space Members
               </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {members.map((member) => (
@@ -1353,19 +1353,19 @@ export function ProjectDetailPage({
               ))}
 
               {/* Also show client if present */}
-              {project.client && !members.find((m) => m.id === project.client?.id) && (
+              {list.client && !members.find((m) => m.id === list.client?.id) && (
                 <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
                   <Avatar className="h-9 w-9 flex-shrink-0">
                     <AvatarFallback className="text-sm">
-                      {getInitials(project.client.full_name)}
+                      {getInitials(list.client.full_name)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {project.client.full_name}
+                      {list.client.full_name}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {project.client.email}
+                      {list.client.email}
                     </p>
                   </div>
                   <Badge variant="outline" className="ml-auto flex-shrink-0 text-xs">
@@ -1382,10 +1382,10 @@ export function ProjectDetailPage({
       <CreateTaskDialog
         open={showCreateTask}
         onOpenChange={setShowCreateTask}
-        projects={[project]}
+        lists={[list]}
         profile={profile}
         onCreated={handleTaskCreated}
-        projectId={project.id}
+        listId={list.id}
       />
     </div>
   )

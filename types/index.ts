@@ -85,7 +85,7 @@ export interface List {
   created_at: string
   updated_at: string
   // joined
-  workspace?: Space
+  space?: Space
   client?: Profile
   partner?: Profile
   actual_hours?: number
@@ -108,7 +108,7 @@ export interface Task {
   updated_at: string
   depth: number
   // joined
-  project?: List
+  list?: List
   assignees?: Profile[]
   subtasks?: Task[]
   actual_hours?: number
@@ -357,7 +357,7 @@ export interface ListMember {
   id: string
   list_id: string
   user_id: string
-  project_role: 'lead' | 'member'
+  list_role: 'lead' | 'member'
   created_at: string
   profile?: Profile
 }

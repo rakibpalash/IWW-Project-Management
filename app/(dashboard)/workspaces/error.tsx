@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-export default function WorkspacesError({
+export default function SpacesError({
   error,
   reset,
 }: {
@@ -12,7 +12,7 @@ export default function WorkspacesError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Workspaces error:', error)
+    console.error('Spaces error:', error)
   }, [error])
 
   return (
@@ -23,7 +23,7 @@ export default function WorkspacesError({
       <div className="space-y-2">
         <h2 className="text-xl font-semibold">Something went wrong</h2>
         <p className="text-sm text-muted-foreground max-w-sm">
-          There was a problem loading workspaces. Your changes may have saved successfully.
+          There was a problem loading spaces. Your changes may have saved successfully.
         </p>
       </div>
       <div className="flex gap-3">

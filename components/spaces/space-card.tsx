@@ -12,28 +12,28 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 
-interface WorkspaceCardProps {
-  workspace: Space & {
+interface SpaceCardProps {
+  space: Space & {
     member_count: number
-    project_count: number
+    list_count: number
   }
   onClick: () => void
-  onRename: (workspace: Space) => void
-  onClone: (workspace: Space) => void
-  onDelete: (workspace: Space) => void
+  onRename: (space: Space) => void
+  onClone: (space: Space) => void
+  onDelete: (space: Space) => void
   canEdit?: boolean
   canDelete?: boolean
 }
 
-export function WorkspaceCard({
-  workspace,
+export function SpaceCard({
+  space,
   onClick,
   onRename,
   onClone,
   onDelete,
   canEdit = false,
   canDelete = false,
-}: WorkspaceCardProps) {
+}: SpaceCardProps) {
   return (
     <div className="group relative w-full rounded-xl border border-border bg-card shadow-sm text-left transition-all hover:border-blue-200 hover:shadow-md">
       {/* Clickable main area */}
@@ -48,10 +48,10 @@ export function WorkspaceCard({
             </div>
             <div className="min-w-0">
               <h3 className="truncate font-semibold text-foreground group-hover:text-blue-700 transition-colors">
-                {workspace.name}
+                {space.name}
               </h3>
-              {workspace.description && (
-                <p className="mt-0.5 truncate text-sm text-muted-foreground">{workspace.description}</p>
+              {space.description && (
+                <p className="mt-0.5 truncate text-sm text-muted-foreground">{space.description}</p>
               )}
             </div>
           </div>
@@ -61,14 +61,14 @@ export function WorkspaceCard({
         <div className="mt-4 flex items-center gap-4 border-t border-border/50 pt-4">
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Users className="h-4 w-4 text-muted-foreground/70" />
-            <span>{workspace.member_count} member{workspace.member_count !== 1 ? 's' : ''}</span>
+            <span>{space.member_count} member{space.member_count !== 1 ? 's' : ''}</span>
           </div>
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <FolderKanban className="h-4 w-4 text-muted-foreground/70" />
-            <span>{workspace.project_count} list{workspace.project_count !== 1 ? 's' : ''}</span>
+            <span>{space.list_count} list{space.list_count !== 1 ? 's' : ''}</span>
           </div>
           <div className="ml-auto text-xs text-muted-foreground/70">
-            Created {formatDate(workspace.created_at)}
+            Created {formatDate(space.created_at)}
           </div>
         </div>
       </button>
@@ -93,7 +93,7 @@ export function WorkspaceCard({
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation()
-                      onRename(workspace)
+                      onRename(space)
                     }}
                     className="gap-2"
                   >
@@ -103,7 +103,7 @@ export function WorkspaceCard({
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation()
-                      onClone(workspace)
+                      onClone(space)
                     }}
                     className="gap-2"
                   >
@@ -117,7 +117,7 @@ export function WorkspaceCard({
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation()
-                    onDelete(workspace)
+                    onDelete(space)
                   }}
                   className="gap-2 text-red-600 focus:text-red-600 focus:bg-red-50"
                 >

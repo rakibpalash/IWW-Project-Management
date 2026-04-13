@@ -83,7 +83,7 @@ export default function ForgotPasswordPage() {
           <div className="rounded-md bg-blue-50 border border-blue-100 px-4 py-3 text-sm text-blue-700">
             <p className="font-medium mb-1">What to do next:</p>
             <ol className="list-decimal list-inside space-y-1 text-blue-600">
-              <li>Open the email from IWW Project Management</li>
+              <li>Open the email from IWW List Management</li>
               <li>Click the &ldquo;Reset password&rdquo; link</li>
               <li>Choose a new secure password</li>
             </ol>

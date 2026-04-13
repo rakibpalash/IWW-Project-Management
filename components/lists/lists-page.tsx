@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from 'react'
 import { List, Profile, Space, ListStatus, Priority } from '@/types'
-import { ProjectCard } from './project-card'
-import { CreateProjectDialog } from './create-project-dialog'
+import { ListCard } from './list-card'
+import { CreateListDialog } from './create-list-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -15,10 +15,10 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { LayoutGrid, List as ListIcon, Plus, Search, X } from 'lucide-react'
-import { PROJECT_STATUSES, PRIORITIES } from '@/lib/constants'
+import { LIST_STATUSES, PRIORITIES } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
-interface ProjectsPageProps {
+interface ListsPageProps {
   initialLists: List[]
   profile: Profile
   spaces: Space[]
@@ -26,8 +26,8 @@ interface ProjectsPageProps {
 
 type ViewMode = 'grid' | 'list'
 
-export function ProjectsPage({ initialLists, profile, spaces: workspaces }: ProjectsPageProps) {
-  const [projects, setProjects] = useState<List[]>(initialLists)
+export function ListsPage({ initialLists, profile, spaces: spaces }: ListsPageProps) {
+  const [lists, setLists] = useState<List[]>(initialLists)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -38,22 +38,22 @@ export function ProjectsPage({ initialLists, profile, spaces: workspaces }: Proj
   const canCreate = profile.role === 'super_admin' || profile.role === 'staff'
   const isAdmin = profile.role === 'super_admin'
 
-  const filteredProjects = useMemo(() => {
-    return projects.filter((project) => {
+  const filteredLists = useMemo(() => {
+    return lists.filter((list) => {
       const matchesSearch =
         search === '' ||
-        project.name.toLowerCase().includes(search.toLowerCase()) ||
-        project.description?.toLowerCase().includes(search.toLowerCase()) ||
-        project.client?.full_name?.toLowerCase().includes(search.toLowerCase())
+        list.name.toLowerCase().includes(search.toLowerCase()) ||
+        list.description?.toLowerCase().includes(search.toLowerCase()) ||
+        list.client?.full_name?.toLowerCase().includes(search.toLowerCase())
 
-      const matchesStatus = statusFilter === 'all' || project.status === statusFilter
-      const matchesPriority = priorityFilter === 'all' || project.priority === priorityFilter
-      const matchesWorkspace =
-        spaceFilter === 'all' || project.space_id === spaceFilter
+      const matchesStatus = statusFilter === 'all' || list.status === statusFilter
+      const matchesPriority = priorityFilter === 'all' || list.priority === priorityFilter
+      const matchesSpace =
+        spaceFilter === 'all' || list.space_id === spaceFilter
 
-      return matchesSearch && matchesStatus && matchesPriority && matchesWorkspace
+      return matchesSearch && matchesStatus && matchesPriority && matchesSpace
     })
-  }, [projects, search, statusFilter, priorityFilter, spaceFilter])
+  }, [lists, search, statusFilter, priorityFilter, spaceFilter])
 
   const hasActiveFilters =
     search !== '' ||
@@ -68,31 +68,31 @@ export function ProjectsPage({ initialLists, profile, spaces: workspaces }: Proj
     setSpaceFilter('all')
   }
 
-  function handleProjectCreated(newProject: List) {
-    setProjects((prev) => [newProject, ...prev])
+  function handleListCreated(newList: List) {
+    setLists((prev) => [newList, ...prev])
     setShowCreateDialog(false)
   }
 
-  function handleProjectUpdated(updated: List) {
-    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+  function handleListUpdated(updated: List) {
+    setLists((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
   }
 
-  function handleProjectDeleted(id: string) {
-    setProjects((prev) => prev.filter((p) => p.id !== id))
+  function handleListDeleted(id: string) {
+    setLists((prev) => prev.filter((p) => p.id !== id))
   }
 
-  function handleProjectCloned(cloned: List) {
-    setProjects((prev) => [cloned, ...prev])
+  function handleListCloned(cloned: List) {
+    setLists((prev) => [cloned, ...prev])
   }
 
-  // Count projects by status for overview badges
+  // Count lists by status for overview badges
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const p of projects) {
+    for (const p of lists) {
       counts[p.status] = (counts[p.status] ?? 0) + 1
     }
     return counts
-  }, [projects])
+  }, [lists])
 
   return (
     <div className="page-inner">
@@ -101,7 +101,7 @@ export function ProjectsPage({ initialLists, profile, spaces: workspaces }: Proj
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Lists</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {projects.length} list{projects.length !== 1 ? 's' : ''} total
+            {lists.length} list{lists.length !== 1 ? 's' : ''} total
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -138,7 +138,7 @@ export function ProjectsPage({ initialLists, profile, spaces: workspaces }: Proj
 
       {/* Status summary pills */}
       <div className="flex flex-wrap gap-2">
-        {PROJECT_STATUSES.map((s) => {
+        {LIST_STATUSES.map((s) => {
           const count = statusCounts[s.value] ?? 0
           if (count === 0) return null
           return (
@@ -189,7 +189,7 @@ export function ProjectsPage({ initialLists, profile, spaces: workspaces }: Proj
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              {PROJECT_STATUSES.map((s) => (
+              {LIST_STATUSES.map((s) => (
                 <SelectItem key={s.value} value={s.value}>
                   {s.label}
                 </SelectItem>
@@ -211,14 +211,14 @@ export function ProjectsPage({ initialLists, profile, spaces: workspaces }: Proj
             </SelectContent>
           </Select>
 
-          {isAdmin && workspaces.length > 0 && (
+          {isAdmin && spaces.length > 0 && (
             <Select value={spaceFilter} onValueChange={setSpaceFilter}>
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Space" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Spaces</SelectItem>
-                {workspaces.map((w) => (
+                {spaces.map((w) => (
                   <SelectItem key={w.id} value={w.id}>
                     {w.name}
                   </SelectItem>
@@ -237,7 +237,7 @@ export function ProjectsPage({ initialLists, profile, spaces: workspaces }: Proj
       </div>
 
       {/* Results */}
-      {filteredProjects.length === 0 ? (
+      {filteredLists.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
           <div className="mb-4 rounded-full bg-muted p-4">
             <Search className="h-8 w-8 text-muted-foreground" />
@@ -264,42 +264,42 @@ export function ProjectsPage({ initialLists, profile, spaces: workspaces }: Proj
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredProjects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
+          {filteredLists.map((list) => (
+            <ListCard
+              key={list.id}
+              list={list}
               isAdmin={isAdmin}
               userRole={profile.role}
-              onUpdated={handleProjectUpdated}
-              onDeleted={handleProjectDeleted}
-              onCloned={handleProjectCloned}
+              onUpdated={handleListUpdated}
+              onDeleted={handleListDeleted}
+              onCloned={handleListCloned}
             />
           ))}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {filteredProjects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
+          {filteredLists.map((list) => (
+            <ListCard
+              key={list.id}
+              list={list}
               listMode
               isAdmin={isAdmin}
               userRole={profile.role}
-              onUpdated={handleProjectUpdated}
-              onDeleted={handleProjectDeleted}
-              onCloned={handleProjectCloned}
+              onUpdated={handleListUpdated}
+              onDeleted={handleListDeleted}
+              onCloned={handleListCloned}
             />
           ))}
         </div>
       )}
 
-      {/* Create project dialog */}
+      {/* Create list dialog */}
       {showCreateDialog && (
-        <CreateProjectDialog
+        <CreateListDialog
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
-          workspaces={workspaces}
-          onCreated={handleProjectCreated}
+          spaces={spaces}
+          onCreated={handleListCreated}
           profile={profile}
         />
       )}

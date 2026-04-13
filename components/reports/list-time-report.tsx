@@ -1,37 +1,37 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getProjectTimeReportAction, ProjectTimeRow } from '@/app/actions/reports'
+import { getListTimeReportAction, ListTimeRow } from '@/app/actions/reports'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StatCard, ExportButton, ReportLoading, ReportEmpty, HorizontalBar, fmtHours } from './report-shell'
 import { Space } from '@/types'
 import { format, subDays } from 'date-fns'
 
-interface Props { workspaces: Space[]; isAdmin: boolean }
+interface Props { spaces: Space[]; isAdmin: boolean }
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
 
-export function ProjectTimeReport({ workspaces, isAdmin }: Props) {
-  const [data, setData] = useState<ProjectTimeRow[]>([])
+export function ListTimeReport({ spaces, isAdmin }: Props) {
+  const [data, setData] = useState<ListTimeRow[]>([])
   const [loading, setLoading] = useState(true)
   const [startDate, setStartDate] = useState(thirtyDaysAgo)
   const [endDate, setEndDate] = useState(today)
-  const [groupBy, setGroupBy] = useState<'project' | 'member'>('project')
+  const [groupBy, setGroupBy] = useState<'list' | 'member'>('list')
 
   async function load() {
     setLoading(true)
-    const res = await getProjectTimeReportAction({ startDate, endDate })
+    const res = await getListTimeReportAction({ startDate, endDate })
     setData(res.data ?? [])
     setLoading(false)
   }
 
   useEffect(() => { load() }, [startDate, endDate])
 
-  // Aggregate by project
-  const byProject = Object.values(
+  // Aggregate by list
+  const byList = Object.values(
     data.reduce<Record<string, { name: string; minutes: number; billable: number; entries: number }>>((acc, row) => {
-      if (!acc[row.list_id]) acc[row.list_id] = { name: row.project_name, minutes: 0, billable: 0, entries: 0 }
+      if (!acc[row.list_id]) acc[row.list_id] = { name: row.list_name, minutes: 0, billable: 0, entries: 0 }
       acc[row.list_id].minutes += row.total_minutes
       acc[row.list_id].billable += row.billable_minutes
       acc[row.list_id].entries += row.entry_count
@@ -50,7 +50,7 @@ export function ProjectTimeReport({ workspaces, isAdmin }: Props) {
     }, {})
   ).sort((a, b) => b.minutes - a.minutes)
 
-  const displayRows = groupBy === 'project' ? byProject : byMember
+  const displayRows = groupBy === 'list' ? byList : byMember
   const maxMinutes = displayRows[0]?.minutes ?? 1
 
   const totalMinutes = data.reduce((s, r) => s + r.total_minutes, 0)
@@ -78,17 +78,17 @@ export function ProjectTimeReport({ workspaces, isAdmin }: Props) {
             className="h-8 rounded-md border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
-        <Select value={groupBy} onValueChange={v => setGroupBy(v as 'project' | 'member')}>
+        <Select value={groupBy} onValueChange={v => setGroupBy(v as 'list' | 'member')}>
           <SelectTrigger className="w-[140px] h-8 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="project">By List</SelectItem>
+            <SelectItem value="list">By List</SelectItem>
             <SelectItem value="member">By Member</SelectItem>
           </SelectContent>
         </Select>
         <div className="ml-auto">
           <ExportButton
-            title="Project Time Report"
-            filename="project-time"
+            title="List Time Report"
+            filename="list-time"
             headers={['Name', 'Total Hours', 'Billable Hours', 'Entries']}
             buildRows={() => displayRows.map(r => [r.name, fmtHours(r.minutes), fmtHours(r.billable), r.entries])}
           />
@@ -107,7 +107,7 @@ export function ProjectTimeReport({ workspaces, isAdmin }: Props) {
       {loading ? <ReportLoading /> : displayRows.length === 0 ? <ReportEmpty /> : (
         <div className="rounded-xl border bg-card p-5 space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {groupBy === 'project' ? 'Time by Project' : 'Time by Member'}
+            {groupBy === 'list' ? 'Time by List' : 'Time by Member'}
           </p>
           <div className="space-y-3">
             {displayRows.map((row, i) => (

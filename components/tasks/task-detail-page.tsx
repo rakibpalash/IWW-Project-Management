@@ -631,7 +631,7 @@ export function TaskDetailPage({
               <div>
                 <h2 className="text-lg font-semibold">Task Deleted</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  This task was deleted. Redirecting you back to the project…
+                  This task was deleted. Redirecting you back to the list…
                 </p>
               </div>
               <Button variant="outline" size="sm" onClick={() => router.push(`/lists/${task.list_id}`)}>
@@ -655,12 +655,12 @@ export function TaskDetailPage({
 
           <Separator orientation="vertical" className="h-5" />
 
-          {task.project && (
+          {task.list && (
             <button
               className="text-xs text-muted-foreground hover:text-foreground transition-colors truncate max-w-[140px]"
               onClick={() => router.push(`/lists/${task.list_id}`)}
             >
-              {task.project.name}
+              {task.list.name}
             </button>
           )}
 
@@ -1246,12 +1246,12 @@ export function TaskDetailPage({
                   )}
                 </div>
 
-                {/* Project */}
-                {task.project && (
+                {/* List */}
+                {task.list && (
                   <div className="flex items-center gap-2 py-1.5 rounded-md hover:bg-muted/30 px-1 transition-colors">
                     <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <span className="text-xs text-muted-foreground w-[80px] shrink-0">List</span>
-                    <span className="text-xs font-medium truncate flex-1">{task.project.name}</span>
+                    <span className="text-xs font-medium truncate flex-1">{task.list.name}</span>
                   </div>
                 )}
 

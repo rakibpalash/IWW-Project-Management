@@ -34,27 +34,27 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus, Trash2, Crown, Users, Search, Loader2 } from 'lucide-react'
 import {
-  addProjectMemberAction,
-  updateProjectMemberRoleAction,
-  removeProjectMemberAction,
-} from '@/app/actions/project-members'
+  addListMemberAction,
+  updateListMemberRoleAction,
+  removeListMemberAction,
+} from '@/app/actions/list-members'
 import { getInitials } from '@/lib/utils'
 
-interface ProjectTeamSectionProps {
-  projectId: string
+interface ListTeamSectionProps {
+  listId: string
   initialMembers: ListMember[]
   allProfiles: Profile[]   // all staff available to add
   customRoles: CustomRole[]
   canManage: boolean        // true for super_admin
 }
 
-export function ProjectTeamSection({
-  projectId,
+export function ListTeamSection({
+  listId,
   initialMembers,
   allProfiles,
   customRoles,
   canManage,
-}: ProjectTeamSectionProps) {
+}: ListTeamSectionProps) {
   const [members, setMembers] = useState<ListMember[]>(initialMembers)
   const [addOpen, setAddOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<ListMember | null>(null)
@@ -64,8 +64,8 @@ export function ProjectTeamSection({
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  const leads = members.filter((m) => m.project_role === 'lead')
-  const regularMembers = members.filter((m) => m.project_role === 'member')
+  const leads = members.filter((m) => m.list_role === 'lead')
+  const regularMembers = members.filter((m) => m.list_role === 'member')
 
   // Profiles not already added (include all assignable roles)
   const available = useMemo(() => {
@@ -89,14 +89,14 @@ export function ProjectTeamSection({
     if (!selectedUserId) { setError('Please select a user'); return }
     setError(null)
     startTransition(async () => {
-      const result = await addProjectMemberAction(projectId, selectedUserId, selectedRole)
+      const result = await addListMemberAction(listId, selectedUserId, selectedRole)
       if (result.error) { setError(result.error); return }
       const profile = allProfiles.find((p) => p.id === selectedUserId)
       const newMember: ListMember = {
         id: (result.member as any).id,
-        list_id: projectId,
+        list_id: listId,
         user_id: selectedUserId,
-        project_role: selectedRole,
+        list_role: selectedRole,
         created_at: (result.member as any).created_at,
         profile,
       }
@@ -110,10 +110,10 @@ export function ProjectTeamSection({
 
   const handleRoleChange = (member: ListMember, newRole: 'lead' | 'member') => {
     startTransition(async () => {
-      const result = await updateProjectMemberRoleAction(member.id, newRole, projectId)
+      const result = await updateListMemberRoleAction(member.id, newRole, listId)
       if (result.error) { setError(result.error); return }
       setMembers((prev) =>
-        prev.map((m) => (m.id === member.id ? { ...m, project_role: newRole } : m))
+        prev.map((m) => (m.id === member.id ? { ...m, list_role: newRole } : m))
       )
     })
   }
@@ -121,7 +121,7 @@ export function ProjectTeamSection({
   const handleRemove = () => {
     if (!removeTarget) return
     startTransition(async () => {
-      const result = await removeProjectMemberAction(removeTarget.id, projectId)
+      const result = await removeListMemberAction(removeTarget.id, listId)
       if (result.error) { setError(result.error); return }
       setMembers((prev) => prev.filter((m) => m.id !== removeTarget.id))
       setRemoveTarget(null)
@@ -139,7 +139,7 @@ export function ProjectTeamSection({
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <Users className="h-4 w-4" />
-            Project Team
+            List Team
           </CardTitle>
           {canManage && (
             <Button size="sm" variant="outline" onClick={() => { setAddOpen(true); setError(null) }}>
@@ -174,7 +174,7 @@ export function ProjectTeamSection({
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <Crown className="h-3.5 w-3.5 text-amber-500" />
-                  Project Lead{leads.length > 1 ? 's' : ''}
+                  List Lead{leads.length > 1 ? 's' : ''}
                 </p>
                 <div className="space-y-2">
                   {leads.map((m) => (
@@ -231,7 +231,7 @@ export function ProjectTeamSection({
               </Alert>
             )}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Role in Project</label>
+              <label className="text-sm font-medium">Role in List</label>
               <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as 'lead' | 'member')}>
                 <SelectTrigger>
                   <SelectValue />
@@ -240,7 +240,7 @@ export function ProjectTeamSection({
                   <SelectItem value="lead">
                     <div className="flex items-center gap-2">
                       <Crown className="h-3.5 w-3.5 text-amber-500" />
-                      Project Lead
+                      List Lead
                     </div>
                   </SelectItem>
                   <SelectItem value="member">
@@ -373,7 +373,7 @@ function MemberRow({ member, customRole, canManage, isPending, onRoleChange, onR
       {canManage && (
         <div className="flex items-center gap-1 flex-shrink-0">
           <Select
-            value={member.project_role}
+            value={member.list_role}
             onValueChange={(v) => onRoleChange(member, v as 'lead' | 'member')}
             disabled={isPending}
           >

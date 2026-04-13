@@ -4,7 +4,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { List } from '@/types'
 
-type ProjectInput = {
+type ListInput = {
   space_id: string
   name: string
   description?: string
@@ -16,11 +16,11 @@ type ProjectInput = {
   estimated_hours?: number
 }
 
-// ── Create project ────────────────────────────────────────────────────────────
+// ── Create list ────────────────────────────────────────────────────────────
 
-export async function createProjectAction(
-  data: ProjectInput
-): Promise<{ success: boolean; project?: List; error?: string }> {
+export async function createListAction(
+  data: ListInput
+): Promise<{ success: boolean; list?: List; error?: string }> {
   try {
     const supabase = await createClient()
 
@@ -33,7 +33,7 @@ export async function createProjectAction(
       return { success: false, error: 'Not authenticated' }
     }
 
-    const { data: project, error } = await supabase
+    const { data: list, error } = await supabase
       .from('lists')
       .insert({
         space_id: data.space_id,
@@ -58,19 +58,19 @@ export async function createProjectAction(
     revalidatePath('/lists')
     revalidatePath('/dashboard')
 
-    return { success: true, project: project as List }
+    return { success: true, list: list as List }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return { success: false, error: message }
   }
 }
 
-// ── Update project ────────────────────────────────────────────────────────────
+// ── Update list ────────────────────────────────────────────────────────────
 
-export async function updateProjectAction(
+export async function updateListAction(
   id: string,
-  data: Partial<ProjectInput> & { progress?: number }
-): Promise<{ success: boolean; project?: List; error?: string }> {
+  data: Partial<ListInput> & { progress?: number }
+): Promise<{ success: boolean; list?: List; error?: string }> {
   try {
     const supabase = await createClient()
 
@@ -97,7 +97,7 @@ export async function updateProjectAction(
     if (data.estimated_hours !== undefined) payload.estimated_hours = data.estimated_hours
     if (data.progress !== undefined) payload.progress = data.progress
 
-    const { data: project, error } = await supabase
+    const { data: list, error } = await supabase
       .from('lists')
       .update(payload)
       .eq('id', id)
@@ -112,18 +112,18 @@ export async function updateProjectAction(
     revalidatePath(`/lists/${id}`)
     revalidatePath('/dashboard')
 
-    return { success: true, project: project as List }
+    return { success: true, list: list as List }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return { success: false, error: message }
   }
 }
 
-// ── Delete project ────────────────────────────────────────────────────────────
+// ── Delete list ────────────────────────────────────────────────────────────
 
-export async function deleteProjectAction(
+export async function deleteListAction(
   id: string,
-  opts?: { moveTasksToProjectId?: string }
+  opts?: { moveTasksToListId?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient()
@@ -132,8 +132,8 @@ export async function deleteProjectAction(
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) return { success: false, error: 'Not authenticated' }
 
-    // Fetch project name + all affected people before deleting
-    const { data: project } = await admin
+    // Fetch list name + all affected people before deleting
+    const { data: list } = await admin
       .from('lists')
       .select('name, space_id')
       .eq('id', id)
@@ -145,8 +145,8 @@ export async function deleteProjectAction(
       .select('id, task_assignees(user_id)')
       .eq('list_id', id)
 
-    // Collect project team members
-    const { data: projectMembers } = await admin
+    // Collect list team members
+    const { data: listMembers } = await admin
       .from('list_members')
       .select('user_id')
       .eq('list_id', id)
@@ -157,7 +157,7 @@ export async function deleteProjectAction(
         if (ta.user_id !== user.id) memberIds.add(ta.user_id)
       }
     }
-    for (const pm of projectMembers ?? []) {
+    for (const pm of listMembers ?? []) {
       if (pm.user_id !== user.id) memberIds.add(pm.user_id)
     }
 
@@ -167,9 +167,9 @@ export async function deleteProjectAction(
       .eq('id', user.id)
       .single()
 
-    if (opts?.moveTasksToProjectId && tasks && tasks.length > 0) {
+    if (opts?.moveTasksToListId && tasks && tasks.length > 0) {
       const taskIds = tasks.map((t) => t.id)
-      await admin.from('tasks').update({ list_id: opts.moveTasksToProjectId }).in('id', taskIds)
+      await admin.from('tasks').update({ list_id: opts.moveTasksToListId }).in('id', taskIds)
     }
 
     const { error } = await supabase.from('lists').delete().eq('id', id)
@@ -180,10 +180,10 @@ export async function deleteProjectAction(
       const notifications = Array.from(memberIds).map((uid) => ({
         user_id: uid,
         type: 'task_deleted',
-        title: 'Project deleted',
-        message: opts?.moveTasksToProjectId
-          ? `Project "${project?.name}" was deleted by ${deleter?.full_name}. Your tasks were moved.`
-          : `Project "${project?.name}" and all its tasks were deleted by ${deleter?.full_name}.`,
+        title: 'List deleted',
+        message: opts?.moveTasksToListId
+          ? `List "${list?.name}" was deleted by ${deleter?.full_name}. Your tasks were moved.`
+          : `List "${list?.name}" and all its tasks were deleted by ${deleter?.full_name}.`,
         link: '/lists',
         is_read: false,
       }))
@@ -198,11 +198,11 @@ export async function deleteProjectAction(
   }
 }
 
-// ── Clone project ─────────────────────────────────────────────────────────────
+// ── Clone list ─────────────────────────────────────────────────────────────
 
-export async function cloneProjectAction(
+export async function cloneListAction(
   id: string
-): Promise<{ success: boolean; project?: List; error?: string }> {
+): Promise<{ success: boolean; list?: List; error?: string }> {
   try {
     const supabase = await createClient()
     const admin = createAdminClient()
@@ -210,16 +210,16 @@ export async function cloneProjectAction(
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) return { success: false, error: 'Not authenticated' }
 
-    // Fetch original project
+    // Fetch original list
     const { data: original, error: fetchError } = await admin
       .from('lists')
       .select('*')
       .eq('id', id)
       .single()
 
-    if (fetchError || !original) return { success: false, error: 'Project not found' }
+    if (fetchError || !original) return { success: false, error: 'List not found' }
 
-    // Create cloned project
+    // Create cloned list
     const { data: cloned, error: insertError } = await admin
       .from('lists')
       .insert({
@@ -240,10 +240,10 @@ export async function cloneProjectAction(
 
     if (insertError || !cloned) return { success: false, error: insertError?.message ?? 'Failed to clone' }
 
-    // Copy project members
+    // Copy list members
     const { data: members } = await admin
       .from('list_members')
-      .select('user_id, project_role')
+      .select('user_id, list_role')
       .eq('list_id', id)
 
     if (members && members.length > 0) {
@@ -251,14 +251,14 @@ export async function cloneProjectAction(
         members.map((m) => ({
           list_id: cloned.id,
           user_id: m.user_id,
-          project_role: m.project_role,
+          list_role: m.list_role,
         }))
       )
     }
 
     revalidatePath('/lists')
     revalidatePath(`/spaces/${original.space_id}`)
-    return { success: true, project: cloned as List }
+    return { success: true, list: cloned as List }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }

@@ -6,7 +6,7 @@ import { StatCard, ExportButton, ReportLoading, ReportEmpty, BarChart, Horizonta
 import { Space } from '@/types'
 import { format, subDays } from 'date-fns'
 
-interface Props { workspaces: Space[]; isAdmin: boolean }
+interface Props { spaces: Space[]; isAdmin: boolean }
 
 const today = format(new Date(), 'yyyy-MM-dd')
 const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd')
@@ -19,7 +19,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: '#ef4444',
 }
 
-export function TaskCompletionReport({ workspaces, isAdmin }: Props) {
+export function TaskCompletionReport({ spaces, isAdmin }: Props) {
   const [data, setData] = useState<TaskCompletionData | null>(null)
   const [loading, setLoading] = useState(true)
   const [startDate, setStartDate] = useState(thirtyDaysAgo)
@@ -44,7 +44,7 @@ export function TaskCompletionReport({ workspaces, isAdmin }: Props) {
     color: STATUS_COLORS[s.status] ?? '#94a3b8',
   }))
 
-  const maxProjectTotal = Math.max(...(data?.by_project ?? []).map(p => p.total), 1)
+  const maxListTotal = Math.max(...(data?.by_list ?? []).map(p => p.total), 1)
 
   return (
     <div className="space-y-5">
@@ -70,9 +70,9 @@ export function TaskCompletionReport({ workspaces, isAdmin }: Props) {
           <ExportButton
             title="Task Completion Report"
             filename="task-completion"
-            headers={['Project', 'Total Tasks', 'Completed', 'Completion %']}
-            buildRows={() => (data?.by_project ?? []).map(p => [
-              p.project_name, p.total, p.completed,
+            headers={['List', 'Total Tasks', 'Completed', 'Completion %']}
+            buildRows={() => (data?.by_list ?? []).map(p => [
+              p.list_name, p.total, p.completed,
               p.total > 0 ? `${Math.round((p.completed / p.total) * 100)}%` : '0%',
             ])}
           />
@@ -113,17 +113,17 @@ export function TaskCompletionReport({ workspaces, isAdmin }: Props) {
             </div>
           </div>
 
-          {/* By project */}
-          {data.by_project.length > 0 && (
+          {/* By list */}
+          {data.by_list.length > 0 && (
             <div className="rounded-xl border bg-card p-5 space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Completion by Project</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Completion by List</p>
               <div className="space-y-3">
-                {data.by_project.sort((a, b) => b.total - a.total).map((p, i) => {
+                {data.by_list.sort((a, b) => b.total - a.total).map((p, i) => {
                   const pct = p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0
                   return (
                     <div key={i} className="space-y-1">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-foreground truncate max-w-[60%]">{p.project_name}</span>
+                        <span className="text-foreground truncate max-w-[60%]">{p.list_name}</span>
                         <span className="text-muted-foreground font-medium">{p.completed}/{p.total} · {pct}%</span>
                       </div>
                       <div className="h-2 w-full rounded-full bg-muted overflow-hidden">

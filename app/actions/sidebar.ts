@@ -3,20 +3,20 @@
 import { getSidebarData, getUser, getProfile } from '@/lib/data/auth'
 import { Space, List } from '@/types'
 
-export async function getSidebarDataAction(): Promise<{ workspaces: Space[]; projects: List[] }> {
+export async function getSidebarDataAction(): Promise<{ spaces: Space[]; lists: List[] }> {
   try {
     const user = await getUser()
-    if (!user) return { workspaces: [], projects: [] }
+    if (!user) return { spaces: [], lists: [] }
 
     const profile = await getProfile(user.id)
-    if (!profile) return { workspaces: [], projects: [] }
+    if (!profile) return { spaces: [], lists: [] }
 
     const data = await getSidebarData(user.id, profile.role, (profile as any).organization_id ?? null)
     return {
-      workspaces: (data.workspaces as Space[]) ?? [],
-      projects:   (data.projects  as List[])  ?? [],
+      spaces: (data.spaces as Space[]) ?? [],
+      lists:   (data.lists  as List[])  ?? [],
     }
   } catch {
-    return { workspaces: [], projects: [] }
+    return { spaces: [], lists: [] }
   }
 }
