@@ -228,7 +228,7 @@ export function SubtaskList({
                   task={subtask}
                   profile={profile}
                   onTaskUpdated={onSubtaskUpdated}
-                  onClick={() => router.push(`/projects/${parentTask.project_id}/tasks/${subtask.id}`)}
+                  onClick={() => router.push(`/lists/${parentTask.project_id}/tasks/${subtask.id}`)}
                   level={1}
                 />
               ))}

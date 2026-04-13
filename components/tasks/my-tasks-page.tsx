@@ -215,7 +215,7 @@ export function MyTasksPage({ initialTasks, profile, projects }: MyTasksPageProp
   }
 
   function handleTaskClick(task: Task) {
-    router.push(`/projects/${task.project_id}/tasks/${task.id}`)
+    router.push(`/lists/${task.project_id}/tasks/${task.id}`)
   }
 
   const totalCount = tasks.length

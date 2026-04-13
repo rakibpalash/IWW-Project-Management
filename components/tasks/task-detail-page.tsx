@@ -292,7 +292,7 @@ export function TaskDetailPage({
           setTaskDeleted(true)
           // Auto-redirect after 4 seconds
           setTimeout(() => {
-            router.push(`/projects/${task.project_id}`)
+            router.push(`/lists/${task.project_id}`)
           }, 4000)
         }
       )
@@ -597,7 +597,7 @@ export function TaskDetailPage({
       toast({ title: 'Failed to delete task', description: result.error, variant: 'destructive' })
       return
     }
-    router.push(`/projects/${task.project_id}`)
+    router.push(`/lists/${task.project_id}`)
   }
 
   function handleSubtaskCreated(subtask: Task) {
@@ -634,7 +634,7 @@ export function TaskDetailPage({
                   This task was deleted. Redirecting you back to the project…
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => router.push(`/projects/${task.project_id}`)}>
+              <Button variant="outline" size="sm" onClick={() => router.push(`/lists/${task.project_id}`)}>
                 Go back now
               </Button>
             </div>
@@ -647,7 +647,7 @@ export function TaskDetailPage({
             variant="ghost"
             size="sm"
             className="gap-1.5 text-muted-foreground hover:text-foreground h-8 px-2 shrink-0"
-            onClick={() => router.push(`/projects/${task.project_id}`)}
+            onClick={() => router.push(`/lists/${task.project_id}`)}
           >
             <ArrowLeft className="h-4 w-4" />
             Back
@@ -658,7 +658,7 @@ export function TaskDetailPage({
           {task.project && (
             <button
               className="text-xs text-muted-foreground hover:text-foreground transition-colors truncate max-w-[140px]"
-              onClick={() => router.push(`/projects/${task.project_id}`)}
+              onClick={() => router.push(`/lists/${task.project_id}`)}
             >
               {task.project.name}
             </button>

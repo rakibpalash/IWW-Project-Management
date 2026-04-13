@@ -99,7 +99,7 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Lists</h1>
           <p className="text-muted-foreground text-sm mt-1">
             {projects.length} project{projects.length !== 1 ? 's' : ''} total
           </p>
@@ -130,7 +130,7 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
           {canCreate && (
             <Button onClick={() => setShowCreateDialog(true)} size="sm">
               <Plus className="h-4 w-4 mr-2" />
-              New Project
+              New List
             </Button>
           )}
         </div>
@@ -175,7 +175,7 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search projects…"
+            placeholder="Search lists…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -258,7 +258,7 @@ export function ProjectsPage({ initialProjects, profile, workspaces }: ProjectsP
           {!hasActiveFilters && canCreate && (
             <Button size="sm" onClick={() => setShowCreateDialog(true)} className="mt-4">
               <Plus className="h-4 w-4 mr-2" />
-              New Project
+              New List
             </Button>
           )}
         </div>

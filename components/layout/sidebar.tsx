@@ -21,7 +21,6 @@ import {
   Hash,
   ListChecks,
   CalendarClock,
-  Bell,
   Inbox,
   User,
 } from 'lucide-react'
@@ -126,7 +125,7 @@ function SpaceItem({
   pathname: string
   onClose: () => void
 }) {
-  const hasActiveProject = projects.some(p => pathname.startsWith(`/projects/${p.id}`))
+  const hasActiveProject = projects.some(p => pathname.startsWith(`/lists/${p.id}`))
   const [open, setOpen] = useState(hasActiveProject || projects.length <= 5)
   const color = getSpaceColor(workspace.id)
   const initial = workspace.name.slice(0, 1).toUpperCase()
@@ -166,11 +165,11 @@ function SpaceItem({
             </p>
           ) : (
             projects.map(proj => {
-              const active = pathname.startsWith(`/projects/${proj.id}`)
+              const active = pathname.startsWith(`/lists/${proj.id}`)
               return (
                 <Link
                   key={proj.id}
-                  href={`/projects/${proj.id}`}
+                  href={`/lists/${proj.id}`}
                   onClick={onClose}
                   className={cn(
                     'group relative flex items-center gap-3 rounded-lg py-2 transition-colors',
@@ -195,7 +194,7 @@ function SpaceItem({
 
           {/* Add List */}
           <Link
-            href="/projects"
+            href="/lists"
             onClick={onClose}
             className="flex items-center gap-2 rounded-lg py-2 text-[13px] font-medium text-sidebar-foreground/25 hover:text-sidebar-foreground/55 hover:bg-white/5 transition-colors"
             style={{ paddingLeft: '44px', paddingRight: '12px' }}
@@ -229,7 +228,6 @@ export function Sidebar({ profile, permissions, isOpen, isCollapsed, onClose, on
 
   const [workspaces,      setWorkspaces]      = useState<Workspace[]>([])
   const [projects,        setProjects]        = useState<Project[]>([])
-  const [myTasksOpen,     setMyTasksOpen]     = useState(pathname.startsWith('/tasks'))
   const [showCreateSpace, setShowCreateSpace] = useState(false)
   const [staffProfiles,   setStaffProfiles]   = useState<Profile[]>([])
 
@@ -263,8 +261,6 @@ export function Sidebar({ profile, permissions, isOpen, isCollapsed, onClose, on
   const showTeam       = !permsLoaded || can(permissions!, 'team',       'view')
   const showReports    = !permsLoaded || can(permissions!, 'settings',   'manage')
   const showSettings   = !permsLoaded || can(permissions!, 'settings',   'manage')
-
-  const isTasksActive = pathname.startsWith('/tasks')
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -365,41 +361,26 @@ export function Sidebar({ profile, permissions, isOpen, isCollapsed, onClose, on
             <div className="px-3 py-3 space-y-0.5">
 
               {/* Home */}
-              <NavItem href="/dashboard" icon={LayoutGrid} label="Home"
+              <NavItem href="/dashboard" icon={LayoutGrid} label="Dashboard"
                 active={pathname === '/dashboard'} onClick={onClose} />
 
-              {/* My Tasks (collapsible) */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setMyTasksOpen(o => !o)}
-                  className={cn(
-                    'group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors select-none',
-                    isTasksActive ? 'bg-sidebar-primary/15 text-white' : 'text-sidebar-foreground/60 hover:bg-white/5 hover:text-sidebar-foreground/90',
-                  )}
-                >
-                  {isTasksActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[4px] h-[22px] rounded-r-full bg-sidebar-primary" />
-                  )}
-                  <CheckSquare className={cn('h-5 w-5 shrink-0', isTasksActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/40 group-hover:text-sidebar-foreground/70')} />
-                  <span className="flex-1 text-[15px] font-semibold">My Tasks</span>
-                  {myTasksOpen
-                    ? <ChevronDown className="h-4 w-4 text-sidebar-foreground/30 shrink-0" />
-                    : <ChevronRight className="h-4 w-4 text-sidebar-foreground/30 shrink-0" />
-                  }
-                </button>
-
-                {myTasksOpen && (
-                  <div className="space-y-0.5 pt-0.5">
-                    <NavItem href="/tasks"             icon={User}         label="Assigned to me"  active={pathname === '/tasks' && !searchParams.get('filter')} onClick={onClose} indent />
-                    <NavItem href="/tasks?filter=today" icon={CalendarClock} label="Today & Overdue" active={pathname === '/tasks' && searchParams.get('filter') === 'today'} onClick={onClose} indent />
-                  </div>
-                )}
+              {/* ── MY WORK ── */}
+              <div className="pt-3">
+                <div className="px-1 mb-1">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
+                    My Work
+                  </span>
+                </div>
+                <div className="space-y-0.5">
+                  <NavItem href="/tasks"              icon={CheckSquare}  label="My Tasks"        active={pathname === '/tasks' && !searchParams.get('filter')} onClick={onClose} indent />
+                  <NavItem href="/tasks?filter=today"  icon={CalendarClock} label="Today & Overdue" active={pathname === '/tasks' && searchParams.get('filter') === 'today'} onClick={onClose} indent />
+                  {showTimesheet && <NavItem href="/timesheet" icon={Timer} label="Timesheet" active={pathname.startsWith('/timesheet')} onClick={onClose} indent />}
+                </div>
               </div>
 
               {/* ── SPACES ── */}
-              <div className="pt-4">
-                <div className="flex items-center justify-between px-1 mb-2">
+              <div className="pt-3">
+                <div className="flex items-center justify-between px-1 mb-1">
                   <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
                     Spaces
                   </span>
@@ -413,9 +394,9 @@ export function Sidebar({ profile, permissions, isOpen, isCollapsed, onClose, on
 
                 <div className="space-y-0.5">
                   {/* All Tasks */}
-                  <NavItem href="/tasks" icon={ListChecks} label="All Tasks" active={false} onClick={onClose} />
+                  <NavItem href="/tasks" icon={ListChecks} label="All Tasks" active={false} onClick={onClose} indent />
 
-                  {/* Spaces */}
+                  {/* Space items */}
                   {workspaces.map(ws => (
                     <SpaceItem
                       key={ws.id}
@@ -425,26 +406,29 @@ export function Sidebar({ profile, permissions, isOpen, isCollapsed, onClose, on
                       onClose={onClose}
                     />
                   ))}
-
-                  {/* New Space */}
-                  <button
-                    onClick={openCreateSpace}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-semibold text-sidebar-foreground/25 hover:text-sidebar-foreground/55 hover:bg-white/5 transition-colors mt-1 w-full text-left"
-                  >
-                    <Plus className="h-5 w-5 shrink-0" />
-                    <span>New Space</span>
-                  </button>
                 </div>
               </div>
 
-              {/* ── HR + Admin items ── */}
-              <div className="pt-4 space-y-0.5">
-                {showTimesheet  && <NavItem href="/timesheet"  icon={Timer}        label="Timesheet"  active={pathname.startsWith('/timesheet')}  onClick={onClose} />}
-                {showAttendance && <NavItem href="/attendance" icon={Clock}        label="Attendance" active={pathname.startsWith('/attendance')} onClick={onClose} />}
-                {showLeave      && <NavItem href="/leave"      icon={CalendarDays} label="Leave"      active={pathname.startsWith('/leave')}      onClick={onClose} />}
-                {showTeam       && <NavItem href="/team"       icon={Users}        label="Team"       active={pathname.startsWith('/team')}       onClick={onClose} />}
-                {showReports    && <NavItem href="/reports"    icon={BarChart2}    label="Reports"    active={pathname.startsWith('/reports')}    onClick={onClose} />}
-                {showSettings   && <NavItem href="/settings"   icon={Settings}     label="Settings"   active={pathname.startsWith('/settings')}   onClick={onClose} />}
+              {/* ── TEAM & HR ── */}
+              {(showAttendance || showLeave || showTeam) && (
+                <div className="pt-3">
+                  <div className="px-1 mb-1">
+                    <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/30">
+                      Team &amp; HR
+                    </span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {showAttendance && <NavItem href="/attendance" icon={Clock}        label="Attendance" active={pathname.startsWith('/attendance')} onClick={onClose} indent />}
+                    {showLeave      && <NavItem href="/leave"      icon={CalendarDays} label="Leave"      active={pathname.startsWith('/leave')}      onClick={onClose} indent />}
+                    {showTeam       && <NavItem href="/team"       icon={Users}        label="Team"       active={pathname.startsWith('/team')}       onClick={onClose} indent />}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Reports + Settings ── */}
+              <div className="pt-3 space-y-0.5">
+                {showReports  && <NavItem href="/reports"  icon={BarChart2} label="Reports"  active={pathname.startsWith('/reports')}  onClick={onClose} />}
+                {showSettings && <NavItem href="/settings" icon={Settings}  label="Settings" active={pathname.startsWith('/settings')} onClick={onClose} />}
               </div>
 
             </div>

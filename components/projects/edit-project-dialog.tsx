@@ -309,7 +309,7 @@ export function EditProjectDialog({
           .eq('id', existingLead.id)
       }
 
-      toast({ title: 'Project updated', description: `"${data.name}" has been updated successfully.` })
+      toast({ title: 'List updated', description: `"${data.name}" has been updated successfully.` })
       onUpdated?.(data as Project)
       onOpenChange(false)
     } finally {
@@ -331,7 +331,7 @@ export function EditProjectDialog({
             {/* Name */}
             <FormField control={form.control} name="name" render={({ field }) => (
               <FormItem>
-                <FormLabel>Project Name *</FormLabel>
+                <FormLabel>List Name *</FormLabel>
                 <FormControl><Input placeholder="e.g. Website Redesign" {...field} /></FormControl>
                 <FormMessage />
               </FormItem>

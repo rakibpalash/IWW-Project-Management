@@ -87,7 +87,7 @@ export function ProjectCard({
   const estimatedHours = project.estimated_hours ?? null
 
   function handleCardClick() {
-    router.push(`/projects/${project.id}`)
+    router.push(`/lists/${project.id}`)
   }
 
   async function handleClone(e: React.MouseEvent) {

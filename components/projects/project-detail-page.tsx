@@ -277,7 +277,7 @@ function ProjectTaskList({
                         task={task}
                         profile={profile}
                         onTaskUpdated={onTaskUpdated}
-                        onClick={() => router.push(`/projects/${projectId}/tasks/${task.id}`)}
+                        onClick={() => router.push(`/lists/${projectId}/tasks/${task.id}`)}
                         selected={selectedIds.has(task.id)}
                         onSelect={handleSelectTask}
                       />
@@ -776,7 +776,7 @@ function ProjectBoardView({
               return (
                 <div
                   key={task.id}
-                  onClick={() => router.push(`/projects/${projectId}/tasks/${task.id}`)}
+                  onClick={() => router.push(`/lists/${projectId}/tasks/${task.id}`)}
                   className="rounded-lg border border-border bg-card p-3 cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all group"
                 >
                   {/* Title */}
@@ -1024,7 +1024,7 @@ export function ProjectDetailPage({
           {/* Project details */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Project Details</CardTitle>
+              <CardTitle className="text-base">List Details</CardTitle>
             </CardHeader>
             <CardContent>
               <dl className="grid gap-3 sm:grid-cols-2">
@@ -1137,7 +1137,7 @@ export function ProjectDetailPage({
               <div className="rounded-lg border border-border bg-card overflow-hidden">
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-border bg-muted/30">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Project Info</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">List Info</p>
                 </div>
 
                 <div className="divide-y divide-border/60">

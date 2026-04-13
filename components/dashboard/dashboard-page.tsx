@@ -152,7 +152,7 @@ export function DashboardPage({
             </p>
           </div>
           <div data-tour="dashboard-stats" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard title="Total Projects" value={clientProjects?.length ?? 0} icon={FolderKanban} variant="blue" />
+            <StatCard title="Total Lists" value={clientProjects?.length ?? 0} icon={FolderKanban} variant="blue" />
             <StatCard title="In Progress" value={clientProjects?.filter(p => p.status === 'in_progress').length ?? 0} icon={TrendingUp} variant="green" />
             <StatCard title="Completed" value={clientProjects?.filter(p => p.status === 'completed').length ?? 0} icon={CheckSquare} variant="purple" />
           </div>
@@ -204,12 +204,12 @@ function SuperAdminDashboard({
 
       {/* Recents */}
       {recentProjects.length > 0 && (
-        <RecentsStrip items={recentProjects.map(p => ({ id: p.id, name: p.name, subtitle: formatStatus(p.status), href: `/projects/${p.id}`, type: 'project' as const }))} router={router} />
+        <RecentsStrip items={recentProjects.map(p => ({ id: p.id, name: p.name, subtitle: formatStatus(p.status), href: `/lists/${p.id}`, type: 'project' as const }))} router={router} />
       )}
 
       {/* Stats */}
       <div data-tour="dashboard-stats" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard title="Total Projects"  value={totalProjects}        icon={FolderKanban}  variant="blue"    />
+        <StatCard title="Total Lists"  value={totalProjects}        icon={FolderKanban}  variant="blue"    />
         <StatCard title="Active"          value={activeProjects}       icon={TrendingUp}    variant="green"   />
         <StatCard title="Overdue Tasks"   value={overdueTasks}         icon={AlertTriangle} variant="red"     />
         <StatCard title="Pending Leaves"  value={pendingLeaveRequests} icon={CalendarDays}  variant="yellow"  />
@@ -324,7 +324,7 @@ function StaffDashboard({
           id: t.id,
           name: t.title,
           subtitle: t.project?.name ?? '',
-          href: `/projects/${t.project_id}/tasks/${t.id}`,
+          href: `/lists/${t.project_id}/tasks/${t.id}`,
           type: 'task' as const,
         }))}
         router={router}
@@ -569,7 +569,7 @@ function WorkTaskRow({ task, color, router }: { task: Task; color: string; route
     <div
       className="group flex items-center gap-3 px-5 py-2 hover:bg-muted/20 transition-colors cursor-pointer"
       style={{ borderLeft: `2px solid ${color}40` }}
-      onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}
+      onClick={() => router.push(`/lists/${task.project_id}/tasks/${task.id}`)}
     >
       {/* Status dot */}
       <div
@@ -669,7 +669,7 @@ function AssignedToMePanel({
             <div
               key={task.id}
               className="group flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors"
-              onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}
+              onClick={() => router.push(`/lists/${task.project_id}/tasks/${task.id}`)}
             >
               <StatusChip status={task.status} />
               <div className="min-w-0 flex-1">
@@ -746,7 +746,7 @@ function RecentProjectsCard({ projects, router }: { projects: Project[]; router:
     <div className="rounded-xl border border-border bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
         <h3 className="text-[14px] font-semibold text-foreground">Recent Projects</h3>
-        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-7" onClick={() => router.push('/projects')}>View all</Button>
+        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-7" onClick={() => router.push('/lists')}>View all</Button>
       </div>
       {projects.length === 0 ? (
         <p className="px-5 py-8 text-center text-sm text-muted-foreground/70">No projects yet</p>
@@ -756,7 +756,7 @@ function RecentProjectsCard({ projects, router }: { projects: Project[]; router:
             <li
               key={project.id}
               className="flex cursor-pointer items-center justify-between gap-4 px-5 py-3 transition-colors hover:bg-muted/30"
-              onClick={() => router.push(`/projects/${project.id}`)}
+              onClick={() => router.push(`/lists/${project.id}`)}
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-medium text-foreground">{project.name}</p>
@@ -960,7 +960,7 @@ function ClientProjectsList({ projects, router }: { projects: Project[]; router:
             <li
               key={project.id}
               className="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/30"
-              onClick={() => router.push(`/projects/${project.id}`)}
+              onClick={() => router.push(`/lists/${project.id}`)}
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-foreground">{project.name}</p>

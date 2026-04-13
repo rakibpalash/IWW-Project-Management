@@ -125,7 +125,7 @@ export function CreateProjectDialog({
       toast({ title: 'List created', description: `"${data.name}" has been created.` })
       onCreated?.(data as Project)
       onOpenChange(false)
-      router.push(`/projects/${data.id}`)
+      router.push(`/lists/${data.id}`)
     } finally { setLoading(false) }
   }
 

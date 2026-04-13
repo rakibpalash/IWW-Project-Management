@@ -87,7 +87,7 @@ export function CommandPalette() {
         id: p.id,
         label: p.name,
         type: 'project' as const,
-        href: `/projects/${p.id}`,
+        href: `/lists/${p.id}`,
         sub: p.status.replace(/_/g, ' '),
       })),
       ...(tasks ?? []).map((t) => ({

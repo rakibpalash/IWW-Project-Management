@@ -502,7 +502,7 @@ export function TaskDetailSheet({
     setIsCloning(false)
     if (result.success && result.taskId) {
       toast({ title: 'Task cloned' })
-      router.push(`/projects/${task.project_id}/tasks/${result.taskId}`)
+      router.push(`/lists/${task.project_id}/tasks/${result.taskId}`)
     } else {
       toast({ title: 'Error', description: result.error, variant: 'destructive' })
     }
@@ -571,7 +571,7 @@ export function TaskDetailSheet({
                   <>
                     <button
                       className="text-xs text-muted-foreground hover:text-foreground transition-colors truncate max-w-[140px]"
-                      onClick={() => router.push(`/projects/${task.project_id}`)}
+                      onClick={() => router.push(`/lists/${task.project_id}`)}
                     >
                       {task.project.name}
                     </button>
@@ -594,7 +594,7 @@ export function TaskDetailSheet({
                   )}
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground" onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground" onClick={() => router.push(`/lists/${task.project_id}/tasks/${task.id}`)}>
                         <ExternalLink className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
@@ -962,7 +962,7 @@ export function TaskDetailSheet({
                         <Separator className="my-2" />
                         <PropRow icon={Hash} label="Project">
                           <button
-                            onClick={() => router.push(`/projects/${task.project_id}`)}
+                            onClick={() => router.push(`/lists/${task.project_id}`)}
                             className="text-xs px-2 text-primary hover:underline truncate"
                           >
                             {task.project.name}

@@ -57,8 +57,8 @@ export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHea
     const result = await cloneProjectAction(project.id)
     setIsCloning(false)
     if (result.success) {
-      toast({ title: 'Project cloned', description: `"${result.project?.name}" created` })
-      router.push(`/projects/${result.project?.id}`)
+      toast({ title: 'List cloned', description: `"${result.project?.name}" created` })
+      router.push(`/lists/${result.project?.id}`)
     } else {
       toast({ title: 'Failed to clone', description: result.error, variant: 'destructive' })
     }
@@ -254,8 +254,8 @@ export function ProjectHeader({ project, profile, onProjectUpdated }: ProjectHea
             toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
             return
           }
-          toast({ title: 'Project deleted', description: `"${project.name}" was deleted.` })
-          router.push('/projects')
+          toast({ title: 'List deleted', description: `"${project.name}" was deleted.` })
+          router.push('/lists')
         }}
       />
     </div>

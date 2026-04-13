@@ -849,7 +849,7 @@ export function WorkspaceDetailPage({
                   {filteredTasks.map(task => (
                     <div key={task.id}
                       className="rounded-lg border bg-card p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition-all"
-                      onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}>
+                      onClick={() => router.push(`/lists/${task.project_id}/tasks/${task.id}`)}>
                       <p className="text-sm font-medium mb-2 line-clamp-2">{task.title}</p>
                       <div className="flex items-center gap-1.5 mb-2">
                         <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold border', STATUS_STYLES[task.status])}>
@@ -908,7 +908,7 @@ export function WorkspaceDetailPage({
                         <Checkbox checked={selected.has(task.id)}
                           onCheckedChange={() => setSelected(prev => { const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n })} />
                       </td>
-                      <td className="px-3 py-2.5" onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}>
+                      <td className="px-3 py-2.5" onClick={() => router.push(`/lists/${task.project_id}/tasks/${task.id}`)}>
                         <div className="flex items-center gap-2">
                           {subtasks.length > 0 && (
                             <button onClick={e => { e.stopPropagation(); setExpandedRows(prev => { const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n }) }}
@@ -959,14 +959,14 @@ export function WorkspaceDetailPage({
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}>Open task</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push(`/lists/${task.project_id}/tasks/${task.id}`)}>Open task</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>
                     </tr>,
                     ...(expanded ? subtasks.map(sub => (
                       <tr key={sub.id} className="group hover:bg-muted/30 bg-muted/10 cursor-pointer"
-                        onClick={() => router.push(`/projects/${sub.project_id}/tasks/${sub.id}`)}>
+                        onClick={() => router.push(`/lists/${sub.project_id}/tasks/${sub.id}`)}>
                         <td className="px-3 py-2" />
                         <td className="px-3 py-2 pl-10">
                           <div className="flex items-center gap-2">
@@ -1081,7 +1081,7 @@ export function WorkspaceDetailPage({
                         {colTasks.map(task => (
                           <div key={task.id}
                             className="rounded-lg border bg-card p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition-all"
-                            onClick={() => router.push(`/projects/${task.project_id}/tasks/${task.id}`)}>
+                            onClick={() => router.push(`/lists/${task.project_id}/tasks/${task.id}`)}>
                             <p className="text-sm font-medium mb-2 line-clamp-2">{task.title}</p>
                             <div className="flex items-center gap-2 mb-2">
                               {task.due_date && (
@@ -1191,7 +1191,7 @@ export function WorkspaceDetailPage({
                             'rounded px-1.5 py-0.5 text-[10px] font-medium truncate cursor-pointer hover:opacity-80',
                             STATUS_STYLES[t.status],
                           )}
-                          onClick={() => router.push(`/projects/${t.project_id}/tasks/${t.id}`)}>
+                          onClick={() => router.push(`/lists/${t.project_id}/tasks/${t.id}`)}>
                           {t.title}
                         </div>
                       ))}
@@ -1242,7 +1242,7 @@ export function WorkspaceDetailPage({
                 <p className="text-xs text-muted-foreground p-4">No tasks with dates.</p>
               ) : timelineTasks.map(t => (
                 <div key={t.id} className="flex items-center gap-2 px-3 py-2.5 border-b hover:bg-muted/30 cursor-pointer"
-                  onClick={() => router.push(`/projects/${t.project_id}/tasks/${t.id}`)}>
+                  onClick={() => router.push(`/lists/${t.project_id}/tasks/${t.id}`)}>
                   <Checkbox className="h-3.5 w-3.5 shrink-0" />
                   <span className="text-[10px] font-mono text-blue-500 shrink-0">#{t.id.slice(0, 4).toUpperCase()}</span>
                   <span className="text-xs truncate">{t.title}</span>
@@ -1299,7 +1299,7 @@ export function WorkspaceDetailPage({
                           background: STATUS_BAR_COLOR[t.status] ?? '#94a3b8',
                           opacity: 0.85,
                         }}
-                        onClick={() => router.push(`/projects/${t.project_id}/tasks/${t.id}`)}>
+                        onClick={() => router.push(`/lists/${t.project_id}/tasks/${t.id}`)}>
                         <span className="text-[10px] text-white font-medium truncate">{t.title}</span>
                       </div>
                     </div>
