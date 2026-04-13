@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   LayoutGrid,
   CheckSquare,
@@ -64,7 +65,7 @@ function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
 }
 
-// ─── add menu popup ────────────────────────────────────────────────────────────
+// ─── add menu popup (portal) ───────────────────────────────────────────────────
 
 interface AddMenuItem {
   icon: React.ElementType
@@ -73,28 +74,62 @@ interface AddMenuItem {
   onClick: () => void
 }
 
-function AddMenu({ items }: { items: AddMenuItem[] }) {
-  return (
-    <div className="w-56 rounded-xl bg-[#1e2130] border border-white/10 shadow-2xl overflow-hidden py-1.5">
-      <p className="px-3 pt-1 pb-2 text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/35">
-        Create
-      </p>
-      {items.map((item) => (
-        <button
-          key={item.label}
-          onClick={item.onClick}
-          className="flex w-full items-start gap-3 px-3 py-2 hover:bg-white/8 transition-colors text-left"
-        >
-          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/8 border border-white/10">
-            <item.icon className="h-3.5 w-3.5 text-sidebar-foreground/70" />
-          </span>
-          <span className="min-w-0">
-            <p className="text-[13px] font-semibold text-white leading-tight">{item.label}</p>
-            <p className="text-[11px] text-sidebar-foreground/40 leading-tight mt-0.5">{item.description}</p>
-          </span>
-        </button>
-      ))}
-    </div>
+function AddMenuPortal({
+  anchorRef,
+  items,
+  onClose,
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement>
+  items: AddMenuItem[]
+  onClose: () => void
+}) {
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const r = anchorRef.current.getBoundingClientRect()
+      setCoords({ top: r.bottom + 4, left: r.left })
+    }
+  }, [anchorRef])
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      onClose()
+    }
+    // small delay so the open click doesn't immediately close it
+    const t = setTimeout(() => document.addEventListener('mousedown', handler), 50)
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', handler) }
+  }, [onClose])
+
+  if (!coords || typeof document === 'undefined') return null
+
+  return createPortal(
+    <div
+      style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="w-56 rounded-xl bg-[#1e2130] border border-white/10 shadow-2xl overflow-hidden py-1.5">
+        <p className="px-3 pt-1 pb-2 text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/35">
+          Create
+        </p>
+        {items.map((item) => (
+          <button
+            key={item.label}
+            onClick={item.onClick}
+            className="flex w-full items-start gap-3 px-3 py-2 hover:bg-white/8 transition-colors text-left"
+          >
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/8 border border-white/10">
+              <item.icon className="h-3.5 w-3.5 text-sidebar-foreground/70" />
+            </span>
+            <span className="min-w-0">
+              <p className="text-[13px] font-semibold text-white leading-tight">{item.label}</p>
+              <p className="text-[11px] text-sidebar-foreground/40 leading-tight mt-0.5">{item.description}</p>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>,
+    document.body
   )
 }
 
@@ -170,22 +205,12 @@ function SpaceItem({
   const [open, setOpen] = useState(true)
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false)
   const [listMenuOpen, setListMenuOpen] = useState<string | null>(null)
-  const spaceMenuRef = useRef<HTMLDivElement>(null)
-  const listMenuRef = useRef<HTMLDivElement>(null)
+  const spacePlusBtnRef = useRef<HTMLButtonElement>(null)
+  const listPlusBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   useEffect(() => {
     if (hasActiveProject) setOpen(true)
   }, [hasActiveProject])
-
-  // Close menus on outside click
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (spaceMenuRef.current && !spaceMenuRef.current.contains(e.target as Node)) setSpaceMenuOpen(false)
-      if (listMenuRef.current && !listMenuRef.current.contains(e.target as Node)) setListMenuOpen(null)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
 
   const color = getSpaceColor(workspace.id)
   const initial = workspace.name.slice(0, 1).toUpperCase()
@@ -214,23 +239,24 @@ function SpaceItem({
           <button className="h-5 w-5 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
             <MoreHorizontal className="h-3.5 w-3.5" />
           </button>
-          {/* Space + button with popup */}
-          <div className="relative" ref={spaceMenuRef}>
-            <button
-              onClick={(e) => { e.stopPropagation(); setSpaceMenuOpen(o => !o) }}
-              className="h-5 w-5 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-            {spaceMenuOpen && (
-              <div className="absolute left-0 top-6 z-50">
-                <AddMenu items={[
-                  { icon: ListChecks, label: 'List', description: 'Track tasks, projects, people & more', onClick: () => { setSpaceMenuOpen(false); onCreateList(workspace.id) } },
-                  { icon: FolderOpen, label: 'Folder', description: 'Group Lists, Docs & more', onClick: () => { setSpaceMenuOpen(false) } },
-                ]} />
-              </div>
-            )}
-          </div>
+          {/* Space + button with portal popup */}
+          <button
+            ref={spacePlusBtnRef}
+            onClick={(e) => { e.stopPropagation(); setSpaceMenuOpen(o => !o) }}
+            className="h-5 w-5 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          {spaceMenuOpen && (
+            <AddMenuPortal
+              anchorRef={spacePlusBtnRef}
+              onClose={() => setSpaceMenuOpen(false)}
+              items={[
+                { icon: ListChecks, label: 'List', description: 'Track tasks, projects, people & more', onClick: () => { setSpaceMenuOpen(false); onCreateList(workspace.id) } },
+                { icon: FolderOpen, label: 'Folder', description: 'Group Lists, Docs & more', onClick: () => setSpaceMenuOpen(false) },
+              ]}
+            />
+          )}
         </span>
       </div>
 
@@ -267,23 +293,24 @@ function SpaceItem({
                     <button className="h-4 w-4 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
                       <MoreHorizontal className="h-3 w-3" />
                     </button>
-                    {/* List + button with popup */}
-                    <div className="relative" ref={listMenuOpen === proj.id ? listMenuRef : undefined}>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setListMenuOpen(o => o === proj.id ? null : proj.id) }}
-                        className="h-4 w-4 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors"
-                      >
-                        <Plus className="h-3 w-3" />
-                      </button>
-                      {listMenuOpen === proj.id && (
-                        <div className="absolute right-0 top-5 z-50">
-                          <AddMenu items={[
-                            { icon: CircleDot, label: 'Task', description: 'Create individual tasks to manage your work', onClick: () => { setListMenuOpen(null); onCreateTask(proj.id) } },
-                            { icon: ListChecks, label: 'List', description: 'Track tasks, projects, people & more', onClick: () => { setListMenuOpen(null); onCreateList(workspace.id) } },
-                          ]} />
-                        </div>
-                      )}
-                    </div>
+                    {/* List + button with portal popup */}
+                    <button
+                      ref={el => { listPlusBtnRefs.current[proj.id] = el }}
+                      onClick={(e) => { e.stopPropagation(); setListMenuOpen(o => o === proj.id ? null : proj.id) }}
+                      className="h-4 w-4 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                    {listMenuOpen === proj.id && listPlusBtnRefs.current[proj.id] && (
+                      <AddMenuPortal
+                        anchorRef={{ current: listPlusBtnRefs.current[proj.id] } as React.RefObject<HTMLButtonElement>}
+                        onClose={() => setListMenuOpen(null)}
+                        items={[
+                          { icon: CircleDot, label: 'Task', description: 'Create individual tasks to manage your work', onClick: () => { setListMenuOpen(null); onCreateTask(proj.id) } },
+                          { icon: ListChecks, label: 'List', description: 'Track tasks, projects, people & more', onClick: () => { setListMenuOpen(null); onCreateList(workspace.id) } },
+                        ]}
+                      />
+                    )}
                   </span>
                 </div>
               )
