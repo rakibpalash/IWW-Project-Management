@@ -591,9 +591,14 @@ export function CreateFolderDialog({
               </div>
 
               {/* Right panel */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              <div className={cn(
+                'flex-1 p-5',
+                statusType === 'inherit'
+                  ? 'flex items-center justify-center overflow-hidden'
+                  : 'overflow-y-auto space-y-5',
+              )}>
                 {statusType === 'inherit' ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center gap-3 py-12">
+                  <div className="flex flex-col items-center justify-center text-center gap-3">
                     <svg width="44" height="44" viewBox="0 0 44 44" fill="none" className="opacity-20">
                       <circle cx="22" cy="22" r="20" stroke="#94a3b8" strokeWidth="2" strokeDasharray="6 4" />
                     </svg>

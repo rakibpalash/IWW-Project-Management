@@ -12,7 +12,7 @@ import {
 } from 'date-fns'
 import { cloneSpaceAction } from '@/app/actions/spaces'
 import { AssignStaffDialog } from './assign-staff-dialog'
-import { RenameSpaceDialog } from './rename-space-dialog'
+import { EditSpaceDialog } from './edit-space-dialog'
 import { CreateListDialog } from '@/components/lists/create-list-dialog'
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -146,7 +146,7 @@ export function SpaceDetailPage({
   const [members, setMembers] = useState<Profile[]>(initialMembers)
   const [activeTab, setActiveTab] = useState<TabType>('summary')
   const [showAssign, setShowAssign] = useState(false)
-  const [showRenameSpace, setShowRenameSpace] = useState(false)
+  const [showEditSpace, setShowEditSpace] = useState(false)
   const [isCloning, setIsCloning] = useState(false)
   const [spaceName, setSpaceName] = useState(space.name)
   const [showCreateList, setShowCreateList] = useState(false)
@@ -488,7 +488,7 @@ export function SpaceDetailPage({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 {isAdmin && (
-                  <DropdownMenuItem onClick={() => setShowRenameSpace(true)}>
+                  <DropdownMenuItem onClick={() => setShowEditSpace(true)}>
                     <Pencil className="h-3.5 w-3.5 mr-2" />
                     Edit space
                   </DropdownMenuItem>
@@ -1442,11 +1442,11 @@ export function SpaceDetailPage({
       )}
 
       {/* ── Dialogs ── */}
-      <RenameSpaceDialog
+      <EditSpaceDialog
         space={{ ...space, name: spaceName }}
-        open={showRenameSpace}
-        onOpenChange={setShowRenameSpace}
-        onSuccess={(_, name) => {
+        open={showEditSpace}
+        onOpenChange={setShowEditSpace}
+        onSuccess={(name, description) => {
           setSpaceName(name)
         }}
       />

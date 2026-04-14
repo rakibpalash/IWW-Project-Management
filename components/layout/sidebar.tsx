@@ -25,6 +25,8 @@ import {
   MoreHorizontal,
   FolderOpen,
   CircleDot,
+  Layers,
+  Sliders,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Profile, Space, List, Folder } from '@/types'
@@ -127,6 +129,63 @@ function AddMenuPortal({
               <p className="text-[13px] font-semibold text-white leading-tight">{item.label}</p>
               <p className="text-[11px] text-sidebar-foreground/40 leading-tight mt-0.5">{item.description}</p>
             </span>
+          </button>
+        ))}
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// ─── spaces header dropdown (portal) ──────────────────────────────────────────
+
+function SpacesMenuPortal({
+  anchorRef,
+  onClose,
+  onCreateSpace,
+  onManageSpaces,
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement>
+  onClose: () => void
+  onCreateSpace: () => void
+  onManageSpaces: () => void
+}) {
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const r = anchorRef.current.getBoundingClientRect()
+      setCoords({ top: r.bottom + 4, left: r.left })
+    }
+  }, [anchorRef])
+
+  useEffect(() => {
+    function handler() { onClose() }
+    const t = setTimeout(() => document.addEventListener('mousedown', handler), 50)
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', handler) }
+  }, [onClose])
+
+  if (!coords || typeof document === 'undefined') return null
+
+  const items = [
+    { label: 'Create Space',  icon: Layers,  onClick: onCreateSpace },
+    { label: 'Manage Spaces', icon: Sliders, onClick: onManageSpaces },
+  ]
+
+  return createPortal(
+    <div
+      style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }}
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <div className="w-44 rounded-xl bg-[#1e2130] border border-white/10 shadow-2xl overflow-hidden py-1">
+        {items.map(item => (
+          <button
+            key={item.label}
+            onClick={item.onClick}
+            className="flex w-full items-center gap-2.5 px-3 py-2 hover:bg-white/8 transition-colors text-left"
+          >
+            <item.icon className="h-3.5 w-3.5 text-sidebar-foreground/60 shrink-0" />
+            <span className="text-[13px] font-semibold text-white">{item.label}</span>
           </button>
         ))}
       </div>
@@ -466,14 +525,17 @@ interface SidebarProps {
 
 export function Sidebar({ profile, permissions, initialSpaces = [], initialLists = [], isOpen, isCollapsed, onClose, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
 
   const [spaces,        setSpaces]        = useState<Space[]>(initialSpaces)
   const [lists,          setLists]          = useState<List[]>(initialLists)
   const [folders,        setFolders]        = useState<Folder[]>([])
-  const [showCreateSpace,   setShowCreateSpace]   = useState(false)
-  const [staffProfiles,     setStaffProfiles]     = useState<Profile[]>([])
+  const [showCreateSpace,     setShowCreateSpace]     = useState(false)
+  const [staffProfiles,       setStaffProfiles]       = useState<Profile[]>([])
+  const [spacesAddMenuOpen,   setSpacesAddMenuOpen]   = useState(false)
+  const spacesAddBtnRef = useRef<HTMLButtonElement>(null)
   const [showCreateList,    setShowCreateList]    = useState(false)
   const [createListSpaceId, setCreateListSpaceId] = useState<string | null>(null)
   const [createListFolderId, setCreateListFolderId] = useState<string | null>(null)
@@ -672,14 +734,28 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
                     Spaces
                   </span>
                   <span className="flex items-center gap-0.5">
+                    {/* ... → dropdown with Create Space / Manage Spaces */}
                     <button
+                      ref={spacesAddBtnRef}
+                      onClick={e => { e.stopPropagation(); setSpacesAddMenuOpen(o => !o) }}
                       className="flex h-4 w-4 items-center justify-center rounded text-sidebar-foreground/30 hover:text-white hover:bg-white/10 transition-colors"
+                      title="Space options"
                     >
                       <MoreHorizontal className="h-3 w-3" />
                     </button>
+                    {spacesAddMenuOpen && (
+                      <SpacesMenuPortal
+                        anchorRef={spacesAddBtnRef}
+                        onClose={() => setSpacesAddMenuOpen(false)}
+                        onCreateSpace={() => { setSpacesAddMenuOpen(false); openCreateSpace() }}
+                        onManageSpaces={() => { setSpacesAddMenuOpen(false); router.push('/spaces') }}
+                      />
+                    )}
+                    {/* + → directly opens Create Space modal */}
                     <button
                       onClick={openCreateSpace}
                       className="flex h-4 w-4 items-center justify-center rounded text-sidebar-foreground/30 hover:text-white hover:bg-white/10 transition-colors"
+                      title="Create Space"
                     >
                       <Plus className="h-3 w-3" />
                     </button>

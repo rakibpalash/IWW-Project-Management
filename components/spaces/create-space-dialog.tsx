@@ -1,11 +1,17 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { createSpaceAction } from '@/app/actions/spaces'
+import { getStatusTemplatesAction, StatusTemplateRow } from '@/app/actions/status-templates'
+import { listPermissionTemplatesAction, PermissionTemplate } from '@/app/actions/permission-templates'
 import { Profile, Space } from '@/types'
-import { X, Search, Shield, ChevronDown, Lock, Check } from 'lucide-react'
+import {
+  X, Search, Shield, ChevronDown, Check,
+  ChevronRight, ChevronLeft, List, LayoutGrid, CalendarRange,
+} from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 
 type SpaceWithCounts = Space & { member_count: number; list_count: number }
@@ -17,12 +23,12 @@ interface CreateSpaceDialogProps {
   staffProfiles: Profile[]
 }
 
+// ── Colors ────────────────────────────────────────────────────────────────────
 const SPACE_COLORS = [
   '#7c3aed', '#0891b2', '#0284c7', '#059669',
   '#d97706', '#dc2626', '#db2777', '#4f46e5',
   '#0ea5e9', '#10b981', '#f97316', '#8b5cf6',
 ]
-
 function pickColor(name: string) {
   if (!name) return SPACE_COLORS[0]
   let h = 0
@@ -30,6 +36,249 @@ function pickColor(name: string) {
   return SPACE_COLORS[h % SPACE_COLORS.length]
 }
 
+// ── Default task status flow (matches folder/task view) ───────────────────────
+const DEFAULT_WORKFLOW = [
+  { slug: 'todo',        name: 'To Do',       color: '#94a3b8' },
+  { slug: 'in_progress', name: 'In Progress', color: '#f59e0b' },
+  { slug: 'in_review',   name: 'In Review',   color: '#3b82f6' },
+  { slug: 'done',        name: 'Done',        color: '#22c55e' },
+  { slug: 'cancelled',   name: 'Cancelled',   color: '#ef4444' },
+]
+
+// ── Role badge colours ────────────────────────────────────────────────────────
+const ROLE_OPTIONS = [
+  { value: 'account_manager', label: 'Org Admin',  color: '#7c3aed' },
+  { value: 'project_manager', label: 'Team Lead',  color: '#0284c7' },
+  { value: 'staff',           label: 'Staff',      color: '#059669' },
+  { value: 'client',          label: 'Client',     color: '#d97706' },
+  { value: 'partner',         label: 'Partner',    color: '#4f46e5' },
+]
+
+// ── Permission levels (fallback when no custom templates exist) ───────────────
+const PERMISSION_LEVELS = [
+  { value: 'full_edit',  label: 'Full edit',  desc: 'Can create, edit and delete everything' },
+  { value: 'can_edit',   label: 'Can edit',   desc: 'Can edit tasks and content, not settings' },
+  { value: 'view_only',  label: 'View only',  desc: 'Can view everything but not edit' },
+  { value: 'no_access',  label: 'No access',  desc: 'Cannot see this space at all' },
+]
+
+// ── Step bar ──────────────────────────────────────────────────────────────────
+function StepBar({ step }: { step: number }) {
+  const labels = ['Info', 'Members', 'Workflow', 'Settings']
+  return (
+    <div className="flex items-center px-6 pt-5 pb-3">
+      {labels.map((label, i) => {
+        const idx     = i + 1
+        const done    = idx < step
+        const current = idx === step
+        return (
+          <div key={label} className="flex items-center flex-1 last:flex-none">
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <div className={cn(
+                'h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors',
+                done    ? 'bg-primary text-primary-foreground' :
+                current ? 'bg-primary text-primary-foreground ring-2 ring-primary/30' :
+                          'bg-muted text-muted-foreground',
+              )}>
+                {done ? <Check className="h-3 w-3" /> : idx}
+              </div>
+              <span className={cn(
+                'text-[10px] font-semibold whitespace-nowrap',
+                current ? 'text-foreground' : 'text-muted-foreground',
+              )}>{label}</span>
+            </div>
+            {i < labels.length - 1 && (
+              <div className={cn(
+                'flex-1 h-[2px] mx-1 mb-4 rounded-full transition-colors',
+                idx < step ? 'bg-primary' : 'bg-muted',
+              )} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Permission popup (portal) ─────────────────────────────────────────────────
+function PermissionPopup({
+  anchorRef,
+  templates,
+  selected,
+  onSelect,
+  onClose,
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement>
+  templates: PermissionTemplate[]
+  selected: string
+  onSelect: (v: string) => void
+  onClose: () => void
+}) {
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null)
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const r = anchorRef.current.getBoundingClientRect()
+      setCoords({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 220) })
+    }
+  }, [anchorRef])
+
+  useEffect(() => {
+    const handler = () => onClose()
+    const t = setTimeout(() => document.addEventListener('mousedown', handler), 50)
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', handler) }
+  }, [onClose])
+
+  if (!coords || typeof document === 'undefined') return null
+
+  // Group templates by base_role
+  const grouped = ROLE_OPTIONS.map(role => ({
+    ...role,
+    templates: templates.filter(t => t.base_role === role.value),
+  }))
+
+  return createPortal(
+    <div
+      style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999, width: coords.width }}
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <div className="rounded-xl border border-border bg-background shadow-2xl overflow-hidden py-1.5">
+        <p className="px-3 pt-1 pb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+          Default Permission
+        </p>
+
+        {templates.length > 0 ? (
+          // Show existing permission templates grouped by role
+          grouped.map(group =>
+            group.templates.length > 0 ? (
+              <div key={group.value}>
+                <p className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  {group.label}
+                </p>
+                {group.templates.map(tmpl => (
+                  <button
+                    key={tmpl.id}
+                    onClick={() => { onSelect(tmpl.id); onClose() }}
+                    className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-muted/60 transition-colors"
+                  >
+                    <div>
+                      <p className="text-[13px] font-semibold text-foreground">{tmpl.name}</p>
+                      {tmpl.description && (
+                        <p className="text-[11px] text-muted-foreground">{tmpl.description}</p>
+                      )}
+                    </div>
+                    {selected === tmpl.id && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            ) : null
+          )
+        ) : (
+          // Fallback: standard permission levels
+          PERMISSION_LEVELS.map(level => (
+            <button
+              key={level.value}
+              onClick={() => { onSelect(level.value); onClose() }}
+              className="flex items-center justify-between w-full px-3 py-2.5 text-left hover:bg-muted/60 transition-colors"
+            >
+              <div>
+                <p className="text-[13px] font-semibold text-foreground">{level.label}</p>
+                <p className="text-[11px] text-muted-foreground">{level.desc}</p>
+              </div>
+              {selected === level.value && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+            </button>
+          ))
+        )}
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// ── Shared member list sub-component ─────────────────────────────────────────
+function MemberPicker({
+  staffProfiles,
+  selectedStaff,
+  onToggle,
+  autoFocus = true,
+  maxHeight = 220,
+}: {
+  staffProfiles: Profile[]
+  selectedStaff: Set<string>
+  onToggle: (id: string) => void
+  autoFocus?: boolean
+  maxHeight?: number
+}) {
+  const [search, setSearch] = useState('')
+
+  const filtered = staffProfiles.filter(s =>
+    !search ||
+    s.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    s.email.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+        <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <input
+          autoFocus={autoFocus}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search or enter email..."
+          className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+        />
+      </div>
+
+      <div className="rounded-lg border border-border divide-y divide-border/50 overflow-hidden"
+        style={{ maxHeight, overflowY: 'auto' }}
+      >
+        {filtered.length === 0 ? (
+          <p className="px-4 py-4 text-sm text-center text-muted-foreground">No members found</p>
+        ) : (
+          filtered.map(m => {
+            const selected = selectedStaff.has(m.id)
+            return (
+              <button
+                key={m.id}
+                onClick={() => onToggle(m.id)}
+                className={cn(
+                  'flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors',
+                  selected ? 'bg-primary/5' : 'hover:bg-muted/50'
+                )}
+              >
+                <div
+                  className="h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                  style={{ backgroundColor: pickColor(m.full_name) }}
+                >
+                  {getInitials(m.full_name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-foreground truncate">{m.full_name}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{m.email}</p>
+                </div>
+                <div className={cn(
+                  'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors',
+                  selected ? 'bg-primary border-primary' : 'border-muted-foreground/30'
+                )}>
+                  {selected && <Check className="h-3 w-3 text-white" />}
+                </div>
+              </button>
+            )
+          })
+        )}
+      </div>
+
+      {selectedStaff.size > 0 && (
+        <p className="text-[11px] text-muted-foreground px-0.5">
+          {selectedStaff.size} member{selectedStaff.size > 1 ? 's' : ''} selected
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export function CreateSpaceDialog({
   open,
   onOpenChange,
@@ -38,38 +287,73 @@ export function CreateSpaceDialog({
 }: CreateSpaceDialogProps) {
   const { toast } = useToast()
 
-  const [name,          setName]          = useState('')
-  const [description,   setDescription]   = useState('')
-  const [isPrivate,     setIsPrivate]     = useState(false)
-  const [memberSearch,  setMemberSearch]  = useState('')
+  // Step
+  const [step, setStep] = useState(1)
+
+  // Step 1 — Info
+  const [name,        setName]        = useState('')
+  const [description, setDescription] = useState('')
+  const [isPrivate,   setIsPrivate]   = useState(false)
+  const [nameError,   setNameError]   = useState('')
+  const nameRef = useRef<HTMLInputElement>(null)
+
+  // Step 1 — Permission popup
+  const [permOpen,        setPermOpen]        = useState(false)
+  const [selectedPerm,    setSelectedPerm]    = useState('full_edit')
+  const [permTemplates,   setPermTemplates]   = useState<PermissionTemplate[]>([])
+  const [permLoading,     setPermLoading]     = useState(false)
+  const permBtnRef = useRef<HTMLButtonElement>(null)
+
+  // Members (shared between step 1 private + step 2)
   const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set())
-  const [shareOpen,     setShareOpen]     = useState(false)
-  const [isSubmitting,  setIsSubmitting]  = useState(false)
-  const [nameError,     setNameError]     = useState('')
-  const shareRef = useRef<HTMLDivElement>(null)
-  const nameRef  = useRef<HTMLInputElement>(null)
 
-  // Click-outside for share dropdown
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (shareRef.current && !shareRef.current.contains(e.target as Node)) {
-        setShareOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+  // Step 3 — Workflow
+  const [templates,        setTemplates]        = useState<StatusTemplateRow[]>([])
+  const [selectedWorkflow, setSelectedWorkflow] = useState<string>('__default__')
+  const [templatesLoading, setTemplatesLoading] = useState(false)
 
+  // Step 4 — Default views
+  const [viewList,     setViewList]     = useState(true)
+  const [viewBoard,    setViewBoard]    = useState(true)
+  const [viewTimeline, setViewTimeline] = useState(false)
+
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // ── Reset on open/close ──────────────────────────────────────────────────
   useEffect(() => {
     if (open) {
       setTimeout(() => nameRef.current?.focus(), 80)
     } else {
-      setName(''); setDescription(''); setIsPrivate(false)
-      setMemberSearch(''); setSelectedStaff(new Set())
-      setShareOpen(false); setNameError('')
+      setStep(1)
+      setName(''); setDescription(''); setIsPrivate(false); setNameError('')
+      setPermOpen(false); setSelectedPerm('full_edit'); setPermTemplates([])
+      setSelectedStaff(new Set())
+      setTemplates([]); setSelectedWorkflow('__default__')
+      setViewList(true); setViewBoard(true); setViewTimeline(false)
     }
   }, [open])
 
+  // ── Fetch permission templates when popup opens ──────────────────────────
+  useEffect(() => {
+    if (permOpen && permTemplates.length === 0 && !permLoading) {
+      setPermLoading(true)
+      listPermissionTemplatesAction()
+        .then(data => setPermTemplates(data))
+        .finally(() => setPermLoading(false))
+    }
+  }, [permOpen])
+
+  // ── Fetch status templates when reaching step 3 ──────────────────────────
+  useEffect(() => {
+    if (step === 3 && templates.length === 0) {
+      setTemplatesLoading(true)
+      getStatusTemplatesAction()
+        .then(r => { if (r.success) setTemplates(r.templates ?? []) })
+        .finally(() => setTemplatesLoading(false))
+    }
+  }, [step])
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
   function toggleMember(id: string) {
     setSelectedStaff(prev => {
       const n = new Set(prev)
@@ -78,9 +362,18 @@ export function CreateSpaceDialog({
     })
   }
 
+  function goNext() {
+    if (step === 1) {
+      if (!name.trim()) { setNameError('Space name is required'); nameRef.current?.focus(); return }
+      setNameError('')
+    }
+    setStep(s => Math.min(s + 1, 4))
+  }
+
+  function goBack() { setStep(s => Math.max(s - 1, 1)) }
+
   async function handleSubmit() {
-    if (!name.trim()) { setNameError('Space name is required'); nameRef.current?.focus(); return }
-    setNameError('')
+    if (!name.trim()) { setNameError('Space name is required'); return }
     setIsSubmitting(true)
     try {
       const result = await createSpaceAction({
@@ -100,202 +393,328 @@ export function CreateSpaceDialog({
     }
   }
 
-  const iconColor = pickColor(name)
-  const iconLetter = name.trim().slice(0, 1).toUpperCase() || 'M'
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const iconColor  = pickColor(name)
+  const iconLetter = name.trim().slice(0, 1).toUpperCase() || 'S'
 
-  const filteredStaff = staffProfiles.filter(s =>
-    !memberSearch ||
-    s.full_name.toLowerCase().includes(memberSearch.toLowerCase()) ||
-    s.email.toLowerCase().includes(memberSearch.toLowerCase())
-  )
+  const permLabel = (() => {
+    if (permTemplates.length > 0) {
+      return permTemplates.find(t => t.id === selectedPerm)?.name ?? 'Full edit'
+    }
+    return PERMISSION_LEVELS.find(l => l.value === selectedPerm)?.label ?? 'Full edit'
+  })()
 
-  const selectedMembers = staffProfiles.filter(s => selectedStaff.has(s.id))
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="p-0 gap-0 max-w-[500px] overflow-hidden rounded-xl border border-border shadow-2xl">
 
         {/* ── Header ── */}
-        <div className="px-6 pt-6 pb-4">
-          <div className="flex items-start justify-between mb-1">
-            <h2 className="text-[18px] font-bold text-foreground">Create a Space</h2>
-            <button
-              onClick={() => onOpenChange(false)}
-              className="rounded-md p-1 text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors -mt-0.5"
-            >
-              <X className="h-4 w-4" />
-            </button>
+        <div className="flex items-center justify-between px-6 pt-5 pb-0">
+          <div>
+            <h2 className="text-[17px] font-bold text-foreground">Create a Space</h2>
+            <p className="text-[12px] text-muted-foreground mt-0.5">
+              {step === 1 && 'Name and configure your new space.'}
+              {step === 2 && 'Invite team members to this space.'}
+              {step === 3 && 'Choose the workflow for this space.'}
+              {step === 4 && 'Set default views for this space.'}
+            </p>
           </div>
-          <p className="text-[13px] text-muted-foreground leading-relaxed">
-            A Space represents teams, departments, or groups, each with its own Lists, workflows, and settings.
-          </p>
+          <button
+            onClick={() => onOpenChange(false)}
+            className="rounded-md p-1 text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        {/* ── Body ── */}
-        <div className="px-6 pb-2 space-y-4">
+        <StepBar step={step} />
 
-          {/* Icon & name */}
-          <div>
-            <p className="text-[13px] font-semibold text-foreground mb-2">Icon &amp; name</p>
-            <div className="flex items-center gap-3">
-              {/* Icon badge */}
-              <div
-                className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-white text-[15px] font-bold select-none"
-                style={{ backgroundColor: iconColor }}
-              >
-                {iconLetter}
-              </div>
-              {/* Name input */}
-              <div className="flex-1">
-                <input
-                  ref={nameRef}
-                  value={name}
-                  onChange={e => { setName(e.target.value); if (e.target.value.trim()) setNameError('') }}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit() } }}
-                  placeholder="e.g. Marketing, Engineering, HR"
-                  className={cn(
-                    'w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-colors',
-                    'placeholder:text-muted-foreground/50',
-                    nameError
-                      ? 'border-red-400 focus:border-red-400'
-                      : 'border-border focus:border-primary focus:ring-1 focus:ring-primary/30',
-                  )}
-                />
-                {nameError && <p className="text-xs text-red-500 mt-1">{nameError}</p>}
-              </div>
-            </div>
-          </div>
+        {/* ── Step 1: Info ── */}
+        {step === 1 && (
+          <div className="px-6 pb-2 space-y-4">
 
-          {/* Description */}
-          <div>
-            <p className="text-[13px] font-semibold text-foreground mb-2">
-              Description <span className="font-normal text-muted-foreground">(optional)</span>
-            </p>
-            <input
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder=""
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors placeholder:text-muted-foreground/40"
-            />
-          </div>
-
-          {/* Default permission */}
-          <div className="flex items-center justify-between py-0.5">
-            <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-muted-foreground" />
-              <span className="text-[13px] font-medium text-foreground">Default permission</span>
-              <button className="h-4 w-4 rounded-full border border-muted-foreground/40 text-muted-foreground/50 text-[10px] font-bold flex items-center justify-center hover:border-muted-foreground transition-colors">?</button>
-            </div>
-            <button className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[13px] font-medium text-foreground hover:bg-muted/60 transition-colors border border-border">
-              Full edit
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
-          </div>
-
-          {/* Make Private */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[13px] font-medium text-foreground">Make Private</p>
-                <p className="text-[12px] text-muted-foreground mt-0.5">Only you and invited members have access</p>
-              </div>
-              {/* Toggle */}
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isPrivate}
-                onClick={() => setIsPrivate(v => !v)}
-                className={cn(
-                  'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
-                  isPrivate ? 'bg-primary' : 'bg-muted-foreground/30'
-                )}
-              >
-                <span
-                  className={cn(
-                    'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200',
-                    isPrivate ? 'translate-x-5' : 'translate-x-0'
-                  )}
-                />
-              </button>
-            </div>
-
-            {/* Share only with — visible when private */}
-            {isPrivate && (
-              <div className="pl-0">
-                <p className="text-[12px] font-medium text-muted-foreground mb-2">Share only with:</p>
-                <div className="relative" ref={shareRef}>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* Selected member avatars */}
-                    {selectedMembers.map(m => (
-                      <button
-                        key={m.id}
-                        onClick={() => toggleMember(m.id)}
-                        title={`Remove ${m.full_name}`}
-                        className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-[10px] font-bold text-primary-foreground hover:opacity-80 transition-opacity border-2 border-background"
-                      >
-                        {getInitials(m.full_name)}
-                      </button>
-                    ))}
-                    {/* Add button */}
-                    <button
-                      onClick={() => setShareOpen(v => !v)}
-                      className="h-7 w-7 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-                    >
-                      <Lock className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Dropdown */}
-                  {shareOpen && (
-                    <div className="absolute left-0 top-full mt-1 z-50 w-64 rounded-xl border border-border bg-background shadow-xl overflow-hidden">
-                      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/60">
-                        <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        <input
-                          autoFocus
-                          value={memberSearch}
-                          onChange={e => setMemberSearch(e.target.value)}
-                          placeholder="Search or enter email..."
-                          className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
-                        />
-                      </div>
-                      <div className="max-h-48 overflow-y-auto py-1">
-                        {filteredStaff.map(m => (
-                          <button
-                            key={m.id}
-                            onClick={() => { toggleMember(m.id); setMemberSearch('') }}
-                            className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-muted/50 transition-colors"
-                          >
-                            <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
-                              {getInitials(m.full_name)}
-                            </div>
-                            <span className="flex-1 truncate">{m.full_name}</span>
-                            {selectedStaff.has(m.id) && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                          </button>
-                        ))}
-                        {filteredStaff.length === 0 && (
-                          <p className="px-3 py-3 text-xs text-muted-foreground">No members found</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
+            {/* Icon & name */}
+            <div>
+              <p className="text-[13px] font-semibold text-foreground mb-2">Icon &amp; name</p>
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-white text-[15px] font-bold select-none"
+                  style={{ backgroundColor: iconColor }}
+                >
+                  {iconLetter}
+                </div>
+                <div className="flex-1">
+                  <input
+                    ref={nameRef}
+                    value={name}
+                    onChange={e => { setName(e.target.value); if (e.target.value.trim()) setNameError('') }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); goNext() } }}
+                    placeholder="e.g. Marketing, Engineering, HR"
+                    className={cn(
+                      'w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground/50',
+                      nameError
+                        ? 'border-red-400 focus:border-red-400'
+                        : 'border-border focus:border-primary focus:ring-1 focus:ring-primary/30',
+                    )}
+                  />
+                  {nameError && <p className="text-xs text-red-500 mt-1">{nameError}</p>}
                 </div>
               </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <p className="text-[13px] font-semibold text-foreground mb-2">
+                Description <span className="font-normal text-muted-foreground">(optional)</span>
+              </p>
+              <input
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder=""
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors placeholder:text-muted-foreground/40"
+              />
+            </div>
+
+            {/* Default permission */}
+            <div className="flex items-center justify-between py-0.5">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-muted-foreground" />
+                <span className="text-[13px] font-medium text-foreground">Default permission</span>
+                <button className="h-4 w-4 rounded-full border border-muted-foreground/40 text-muted-foreground/50 text-[10px] font-bold flex items-center justify-center hover:border-muted-foreground transition-colors">?</button>
+              </div>
+              <div className="relative">
+                <button
+                  ref={permBtnRef}
+                  onClick={e => { e.stopPropagation(); setPermOpen(o => !o) }}
+                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[13px] font-medium text-foreground hover:bg-muted/60 transition-colors border border-border"
+                >
+                  {permLoading ? (
+                    <span className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  ) : null}
+                  {permLabel}
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+                {permOpen && (
+                  <PermissionPopup
+                    anchorRef={permBtnRef}
+                    templates={permTemplates}
+                    selected={selectedPerm}
+                    onSelect={setSelectedPerm}
+                    onClose={() => setPermOpen(false)}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Make Private */}
+            <div className="space-y-3 pb-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[13px] font-medium text-foreground">Make Private</p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">Only you and invited members have access</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isPrivate}
+                  onClick={() => setIsPrivate(v => !v)}
+                  className={cn(
+                    'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
+                    isPrivate ? 'bg-primary' : 'bg-muted-foreground/30'
+                  )}
+                >
+                  <span className={cn(
+                    'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200',
+                    isPrivate ? 'translate-x-5' : 'translate-x-0'
+                  )} />
+                </button>
+              </div>
+
+              {/* Inline member assignment — only when private */}
+              {isPrivate && (
+                <MemberPicker
+                  staffProfiles={staffProfiles}
+                  selectedStaff={selectedStaff}
+                  onToggle={toggleMember}
+                  autoFocus={false}
+                  maxHeight={200}
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Members ── */}
+        {step === 2 && (
+          <div className="px-6 pb-2">
+            <MemberPicker
+              staffProfiles={staffProfiles}
+              selectedStaff={selectedStaff}
+              onToggle={toggleMember}
+              autoFocus
+              maxHeight={280}
+            />
+          </div>
+        )}
+
+        {/* ── Step 3: Workflow ── */}
+        {step === 3 && (
+          <div className="px-6 pb-2 space-y-3">
+            <p className="text-[13px] text-muted-foreground">
+              Choose a workflow for this space. You can customize it later.
+            </p>
+
+            {/* Default workflow */}
+            <button
+              onClick={() => setSelectedWorkflow('__default__')}
+              className={cn(
+                'w-full rounded-xl border-2 p-4 text-left transition-all',
+                selectedWorkflow === '__default__'
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-muted-foreground/40'
+              )}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[13px] font-semibold text-foreground">Default Workflow</p>
+                {selectedWorkflow === '__default__' && (
+                  <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="h-3 w-3 text-white" />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {DEFAULT_WORKFLOW.map(s => (
+                  <span
+                    key={s.slug}
+                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
+                    style={{ backgroundColor: s.color }}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-white/60 shrink-0" />
+                    {s.name}
+                  </span>
+                ))}
+              </div>
+            </button>
+
+            {/* Custom templates */}
+            {templatesLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              </div>
+            ) : (
+              templates.map(tmpl => {
+                const statuses = (tmpl.statuses as any[]) ?? []
+                return (
+                  <button
+                    key={tmpl.id}
+                    onClick={() => setSelectedWorkflow(tmpl.id)}
+                    className={cn(
+                      'w-full rounded-xl border-2 p-4 text-left transition-all',
+                      selectedWorkflow === tmpl.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-muted-foreground/40'
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[13px] font-semibold text-foreground">{tmpl.name}</p>
+                      {selectedWorkflow === tmpl.id && (
+                        <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="h-3 w-3 text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {statuses.map((s: any, i: number) => (
+                        <span
+                          key={i}
+                          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
+                          style={{ backgroundColor: s.color ?? '#94a3b8' }}
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-white/60 shrink-0" />
+                          {s.name}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                )
+              })
             )}
           </div>
-        </div>
+        )}
+
+        {/* ── Step 4: Settings ── */}
+        {step === 4 && (
+          <div className="px-6 pb-2 space-y-2">
+            <p className="text-[13px] text-muted-foreground mb-1">
+              Choose which views are available in this space by default.
+            </p>
+            {[
+              { key: 'list',     label: 'List',     desc: 'Track tasks in a structured list view',       icon: List,          value: viewList,     set: setViewList },
+              { key: 'board',    label: 'Board',    desc: 'Visualize tasks as cards on a kanban board',  icon: LayoutGrid,    value: viewBoard,    set: setViewBoard },
+              { key: 'timeline', label: 'Timeline', desc: 'Plan work on a timeline / Gantt chart',       icon: CalendarRange, value: viewTimeline, set: setViewTimeline },
+            ].map(({ key, label, desc, icon: Icon, value, set }) => (
+              <div key={key} className="flex items-center justify-between rounded-xl border border-border px-4 py-3 hover:bg-muted/30 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-semibold text-foreground">{label}</p>
+                    <p className="text-[11px] text-muted-foreground">{desc}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={value}
+                  onClick={() => set(v => !v)}
+                  className={cn(
+                    'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
+                    value ? 'bg-primary' : 'bg-muted-foreground/30'
+                  )}
+                >
+                  <span className={cn(
+                    'pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200',
+                    value ? 'translate-x-4' : 'translate-x-0'
+                  )} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ── Footer ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-border/60 bg-muted/20">
-          <button className="text-[13px] text-muted-foreground hover:text-foreground transition-colors">
-            Use Templates
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="rounded-lg bg-foreground text-background px-5 py-2 text-[13px] font-semibold hover:bg-foreground/90 disabled:opacity-50 transition-colors"
-          >
-            {isSubmitting ? 'Creating…' : 'Continue'}
-          </button>
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border/60 bg-muted/20 mt-2">
+          {step > 1 ? (
+            <button
+              onClick={goBack}
+              className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              Back
+            </button>
+          ) : (
+            <div />
+          )}
+
+          {step < 4 ? (
+            <button
+              onClick={goNext}
+              className="flex items-center gap-1.5 rounded-lg bg-foreground text-background px-5 py-2 text-[13px] font-semibold hover:bg-foreground/90 transition-colors"
+            >
+              Continue
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          ) : (
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="rounded-lg bg-primary text-primary-foreground px-5 py-2 text-[13px] font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {isSubmitting ? 'Creating…' : 'Save'}
+            </button>
+          )}
         </div>
 
       </DialogContent>
