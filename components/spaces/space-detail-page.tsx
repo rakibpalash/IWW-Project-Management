@@ -1051,7 +1051,14 @@ export function SpaceDetailPage({
                     <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-28">Due Date</th>
                     <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-20">Size</th>
                     <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-28">Priority</th>
-                    <th className="w-10 px-2" />
+                    <th className="w-10 px-2 py-2.5">
+                      <button
+                        title="Manage fields"
+                        className="h-6 w-6 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        <SlidersHorizontal className="h-3 w-3" />
+                      </button>
+                    </th>
                   </tr>
                 </thead>
 
