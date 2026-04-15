@@ -29,14 +29,22 @@ import { useToast } from '@/components/ui/use-toast'
 import {
   Users, Search, Filter, LayoutGrid, List as ListIcon, MoreHorizontal, Loader2, Copy,
   Plus, RefreshCw, ChevronDown, ChevronRight, SlidersHorizontal,
-  Share2, Maximize2, UserPlus, FolderKanban, LayoutList, Calendar,
+  Share2, Maximize2, UserPlus, FolderKanban, LayoutList, Calendar, Flag,
   ExternalLink, CheckCircle2, PenLine, FilePlus2, Clock, Activity,
   BarChart2, Globe, ChevronLeft, Check, Pencil,
 } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Label } from '@/components/ui/label'
+
+// ─── Space list view column visibility ───────────────────────────────────────
+type SpaceVisibleCols = { assignee: boolean; dueDate: boolean; size: boolean; priority: boolean }
+const SPACE_DEFAULT_COLS: SpaceVisibleCols = { assignee: true, dueDate: true, size: true, priority: true }
+const SPACE_COL_LABELS: Record<keyof SpaceVisibleCols, string> = {
+  assignee: 'Assignee', dueDate: 'Due Date', size: 'Size', priority: 'Priority',
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabType = 'summary' | 'list' | 'board' | 'calendar' | 'timeline'
@@ -161,6 +169,11 @@ export function SpaceDetailPage({
   const [tlSearch, setTlSearch] = useState('')
   const [listView, setListView] = useState<'list' | 'grid'>('list')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [spaceColDrawerOpen, setSpaceColDrawerOpen] = useState(false)
+  const [spaceVisibleCols, setSpaceVisibleCols] = useState<SpaceVisibleCols>(SPACE_DEFAULT_COLS)
+  function toggleSpaceCol(key: keyof SpaceVisibleCols) {
+    setSpaceVisibleCols(prev => ({ ...prev, [key]: !prev[key] }))
+  }
 
   // ── Tab customisation (persisted per-user per-space in localStorage) ──
   const ALL_TABS: { key: TabType; label: string; icon: React.ReactNode }[] = [
@@ -1047,12 +1060,13 @@ export function SpaceDetailPage({
                       />
                     </th>
                     <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Name</th>
-                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-32">Assigned</th>
-                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-28">Due Date</th>
-                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-20">Size</th>
-                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-28">Priority</th>
+                    {spaceVisibleCols.assignee && <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-32">Assigned</th>}
+                    {spaceVisibleCols.dueDate  && <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-28">Due Date</th>}
+                    {spaceVisibleCols.size     && <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-20">Size</th>}
+                    {spaceVisibleCols.priority && <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-28">Priority</th>}
                     <th className="w-10 px-2 py-2.5">
                       <button
+                        onClick={() => setSpaceColDrawerOpen(true)}
                         title="Manage fields"
                         className="h-6 w-6 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                       >
@@ -1168,6 +1182,7 @@ export function SpaceDetailPage({
                                 </td>
 
                                 {/* Assigned */}
+                                {spaceVisibleCols.assignee && (
                                 <td className="px-3 py-2.5 w-32">
                                   {(task.assignees ?? []).length > 0 ? (
                                     <div className="flex items-center -space-x-1.5">
@@ -1187,8 +1202,10 @@ export function SpaceDetailPage({
                                     <span className="text-xs text-muted-foreground/40">—</span>
                                   )}
                                 </td>
+                                )}
 
                                 {/* Due Date */}
+                                {spaceVisibleCols.dueDate && (
                                 <td className="px-3 py-2.5 w-28">
                                   {task.due_date ? (
                                     <span className={cn(
@@ -1203,15 +1220,19 @@ export function SpaceDetailPage({
                                     <span className="text-xs text-muted-foreground/40">—</span>
                                   )}
                                 </td>
+                                )}
 
                                 {/* Size (estimated hours) */}
+                                {spaceVisibleCols.size && (
                                 <td className="px-3 py-2.5 w-20">
                                   {task.estimated_hours
                                     ? <span className="text-xs text-muted-foreground tabular-nums">{task.estimated_hours}h</span>
                                     : <span className="text-xs text-muted-foreground/40">—</span>}
                                 </td>
+                                )}
 
                                 {/* Priority */}
+                                {spaceVisibleCols.priority && (
                                 <td className="px-3 py-2.5 w-28">
                                   <span className={cn(
                                     'inline-flex items-center gap-1 text-xs font-medium',
@@ -1225,6 +1246,7 @@ export function SpaceDetailPage({
                                     {task.priority === 'medium' ? 'Normal' : task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
                                   </span>
                                 </td>
+                                )}
 
                                 {/* Actions */}
                                 <td className="px-2 py-2.5 w-10" onClick={e => e.stopPropagation()}>
@@ -1315,6 +1337,93 @@ export function SpaceDetailPage({
 
         </div>
       )}
+
+      {/* ── Space list Fields drawer ──────────────────────────────────────── */}
+      <Sheet open={spaceColDrawerOpen} onOpenChange={setSpaceColDrawerOpen}>
+        <SheetContent side="right" className="w-80 p-0 flex flex-col gap-0">
+          <SheetHeader className="px-4 py-3 border-b shrink-0">
+            <SheetTitle className="text-sm font-semibold">Fields</SheetTitle>
+          </SheetHeader>
+          <div className="px-3 py-2 border-b shrink-0">
+            <input
+              placeholder="Search for new or existing fields"
+              className="w-full rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {/* Shown */}
+            <div className="px-3 pt-3 pb-1">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Shown</span>
+                <button
+                  onClick={() => setSpaceVisibleCols({ assignee: false, dueDate: false, size: false, priority: false })}
+                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                >Hide all</button>
+              </div>
+              {/* Task Name — always shown */}
+              <div className="flex items-center justify-between px-2 py-2 rounded-lg">
+                <div className="flex items-center gap-2.5">
+                  <Flag className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-sm">Task Name</span>
+                </div>
+                <button className="relative inline-flex h-5 w-9 shrink-0 rounded-full bg-emerald-500 opacity-50 cursor-not-allowed">
+                  <span className="inline-block h-4 w-4 rounded-full bg-white shadow mt-0.5 translate-x-4" />
+                </button>
+              </div>
+              {(Object.keys(SPACE_DEFAULT_COLS) as (keyof SpaceVisibleCols)[])
+                .filter(k => spaceVisibleCols[k])
+                .map(key => (
+                  <div key={key} onClick={() => toggleSpaceCol(key)}
+                    className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+                    <div className="flex items-center gap-2.5">
+                      {key === 'assignee' ? <Users className="h-3.5 w-3.5 text-muted-foreground" /> :
+                       key === 'dueDate'  ? <Calendar className="h-3.5 w-3.5 text-muted-foreground" /> :
+                       key === 'size'     ? <Clock className="h-3.5 w-3.5 text-muted-foreground" /> :
+                                            <Flag className="h-3.5 w-3.5 text-muted-foreground" />}
+                      <span className="text-sm">{SPACE_COL_LABELS[key]}</span>
+                    </div>
+                    <button className="relative inline-flex h-5 w-9 shrink-0 rounded-full bg-emerald-500">
+                      <span className="inline-block h-4 w-4 rounded-full bg-white shadow mt-0.5 translate-x-4" />
+                    </button>
+                  </div>
+                ))}
+            </div>
+            <div className="mx-3 my-1 border-t border-border/50" />
+            {/* Hidden */}
+            <div className="px-3 pb-3">
+              <div className="flex items-center justify-between mb-1 pt-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Hidden</span>
+              </div>
+              {(Object.keys(SPACE_DEFAULT_COLS) as (keyof SpaceVisibleCols)[])
+                .filter(k => !spaceVisibleCols[k])
+                .map(key => (
+                  <div key={key} onClick={() => toggleSpaceCol(key)}
+                    className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+                    <div className="flex items-center gap-2.5">
+                      {key === 'assignee' ? <Users className="h-3.5 w-3.5 text-muted-foreground/50" /> :
+                       key === 'dueDate'  ? <Calendar className="h-3.5 w-3.5 text-muted-foreground/50" /> :
+                       key === 'size'     ? <Clock className="h-3.5 w-3.5 text-muted-foreground/50" /> :
+                                            <Flag className="h-3.5 w-3.5 text-muted-foreground/50" />}
+                      <span className="text-sm text-muted-foreground">{SPACE_COL_LABELS[key]}</span>
+                    </div>
+                    <button className="relative inline-flex h-5 w-9 shrink-0 rounded-full bg-muted">
+                      <span className="inline-block h-4 w-4 rounded-full bg-white shadow mt-0.5 translate-x-0.5" />
+                    </button>
+                  </div>
+                ))}
+              {Object.values(spaceVisibleCols).every(Boolean) && (
+                <p className="text-xs text-muted-foreground/50 px-2 py-2">All fields are shown</p>
+              )}
+            </div>
+          </div>
+          <div className="px-4 py-3 border-t shrink-0">
+            <button onClick={() => setSpaceVisibleCols(SPACE_DEFAULT_COLS)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2">
+              Reset to default
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* ══════════════════════════════════════════════════════════════════════
           BOARD TAB
