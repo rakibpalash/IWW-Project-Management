@@ -1114,8 +1114,8 @@ export function SpaceDetailPage({
                             <React.Fragment key={task.id}>
                               <tr
                                 className={cn(
-                                  'border-b border-border/30 group/row hover:bg-muted/30 cursor-pointer transition-colors',
-                                  selected.has(task.id) && 'bg-blue-50/40 dark:bg-blue-950/20'
+                                  'border-b border-border/40 group/row cursor-pointer transition-colors bg-background hover:bg-muted/40',
+                                  selected.has(task.id) && 'bg-blue-50/60 dark:bg-blue-950/20'
                                 )}
                               >
                                 {/* Checkbox */}
@@ -1237,7 +1237,7 @@ export function SpaceDetailPage({
                               {/* Subtask rows */}
                               {expanded && subtasks.map(sub => (
                                 <tr key={sub.id}
-                                  className="border-b border-border/20 bg-muted/10 hover:bg-muted/30 cursor-pointer group/sub"
+                                  className="border-b border-border/30 bg-background hover:bg-muted/40 cursor-pointer group/sub"
                                   onClick={() => router.push(`/lists/${sub.list_id}/tasks/${sub.id}`)}>
                                   <td className="pl-4 py-2 w-9" />
                                   <td className="px-3 py-2 pl-10">
@@ -1284,8 +1284,8 @@ export function SpaceDetailPage({
                           <tr className="border-b border-border/20">
                             <td
                               colSpan={7}
-                              className="py-1"
-                              style={{ borderLeft: `3px solid ${group.color}` }}
+                              className="py-1 bg-background"
+                              style={{ borderLeft: `3px solid transparent` }}
                             >
                               <button
                                 onClick={openCreateTask}
