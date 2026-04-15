@@ -50,7 +50,7 @@ export async function getTimesheetEntriesAction(filters?: {
       id, task_id, user_id, description, started_at, ended_at, duration_minutes,
       is_running, is_billable, approval_status, approved_by,
       task:tasks(id, title, list:lists(id, name)),
-      profile:profiles(id, full_name, avatar_url, role)
+      profile:profiles!user_id(id, full_name, avatar_url, role)
     `)
     .order('started_at', { ascending: false })
 

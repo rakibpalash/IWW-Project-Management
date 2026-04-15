@@ -22,6 +22,7 @@ import {
   Hash,
 } from 'lucide-react'
 import { StatCard } from './stat-card'
+import { CreateTaskDialog } from '@/components/tasks/create-task-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -263,37 +264,48 @@ function StaffDashboard({
   router: ReturnType<typeof useRouter>
 }) {
   const [activeTab, setActiveTab] = useState<WorkTab>('todo')
+  const [showCreateTask, setShowCreateTask] = useState(false)
+  const [localTasks, setLocalTasks] = useState<Task[]>(myTasks)
+
+  // Derive unique lists from tasks for the create dialog
+  const availableLists = Array.from(
+    new Map(
+      localTasks
+        .filter(t => t.list_id && t.list?.name)
+        .map(t => [t.list_id, { id: t.list_id, name: t.list!.name } as any])
+    ).values()
+  )
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const todayTasks = myTasks.filter(t => {
+  const todayTasks = localTasks.filter(t => {
     if (!t.due_date || t.status === 'done' || t.status === 'cancelled') return false
     const d = new Date(t.due_date + 'T00:00:00')
     return d.getTime() === today.getTime()
   })
 
-  const overdueTasks = myTasks.filter(t => {
+  const overdueTasks = localTasks.filter(t => {
     if (!t.due_date || t.status === 'done' || t.status === 'cancelled') return false
     const d = new Date(t.due_date + 'T00:00:00')
     return d < today
   })
 
-  const nextTasks = myTasks.filter(t => {
+  const nextTasks = localTasks.filter(t => {
     if (!t.due_date || t.status === 'done' || t.status === 'cancelled') return false
     const d = new Date(t.due_date + 'T00:00:00')
     const next7 = new Date(today); next7.setDate(today.getDate() + 7)
     return d > today && d <= next7
   })
 
-  const unscheduledTasks = myTasks.filter(t =>
+  const unscheduledTasks = localTasks.filter(t =>
     !t.due_date && t.status !== 'done' && t.status !== 'cancelled'
   )
 
-  const doneTasks = myTasks.filter(t => t.status === 'done')
+  const doneTasks = localTasks.filter(t => t.status === 'done')
 
   // Assigned to me — open tasks sorted by priority
-  const assignedTasks = myTasks
+  const assignedTasks = localTasks
     .filter(t => t.status !== 'done' && t.status !== 'cancelled')
     .slice(0, 5)
 
@@ -353,38 +365,14 @@ function StaffDashboard({
           <div className="divide-y divide-border/50">
             {activeTab === 'todo' && (
               <>
-                <TaskGroup
-                  label="Today"
-                  color="#f97316"
-                  tasks={todayTasks}
-                  router={router}
-                  defaultOpen
-                />
-                <TaskGroup
-                  label="Next"
-                  color="#3b82f6"
-                  tasks={nextTasks}
-                  router={router}
-                  defaultOpen={nextTasks.length > 0}
-                />
-                <TaskGroup
-                  label="Overdue"
-                  color="#ef4444"
-                  tasks={overdueTasks}
-                  router={router}
-                  defaultOpen={overdueTasks.length > 0}
-                />
-                <TaskGroup
-                  label="Unscheduled"
-                  color="#94a3b8"
-                  tasks={unscheduledTasks}
-                  router={router}
-                  defaultOpen={false}
-                />
+                <TaskGroup label="Today"       color="#f97316" tasks={todayTasks}       router={router} defaultOpen                          onAddTask={() => setShowCreateTask(true)} />
+                <TaskGroup label="Next"        color="#3b82f6" tasks={nextTasks}        router={router} defaultOpen={nextTasks.length > 0}       onAddTask={() => setShowCreateTask(true)} />
+                <TaskGroup label="Overdue"     color="#ef4444" tasks={overdueTasks}     router={router} defaultOpen={overdueTasks.length > 0}    onAddTask={() => setShowCreateTask(true)} />
+                <TaskGroup label="Unscheduled" color="#94a3b8" tasks={unscheduledTasks} router={router} defaultOpen={false}                      onAddTask={() => setShowCreateTask(true)} />
               </>
             )}
             {activeTab === 'done' && (
-              <TaskGroup label="Completed" color="#22c55e" tasks={doneTasks} router={router} defaultOpen />
+              <TaskGroup label="Completed" color="#22c55e" tasks={doneTasks} router={router} defaultOpen onAddTask={() => setShowCreateTask(true)} />
             )}
             {activeTab === 'delegated' && (
               <div className="flex flex-col items-center gap-2 py-12 text-center">
@@ -410,7 +398,7 @@ function StaffDashboard({
         <div className="flex flex-col gap-5">
 
           {/* Assigned to me */}
-          <AssignedToMePanel tasks={assignedTasks} router={router} />
+          <AssignedToMePanel tasks={assignedTasks} router={router} onAddTask={() => setShowCreateTask(true)} />
 
           {/* Attendance quick info */}
           {myAttendanceToday && (
@@ -446,6 +434,15 @@ function StaffDashboard({
           </div>
         </div>
       </div>
+
+      {/* Create Task Modal */}
+      <CreateTaskDialog
+        open={showCreateTask}
+        onOpenChange={setShowCreateTask}
+        lists={availableLists}
+        profile={profile}
+        onCreated={task => setLocalTasks(prev => [task, ...prev])}
+      />
     </>
   )
 }
@@ -500,12 +497,14 @@ function TaskGroup({
   tasks,
   router,
   defaultOpen,
+  onAddTask,
 }: {
   label: string
   color: string
   tasks: Task[]
   router: ReturnType<typeof useRouter>
   defaultOpen: boolean
+  onAddTask: () => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
 
@@ -540,7 +539,7 @@ function TaskGroup({
           )}
           {/* Add task */}
           <button
-            onClick={() => router.push('/tasks')}
+            onClick={onAddTask}
             className="flex items-center gap-2 px-12 py-2 text-xs text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/10 transition-colors w-full"
           >
             <Plus className="h-3.5 w-3.5" /> Add Task
@@ -593,9 +592,11 @@ function WorkTaskRow({ task, color, router }: { task: Task; color: string; route
 function AssignedToMePanel({
   tasks,
   router,
+  onAddTask,
 }: {
   tasks: Task[]
   router: ReturnType<typeof useRouter>
+  onAddTask: () => void
 }) {
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm">
@@ -638,7 +639,7 @@ function AssignedToMePanel({
 
       <div className="border-t border-border/50 px-4 py-2">
         <button
-          onClick={() => router.push('/tasks')}
+          onClick={onAddTask}
           className="text-xs text-muted-foreground/60 hover:text-foreground transition-colors"
         >
           + Add Task
