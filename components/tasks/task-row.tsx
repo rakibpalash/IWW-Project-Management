@@ -21,6 +21,13 @@ import { ChevronDown, ChevronRight, ExternalLink, Flag, AlertCircle } from 'luci
 import { useTaskConfig } from '@/hooks/use-task-config'
 import { cn, formatDate, getInitials, isOverdue } from '@/lib/utils'
 
+export type VisibleColsRow = {
+  assignee:  boolean
+  dueDate:   boolean
+  size:      boolean
+  priority:  boolean
+}
+
 interface TaskRowProps {
   task: Task
   profile: Profile
@@ -31,6 +38,7 @@ interface TaskRowProps {
   // Bulk selection
   selected?: boolean
   onSelect?: (id: string, checked: boolean) => void
+  visibleCols?: VisibleColsRow
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -49,7 +57,9 @@ export function TaskRow({
   level = 0,
   selected = false,
   onSelect,
+  visibleCols,
 }: TaskRowProps) {
+  const cols = visibleCols ?? { assignee: true, dueDate: true, size: true, priority: true }
   const { toast } = useToast()
   const { statuses, getStatus, getPriority } = useTaskConfig()
   const [expanded, setExpanded] = useState(false)
@@ -201,57 +211,66 @@ export function TaskRow({
           </div>
 
           {/* Assignees */}
-          <div className="w-[80px] shrink-0 flex items-center px-1">
-            <div className="flex -space-x-1">
-              {(task.assignees ?? []).slice(0, 3).map((a) => (
-                <Tooltip key={a.id}>
-                  <TooltipTrigger asChild>
-                    <Avatar className="h-5 w-5 border border-background ring-0">
-                      <AvatarImage src={a.avatar_url ?? undefined} />
-                      <AvatarFallback className="text-[8px] font-medium">
-                        {getInitials(a.full_name)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </TooltipTrigger>
-                  <TooltipContent className="text-xs">{a.full_name}</TooltipContent>
-                </Tooltip>
-              ))}
-              {(task.assignees ?? []).length > 3 && (
-                <Avatar className="h-5 w-5 border border-background">
-                  <AvatarFallback className="text-[8px]">
-                    +{(task.assignees ?? []).length - 3}
-                  </AvatarFallback>
-                </Avatar>
-              )}
+          {cols.assignee && (
+            <div className="w-[80px] shrink-0 flex items-center px-1">
+              <div className="flex -space-x-1">
+                {(task.assignees ?? []).slice(0, 3).map((a) => (
+                  <Tooltip key={a.id}>
+                    <TooltipTrigger asChild>
+                      <Avatar className="h-5 w-5 border border-background ring-0">
+                        <AvatarImage src={a.avatar_url ?? undefined} />
+                        <AvatarFallback className="text-[8px] font-medium">
+                          {getInitials(a.full_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs">{a.full_name}</TooltipContent>
+                  </Tooltip>
+                ))}
+                {(task.assignees ?? []).length > 3 && (
+                  <Avatar className="h-5 w-5 border border-background">
+                    <AvatarFallback className="text-[8px]">
+                      +{(task.assignees ?? []).length - 3}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Due date */}
-          <div className="w-[90px] shrink-0 flex items-center px-1">
-            <span
-              className={cn(
+          {cols.dueDate && (
+            <div className="w-[90px] shrink-0 flex items-center px-1">
+              <span className={cn(
                 'text-xs',
-                overdue
-                  ? 'text-red-500 font-medium'
-                  : task.due_date
-                  ? 'text-muted-foreground'
-                  : 'text-muted-foreground/30',
-              )}
-            >
-              {task.due_date ? formatDate(task.due_date) : '—'}
-            </span>
-          </div>
+                overdue ? 'text-red-500 font-medium' : task.due_date ? 'text-muted-foreground' : 'text-muted-foreground/30',
+              )}>
+                {task.due_date ? formatDate(task.due_date) : '—'}
+              </span>
+            </div>
+          )}
+
+          {/* Size (estimated hours) */}
+          {cols.size && (
+            <div className="w-[70px] shrink-0 flex items-center px-1">
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {task.estimated_hours ? `${task.estimated_hours}h` : '—'}
+              </span>
+            </div>
+          )}
 
           {/* Priority */}
-          <div className="w-[90px] shrink-0 flex items-center px-1">
-            <span
-              className="text-xs font-medium flex items-center gap-1"
-              style={{ color: PRIORITY_COLOR[task.priority] ?? '#94a3b8' }}
-            >
-              <Flag className="h-3 w-3 shrink-0" />
-              <span className="truncate">{priorityCfg?.name ?? task.priority}</span>
-            </span>
-          </div>
+          {cols.priority && (
+            <div className="w-[90px] shrink-0 flex items-center px-1">
+              <span
+                className="text-xs font-medium flex items-center gap-1"
+                style={{ color: PRIORITY_COLOR[task.priority] ?? '#94a3b8' }}
+              >
+                <Flag className="h-3 w-3 shrink-0" />
+                <span className="truncate">{priorityCfg?.name ?? task.priority}</span>
+              </span>
+            </div>
+          )}
 
           {/* Open button */}
           <div className="w-8 shrink-0 flex items-center justify-center opacity-0 group-hover:opacity-100">
