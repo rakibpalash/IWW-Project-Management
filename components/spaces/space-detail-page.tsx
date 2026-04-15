@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useTransition, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getSpaceMembersAction } from '@/app/actions/spaces'
@@ -160,6 +160,7 @@ export function SpaceDetailPage({
   const [calSearch, setCalSearch] = useState('')
   const [tlSearch, setTlSearch] = useState('')
   const [listView, setListView] = useState<'list' | 'grid'>('list')
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
   // ── Tab customisation (persisted per-user per-space in localStorage) ──
   const ALL_TABS: { key: TabType; label: string; icon: React.ReactNode }[] = [
@@ -992,15 +993,16 @@ export function SpaceDetailPage({
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'list' && (
         <div className="flex flex-col flex-1 overflow-hidden">
-          {/* Toolbar */}
+
+          {/* ── Toolbar ─────────────────────────────────────────────────── */}
           <div className="flex items-center gap-2 px-4 py-2 border-b">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search work…" className="h-8 pl-8 w-44 text-xs" />
+                placeholder="Search tasks…" className="h-8 pl-8 w-44 text-xs" />
             </div>
-            <div className="flex -space-x-1">
-              {members.slice(0, 3).map(m => (
+            <div className="flex -space-x-1.5">
+              {members.slice(0, 4).map(m => (
                 <Avatar key={m.id} className="h-6 w-6 border-2 border-background cursor-pointer">
                   <AvatarImage src={m.avatar_url ?? undefined} />
                   <AvatarFallback className="text-[10px] bg-slate-200">{getInitials(m.full_name)}</AvatarFallback>
@@ -1013,184 +1015,298 @@ export function SpaceDetailPage({
             <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground">
               <SlidersHorizontal className="h-3.5 w-3.5" />Group
             </Button>
-            <div className="ml-auto flex items-center gap-1">
-              <div className="flex items-center border rounded-md overflow-hidden">
-                <button onClick={() => setListView('list')} className={cn('px-2 py-1.5 border-r', listView === 'list' ? 'bg-blue-50 text-blue-600' : 'text-muted-foreground hover:bg-muted')}><ListIcon className="h-3.5 w-3.5" /></button>
-                <button onClick={() => setListView('grid')} className={cn('px-2 py-1.5', listView === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-muted-foreground hover:bg-muted')}><LayoutGrid className="h-3.5 w-3.5" /></button>
-              </div>
+            <div className="ml-auto flex items-center gap-2.5">
+              <span className="text-xs text-muted-foreground">{filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}</span>
+              <button onClick={refresh} className="text-muted-foreground hover:text-foreground transition-colors">
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
 
-          {/* Grid view */}
-          {listView === 'grid' && (
-            <div className="flex-1 overflow-auto p-4">
-              {filteredTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-16">
-                  {search ? 'No tasks match your search.' : 'No tasks in this space yet.'}
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {filteredTasks.map(task => (
-                    <div key={task.id}
-                      className="rounded-lg border bg-card p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition-all"
-                      onClick={() => router.push(`/lists/${task.list_id}/tasks/${task.id}`)}>
-                      <p className="text-sm font-medium mb-2 line-clamp-2">{task.title}</p>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold border', STATUS_STYLES[task.status])}>
-                          {STATUS_LABEL[task.status]}
-                        </span>
-                        <span className={cn('text-[10px] font-bold', PRIORITY_COLOR[task.priority])}>
-                          {PRIORITY_ICON[task.priority]}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono text-blue-500">#{task.id.slice(0, 4).toUpperCase()}</span>
-                        {(task.assignees ?? []).length > 0 && (
-                          <Avatar className="h-5 w-5">
-                            <AvatarImage src={task.assignees![0].avatar_url ?? undefined} />
-                            <AvatarFallback className="text-[10px]">{getInitials(task.assignees![0].full_name)}</AvatarFallback>
-                          </Avatar>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Table */}
-          {listView === 'list' && (
+          {/* ── Table ───────────────────────────────────────────────────── */}
           <div className="flex-1 overflow-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead className="sticky top-0 z-10 bg-muted/60 backdrop-blur-sm">
-                <tr className="border-b">
-                  <th className="w-10 px-3 py-2.5">
-                    <Checkbox checked={selected.size === filteredTasks.length && filteredTasks.length > 0}
-                      onCheckedChange={() => setSelected(selected.size === filteredTasks.length ? new Set() : new Set(filteredTasks.map(t => t.id)))} />
-                  </th>
-                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground min-w-[300px]">Work</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-36">Assignee</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-28">Priority</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-36">Status</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-32">Due date</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground w-32">List</th>
-                  <th className="w-10 px-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/50">
-                {filteredTasks.length === 0 ? (
-                  <tr><td colSpan={8} className="py-16 text-center text-sm text-muted-foreground">
-                    {search ? 'No tasks match your search.' : 'No tasks in this space yet.'}
-                  </td></tr>
-                ) : filteredTasks.map(task => {
-                  const subtasks = subtaskMap[task.id] ?? []
-                  const expanded = expandedRows.has(task.id)
-                  return [
-                    <tr key={task.id} className={cn('group hover:bg-muted/40 cursor-pointer', selected.has(task.id) && 'bg-blue-50/50')}>
-                      <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
-                        <Checkbox checked={selected.has(task.id)}
-                          onCheckedChange={() => setSelected(prev => { const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n })} />
-                      </td>
-                      <td className="px-3 py-2.5" onClick={() => router.push(`/lists/${task.list_id}/tasks/${task.id}`)}>
-                        <div className="flex items-center gap-2">
-                          {subtasks.length > 0 && (
-                            <button onClick={e => { e.stopPropagation(); setExpandedRows(prev => { const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n }) }}
-                              className="text-muted-foreground hover:text-foreground">
-                              {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                            </button>
-                          )}
-                          {subtasks.length === 0 && <span className="w-3.5" />}
-                          <span className="text-[10px] font-mono text-blue-600 shrink-0">
-                            #{task.id.slice(0, 4).toUpperCase()}
-                          </span>
-                          <span className="font-medium text-sm group-hover:text-blue-600 transition-colors truncate max-w-[240px]">
-                            {task.title}
-                          </span>
-                          <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {(task.assignees ?? []).length > 0 ? (
-                          <div className="flex items-center gap-1.5">
-                            <Avatar className="h-5 w-5"><AvatarImage src={task.assignees![0].avatar_url ?? undefined} /><AvatarFallback className="text-[10px]">{getInitials(task.assignees![0].full_name)}</AvatarFallback></Avatar>
-                            <span className="text-xs truncate max-w-[90px]">{task.assignees![0].full_name}</span>
-                          </div>
-                        ) : <span className="text-xs text-muted-foreground">Unassigned</span>}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className={cn('text-xs font-medium', PRIORITY_COLOR[task.priority])}>
-                          {PRIORITY_ICON[task.priority]} {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className={cn('inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold border', STATUS_STYLES[task.status])}>
-                          {STATUS_LABEL[task.status] ?? task.status}
-                          <ChevronDown className="h-3 w-3 opacity-60" />
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                        {task.due_date ? format(parseISO(task.due_date), 'MMM dd, yyyy') : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground truncate max-w-[100px]">
-                        {(task as any).list?.name ?? '—'}
-                      </td>
-                      <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
-                              <MoreHorizontal className="h-3.5 w-3.5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/lists/${task.list_id}/tasks/${task.id}`)}>Open task</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </tr>,
-                    ...(expanded ? subtasks.map(sub => (
-                      <tr key={sub.id} className="group hover:bg-muted/30 bg-muted/10 cursor-pointer"
-                        onClick={() => router.push(`/lists/${sub.list_id}/tasks/${sub.id}`)}>
-                        <td className="px-3 py-2" />
-                        <td className="px-3 py-2 pl-10">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-mono text-blue-400">#{sub.id.slice(0, 4).toUpperCase()}</span>
-                            <span className="text-xs text-muted-foreground truncate max-w-[200px]">{sub.title}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2">
-                          {(sub.assignees ?? []).length > 0
-                            ? <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px]">{getInitials(sub.assignees![0].full_name)}</AvatarFallback></Avatar>
-                            : <span className="text-xs text-muted-foreground">—</span>}
-                        </td>
-                        <td className="px-3 py-2"><span className={cn('text-xs', PRIORITY_COLOR[sub.priority])}>{PRIORITY_ICON[sub.priority]}</span></td>
-                        <td className="px-3 py-2">
-                          <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold border', STATUS_STYLES[sub.status])}>
-                            {STATUS_LABEL[sub.status]}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{sub.due_date ? format(parseISO(sub.due_date), 'MMM dd') : '—'}</td>
-                        <td colSpan={2} />
-                      </tr>
-                    )) : [])
-                  ]
-                })}
-              </tbody>
-            </table>
-          </div>
-          )}
+            {filteredTasks.length === 0 && !search ? (
+              <div className="flex flex-col items-center justify-center h-full text-center py-16">
+                <LayoutList className="h-12 w-12 text-muted-foreground/20 mb-4" />
+                <p className="text-sm font-semibold mb-1">No tasks yet</p>
+                <p className="text-xs text-muted-foreground mb-4">Create your first task to get started.</p>
+                <Button size="sm" onClick={openCreateTask} className="gap-1.5">
+                  <Plus className="h-3.5 w-3.5" />Add Task
+                </Button>
+              </div>
+            ) : (
+              <table className="w-full border-collapse text-sm">
 
-          {/* Footer */}
-          <div className="flex items-center justify-between px-4 py-2 border-t bg-background text-xs text-muted-foreground">
-            <button className="flex items-center gap-1.5 hover:text-foreground font-medium"
-              onClick={openCreateTask}>
-              <Plus className="h-3.5 w-3.5" />Create task
-            </button>
-            <div className="flex items-center gap-2">
-              <span>{filteredTasks.length} of {topLevelTasks.length}</span>
-              <button onClick={refresh}><RefreshCw className="h-3.5 w-3.5" /></button>
-            </div>
+                {/* ── Column headers ── */}
+                <thead className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b">
+                  <tr>
+                    <th className="w-9 pl-4 py-2.5">
+                      <Checkbox
+                        checked={selected.size > 0 && selected.size === filteredTasks.length}
+                        onCheckedChange={v => setSelected(v ? new Set(filteredTasks.map(t => t.id)) : new Set())}
+                      />
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Name</th>
+                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-32">Assigned</th>
+                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-28">Due Date</th>
+                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-20">Size</th>
+                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider w-28">Priority</th>
+                    <th className="w-10 px-2" />
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {([
+                    { key: 'todo',        label: 'To Do',       color: '#94a3b8', bg: 'rgba(148,163,184,0.06)' },
+                    { key: 'in_progress', label: 'In Progress', color: '#f59e0b', bg: 'rgba(245,158,11,0.06)'  },
+                    { key: 'in_review',   label: 'In Review',   color: '#3b82f6', bg: 'rgba(59,130,246,0.06)'  },
+                    { key: 'done',        label: 'Done',        color: '#22c55e', bg: 'rgba(34,197,94,0.06)'   },
+                    { key: 'cancelled',   label: 'Cancelled',   color: '#ef4444', bg: 'rgba(239,68,68,0.06)'   },
+                  ] as const).map(group => {
+                    const groupTasks = filteredTasks.filter(t => t.status === group.key)
+                    if (groupTasks.length === 0 && search) return null
+                    const isCollapsed = collapsedGroups.has(group.key)
+
+                    return (
+                      <React.Fragment key={group.key}>
+
+                        {/* ── Status group header row ── */}
+                        <tr
+                          className="border-b border-border/40 cursor-pointer select-none group/gh"
+                          style={{ background: group.bg }}
+                          onClick={() => setCollapsedGroups(prev => {
+                            const n = new Set(prev); n.has(group.key) ? n.delete(group.key) : n.add(group.key); return n
+                          })}
+                        >
+                          <td
+                            colSpan={7}
+                            className="py-2 pl-2 pr-4"
+                            style={{ borderLeft: `3px solid ${group.color}` }}
+                          >
+                            <div className="flex items-center gap-2">
+                              <ChevronRight
+                                className={cn('h-3.5 w-3.5 text-muted-foreground/60 transition-transform duration-150 shrink-0', !isCollapsed && 'rotate-90')}
+                              />
+                              <span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: group.color }}>
+                                {group.label}
+                              </span>
+                              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold bg-black/[0.06] dark:bg-white/10 text-foreground/60">
+                                {groupTasks.length}
+                              </span>
+                              <div className="flex-1" />
+                              {/* Add Task hover CTA in header */}
+                              <button
+                                onClick={e => { e.stopPropagation(); openCreateTask() }}
+                                className="opacity-0 group-hover/gh:opacity-100 flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-all px-2 py-0.5 rounded hover:bg-black/[0.06] dark:hover:bg-white/10"
+                              >
+                                <Plus className="h-3 w-3" />Add Task
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* ── Task rows ── */}
+                        {!isCollapsed && groupTasks.map(task => {
+                          const subtasks = subtaskMap[task.id] ?? []
+                          const expanded = expandedRows.has(task.id)
+                          const listName = task.list?.name ?? lists.find(l => l.id === task.list_id)?.name
+
+                          return (
+                            <React.Fragment key={task.id}>
+                              <tr
+                                className={cn(
+                                  'border-b border-border/30 group/row hover:bg-muted/30 cursor-pointer transition-colors',
+                                  selected.has(task.id) && 'bg-blue-50/40 dark:bg-blue-950/20'
+                                )}
+                              >
+                                {/* Checkbox */}
+                                <td className="pl-4 py-2.5 w-9" onClick={e => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={selected.has(task.id)}
+                                    onCheckedChange={() => setSelected(prev => {
+                                      const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n
+                                    })}
+                                  />
+                                </td>
+
+                                {/* Name */}
+                                <td className="px-3 py-2.5" onClick={() => router.push(`/lists/${task.list_id}/tasks/${task.id}`)}>
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    {subtasks.length > 0 ? (
+                                      <button
+                                        onClick={e => {
+                                          e.stopPropagation()
+                                          setExpandedRows(prev => { const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n })
+                                        }}
+                                        className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                                      >
+                                        <ChevronRight className={cn('h-3.5 w-3.5 transition-transform duration-150', expanded && 'rotate-90')} />
+                                      </button>
+                                    ) : (
+                                      <span className="w-3.5 shrink-0" />
+                                    )}
+                                    <span className="font-medium text-[13px] truncate group-hover/row:text-primary transition-colors">
+                                      {task.title}
+                                    </span>
+                                    {listName && (
+                                      <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-100 dark:border-blue-800/50">
+                                        {listName}
+                                      </span>
+                                    )}
+                                    {subtasks.length > 0 && (
+                                      <span className="shrink-0 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+                                        <ChevronRight className="h-2.5 w-2.5" />{subtasks.length}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Assigned */}
+                                <td className="px-3 py-2.5 w-32">
+                                  {(task.assignees ?? []).length > 0 ? (
+                                    <div className="flex items-center -space-x-1.5">
+                                      {(task.assignees ?? []).slice(0, 4).map(a => (
+                                        <Avatar key={a.id} className="h-6 w-6 border-2 border-background">
+                                          <AvatarImage src={a.avatar_url ?? undefined} />
+                                          <AvatarFallback className="text-[9px] bg-slate-300 dark:bg-slate-600">{getInitials(a.full_name)}</AvatarFallback>
+                                        </Avatar>
+                                      ))}
+                                      {(task.assignees ?? []).length > 4 && (
+                                        <span className="h-6 w-6 rounded-full bg-muted border-2 border-background flex items-center justify-center text-[9px] font-semibold text-muted-foreground">
+                                          +{(task.assignees ?? []).length - 4}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground/40">—</span>
+                                  )}
+                                </td>
+
+                                {/* Due Date */}
+                                <td className="px-3 py-2.5 w-28">
+                                  {task.due_date ? (
+                                    <span className={cn(
+                                      'text-xs tabular-nums',
+                                      isAfter(new Date(), parseISO(task.due_date)) && task.status !== 'done' && task.status !== 'cancelled'
+                                        ? 'text-red-500 font-medium'
+                                        : 'text-muted-foreground'
+                                    )}>
+                                      {format(parseISO(task.due_date), 'MM/dd/yy')}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground/40">—</span>
+                                  )}
+                                </td>
+
+                                {/* Size (estimated hours) */}
+                                <td className="px-3 py-2.5 w-20">
+                                  {task.estimated_hours
+                                    ? <span className="text-xs text-muted-foreground tabular-nums">{task.estimated_hours}h</span>
+                                    : <span className="text-xs text-muted-foreground/40">—</span>}
+                                </td>
+
+                                {/* Priority */}
+                                <td className="px-3 py-2.5 w-28">
+                                  <span className={cn(
+                                    'inline-flex items-center gap-1 text-xs font-medium',
+                                    task.priority === 'urgent' ? 'text-red-500' :
+                                    task.priority === 'high'   ? 'text-orange-500' :
+                                    task.priority === 'low'    ? 'text-blue-400' : 'text-muted-foreground'
+                                  )}>
+                                    <span className="text-[10px] font-bold leading-none">
+                                      {task.priority === 'urgent' ? '!!' : task.priority === 'high' ? '↑' : task.priority === 'low' ? '↓' : '—'}
+                                    </span>
+                                    {task.priority === 'medium' ? 'Normal' : task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                                  </span>
+                                </td>
+
+                                {/* Actions */}
+                                <td className="px-2 py-2.5 w-10" onClick={e => e.stopPropagation()}>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                                        <MoreHorizontal className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => router.push(`/lists/${task.list_id}/tasks/${task.id}`)}>Open task</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </td>
+                              </tr>
+
+                              {/* Subtask rows */}
+                              {expanded && subtasks.map(sub => (
+                                <tr key={sub.id}
+                                  className="border-b border-border/20 bg-muted/10 hover:bg-muted/30 cursor-pointer group/sub"
+                                  onClick={() => router.push(`/lists/${sub.list_id}/tasks/${sub.id}`)}>
+                                  <td className="pl-4 py-2 w-9" />
+                                  <td className="px-3 py-2 pl-10">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="w-3.5 shrink-0" />
+                                      <span className="text-xs text-muted-foreground group-hover/sub:text-foreground transition-colors truncate">{sub.title}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2 w-32">
+                                    {(sub.assignees ?? []).length > 0 ? (
+                                      <div className="flex -space-x-1.5">
+                                        {(sub.assignees ?? []).slice(0, 3).map(a => (
+                                          <Avatar key={a.id} className="h-5 w-5 border-2 border-background">
+                                            <AvatarFallback className="text-[8px]">{getInitials(a.full_name)}</AvatarFallback>
+                                          </Avatar>
+                                        ))}
+                                      </div>
+                                    ) : <span className="text-xs text-muted-foreground/40">—</span>}
+                                  </td>
+                                  <td className="px-3 py-2 w-28 text-xs text-muted-foreground tabular-nums">
+                                    {sub.due_date ? format(parseISO(sub.due_date), 'MM/dd/yy') : '—'}
+                                  </td>
+                                  <td className="px-3 py-2 w-20 text-xs text-muted-foreground">
+                                    {sub.estimated_hours ? `${sub.estimated_hours}h` : '—'}
+                                  </td>
+                                  <td className="px-3 py-2 w-28">
+                                    <span className={cn('text-xs font-medium',
+                                      sub.priority === 'urgent' ? 'text-red-500' :
+                                      sub.priority === 'high'   ? 'text-orange-500' :
+                                      sub.priority === 'low'    ? 'text-blue-400' : 'text-muted-foreground'
+                                    )}>
+                                      {sub.priority === 'medium' ? 'Normal' : sub.priority.charAt(0).toUpperCase() + sub.priority.slice(1)}
+                                    </span>
+                                  </td>
+                                  <td className="w-10 px-2" />
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          )
+                        })}
+
+                        {/* ── Add Task row (per status group) ── */}
+                        {!isCollapsed && (
+                          <tr className="border-b border-border/20">
+                            <td
+                              colSpan={7}
+                              className="py-1"
+                              style={{ borderLeft: `3px solid ${group.color}`, background: group.bg }}
+                            >
+                              <button
+                                onClick={openCreateTask}
+                                className="flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors py-1.5 pl-9 pr-4 w-full text-left rounded hover:bg-muted/30"
+                              >
+                                <Plus className="h-3.5 w-3.5 shrink-0" />
+                                <span>Add Task</span>
+                              </button>
+                            </td>
+                          </tr>
+                        )}
+
+                      </React.Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
+
         </div>
       )}
 
