@@ -1072,8 +1072,7 @@ export function SpaceDetailPage({
 
                         {/* ── Status group header row ── */}
                         <tr
-                          className="border-b border-border/40 cursor-pointer select-none group/gh"
-                          style={{ background: group.bg }}
+                          className="border-b border-border/40 cursor-pointer select-none group/gh hover:bg-muted/20 transition-colors"
                           onClick={() => setCollapsedGroups(prev => {
                             const n = new Set(prev); n.has(group.key) ? n.delete(group.key) : n.add(group.key); return n
                           })}
@@ -1286,7 +1285,7 @@ export function SpaceDetailPage({
                             <td
                               colSpan={7}
                               className="py-1"
-                              style={{ borderLeft: `3px solid ${group.color}`, background: group.bg }}
+                              style={{ borderLeft: `3px solid ${group.color}` }}
                             >
                               <button
                                 onClick={openCreateTask}
