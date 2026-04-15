@@ -95,10 +95,10 @@ export function TaskRow({
         {/* ── Row ────────────────────────────────────────────────────────── */}
         <div
           className={cn(
-            'flex items-center border-b border-border/40 hover:bg-muted/30 transition-colors group',
+            'flex items-center border-b border-border/40 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors group',
             'min-h-[36px]',
             isDone && 'opacity-60',
-            selected && 'bg-primary/5 hover:bg-primary/10',
+            selected && 'bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-50 dark:hover:bg-blue-950/30',
           )}
           style={{ paddingLeft }}
         >

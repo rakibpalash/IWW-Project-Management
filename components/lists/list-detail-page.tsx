@@ -209,9 +209,9 @@ function ListTaskList({
       )}
 
       {/* Table */}
-      <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="border rounded-lg overflow-hidden">
         {/* Column headers */}
-        <div className="flex items-center border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground select-none h-8">
+        <div className="flex items-center border-b border-border bg-background/95 text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider select-none h-9">
           <div style={{ width: 52 + 12 }} className="shrink-0" />
           <div className="flex-1 min-w-0 px-2">Task Name</div>
           <div className={cn(COL_ASSIGNEES, 'shrink-0 flex items-center gap-1 px-1')}>
@@ -235,37 +235,44 @@ function ListTaskList({
           const someSelected = groupIds.some(id => selectedIds.has(id))
 
           return (
-            <div key={group.id}>
-              {/* Group header — ClickUp pill style */}
+            <div key={group.id} className="group">
+              {/* Group header — no-fill style */}
               <div
-                className="flex items-center gap-2.5 px-3 py-2 border-b border-border/50 cursor-pointer select-none hover:bg-muted/20 transition-colors bg-muted/10"
+                className="flex items-center gap-2 px-3 py-2 border-b border-border/40 cursor-pointer select-none hover:bg-muted/20 transition-colors"
                 onClick={() => toggleGroup(group.id)}
               >
-                {/* Group-level checkbox */}
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
-                  onChange={(e) => { e.stopPropagation(); handleSelectGroup(groupIds, e.target.checked) }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="h-3.5 w-3.5 cursor-pointer accent-primary rounded shrink-0"
-                />
-                <span className="text-muted-foreground/60">
+                {/* Collapse chevron */}
+                <span className="text-muted-foreground/50 shrink-0">
                   {collapsed
                     ? <ChevronRight className="h-3 w-3" />
                     : <ChevronDown className="h-3 w-3" />}
                 </span>
-                {/* Colored pill badge */}
+                {/* Colored dot */}
                 <span
-                  className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-bold text-white tracking-wide"
+                  className="h-2 w-2 rounded-full shrink-0"
                   style={{ backgroundColor: group.color }}
+                />
+                {/* Status label */}
+                <span
+                  className="text-[11px] font-bold tracking-widest uppercase"
+                  style={{ color: group.color }}
                 >
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/50 shrink-0" />
                   {group.label}
                 </span>
-                <span className="text-xs text-muted-foreground font-medium">
+                {/* Count */}
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold bg-black/[0.06] dark:bg-white/10 text-foreground/60">
                   {group.tasks.length}
                 </span>
+                <div className="flex-1" />
+                {/* Add Task hover CTA */}
+                {canManage && (
+                  <button
+                    onClick={e => { e.stopPropagation(); openInlineAdd(group.id) }}
+                    className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-all px-2 py-0.5 rounded hover:bg-black/[0.06] dark:hover:bg-white/10"
+                  >
+                    + Add Task
+                  </button>
+                )}
               </div>
 
               {/* Task rows + inline add */}
