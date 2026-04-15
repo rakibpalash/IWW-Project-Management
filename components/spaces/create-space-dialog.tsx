@@ -5,12 +5,12 @@ import { createPortal } from 'react-dom'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { createSpaceAction } from '@/app/actions/spaces'
-import { getStatusTemplatesAction, StatusTemplateRow } from '@/app/actions/status-templates'
 import { listPermissionTemplatesAction, PermissionTemplate } from '@/app/actions/permission-templates'
 import { Profile, Space } from '@/types'
 import {
   X, Search, Shield, ChevronDown, Check,
   ChevronRight, ChevronLeft, List, LayoutGrid, CalendarRange,
+  CircleDot, CheckCircle, CheckCircle2, GripVertical, Trash2, Plus,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 
@@ -36,14 +36,43 @@ function pickColor(name: string) {
   return SPACE_COLORS[h % SPACE_COLORS.length]
 }
 
-// ── Default task status flow (matches folder/task view) ───────────────────────
-const DEFAULT_WORKFLOW = [
-  { slug: 'todo',        name: 'To Do',       color: '#94a3b8' },
-  { slug: 'in_progress', name: 'In Progress', color: '#f59e0b' },
-  { slug: 'in_review',   name: 'In Review',   color: '#3b82f6' },
-  { slug: 'done',        name: 'Done',        color: '#22c55e' },
-  { slug: 'cancelled',   name: 'Cancelled',   color: '#ef4444' },
+// ── Workflow status types ──────────────────────────────────────────────────────
+type WfCategory = 'not_started' | 'active' | 'done' | 'closed'
+interface WfStatus { id: string; name: string; color: string; category: WfCategory }
+
+const WF_CATEGORY_META: Record<WfCategory, { label: string; defaultColor: string }> = {
+  not_started: { label: 'NOT STARTED', defaultColor: '#94a3b8' },
+  active:      { label: 'ACTIVE',      defaultColor: '#3b82f6' },
+  done:        { label: 'DONE',        defaultColor: '#22c55e' },
+  closed:      { label: 'CLOSED',      defaultColor: '#ef4444' },
+}
+const WF_CATEGORIES: WfCategory[] = ['not_started', 'active', 'done', 'closed']
+
+const DEFAULT_WF_STATUSES: WfStatus[] = [
+  { id: 'wf1', name: 'To Do',       color: '#94a3b8', category: 'not_started' },
+  { id: 'wf2', name: 'In Progress', color: '#3b82f6', category: 'active' },
+  { id: 'wf3', name: 'In Review',   color: '#f59e0b', category: 'active' },
+  { id: 'wf4', name: 'Done',        color: '#22c55e', category: 'done' },
+  { id: 'wf5', name: 'Cancelled',   color: '#ef4444', category: 'closed' },
 ]
+
+const WF_PRESET_COLORS = [
+  '#94a3b8', '#3b82f6', '#f59e0b', '#22c55e', '#ef4444',
+  '#8b5cf6', '#ec4899', '#0ea5e9', '#10b981', '#f97316',
+]
+
+function StatusIcon({ category, color }: { category: WfCategory; color: string }) {
+  const cls = 'h-4 w-4 shrink-0'
+  if (category === 'active')  return <CircleDot   className={cls} style={{ color }} />
+  if (category === 'done')    return <CheckCircle  className={cls} style={{ color }} />
+  if (category === 'closed')  return <CheckCircle2 className={cls} style={{ color }} />
+  return (
+    <svg className={cls} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"
+      strokeDasharray="3 3" strokeLinecap="round">
+      <circle cx="12" cy="12" r="10" />
+    </svg>
+  )
+}
 
 // ── Role badge colours ────────────────────────────────────────────────────────
 const ROLE_OPTIONS = [
@@ -64,7 +93,7 @@ const PERMISSION_LEVELS = [
 
 // ── Step bar ──────────────────────────────────────────────────────────────────
 function StepBar({ step }: { step: number }) {
-  const labels = ['Info', 'Members', 'Workflow', 'Settings']
+  const labels = ['Info', 'Workflow', 'Settings']
   return (
     <div className="flex items-center px-6 pt-5 pb-3">
       {labels.map((label, i) => {
@@ -307,10 +336,11 @@ export function CreateSpaceDialog({
   // Members (shared between step 1 private + step 2)
   const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set())
 
-  // Step 3 — Workflow
-  const [templates,        setTemplates]        = useState<StatusTemplateRow[]>([])
-  const [selectedWorkflow, setSelectedWorkflow] = useState<string>('__default__')
-  const [templatesLoading, setTemplatesLoading] = useState(false)
+  // Step 2 — Workflow
+  const [wfStatuses,      setWfStatuses]      = useState<WfStatus[]>(DEFAULT_WF_STATUSES)
+  const [addingCategory,  setAddingCategory]  = useState<WfCategory | null>(null)
+  const [newStatusName,   setNewStatusName]   = useState('')
+  const [newStatusColor,  setNewStatusColor]  = useState('#94a3b8')
 
   // Step 4 — Default views
   const [viewList,     setViewList]     = useState(true)
@@ -328,7 +358,7 @@ export function CreateSpaceDialog({
       setName(''); setDescription(''); setIsPrivate(false); setNameError('')
       setPermOpen(false); setSelectedPerm('full_edit'); setPermTemplates([])
       setSelectedStaff(new Set())
-      setTemplates([]); setSelectedWorkflow('__default__')
+      setWfStatuses(DEFAULT_WF_STATUSES); setAddingCategory(null); setNewStatusName('')
       setViewList(true); setViewBoard(true); setViewTimeline(false)
     }
   }, [open])
@@ -343,17 +373,19 @@ export function CreateSpaceDialog({
     }
   }, [permOpen])
 
-  // ── Fetch status templates when reaching step 3 ──────────────────────────
-  useEffect(() => {
-    if (step === 3 && templates.length === 0) {
-      setTemplatesLoading(true)
-      getStatusTemplatesAction()
-        .then(r => { if (r.success) setTemplates(r.templates ?? []) })
-        .finally(() => setTemplatesLoading(false))
-    }
-  }, [step])
-
   // ── Helpers ──────────────────────────────────────────────────────────────
+  function confirmAddStatus() {
+    if (!newStatusName.trim() || !addingCategory) return
+    setWfStatuses(prev => [...prev, {
+      id: `wf_${Date.now()}`,
+      name: newStatusName.trim(),
+      color: newStatusColor,
+      category: addingCategory,
+    }])
+    setNewStatusName('')
+    setAddingCategory(null)
+  }
+
   function toggleMember(id: string) {
     setSelectedStaff(prev => {
       const n = new Set(prev)
@@ -367,7 +399,7 @@ export function CreateSpaceDialog({
       if (!name.trim()) { setNameError('Space name is required'); nameRef.current?.focus(); return }
       setNameError('')
     }
-    setStep(s => Math.min(s + 1, 4))
+    setStep(s => Math.min(s + 1, 3))
   }
 
   function goBack() { setStep(s => Math.max(s - 1, 1)) }
@@ -415,9 +447,8 @@ export function CreateSpaceDialog({
             <h2 className="text-[17px] font-bold text-foreground">Create a Space</h2>
             <p className="text-[12px] text-muted-foreground mt-0.5">
               {step === 1 && 'Name and configure your new space.'}
-              {step === 2 && 'Invite team members to this space.'}
-              {step === 3 && 'Choose the workflow for this space.'}
-              {step === 4 && 'Set default views for this space.'}
+              {step === 2 && 'Choose the workflow for this space.'}
+              {step === 3 && 'Set default views for this space.'}
             </p>
           </div>
           <button
@@ -545,106 +576,101 @@ export function CreateSpaceDialog({
           </div>
         )}
 
-        {/* ── Step 2: Members ── */}
+        {/* ── Step 2: Workflow ── */}
         {step === 2 && (
-          <div className="px-6 pb-2">
-            <MemberPicker
-              staffProfiles={staffProfiles}
-              selectedStaff={selectedStaff}
-              onToggle={toggleMember}
-              autoFocus
-              maxHeight={280}
-            />
-          </div>
-        )}
+          <div className="px-6 pb-2" style={{ maxHeight: 340, overflowY: 'auto' }}>
+            {WF_CATEGORIES.map(cat => {
+              const meta    = WF_CATEGORY_META[cat]
+              const entries = wfStatuses.filter(s => s.category === cat)
+              const isAdding = addingCategory === cat
 
-        {/* ── Step 3: Workflow ── */}
-        {step === 3 && (
-          <div className="px-6 pb-2 space-y-3">
-            <p className="text-[13px] text-muted-foreground">
-              Choose a workflow for this space. You can customize it later.
-            </p>
+              return (
+                <div key={cat} className="mb-1">
 
-            {/* Default workflow */}
-            <button
-              onClick={() => setSelectedWorkflow('__default__')}
-              className={cn(
-                'w-full rounded-xl border-2 p-4 text-left transition-all',
-                selectedWorkflow === '__default__'
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-muted-foreground/40'
-              )}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[13px] font-semibold text-foreground">Default Workflow</p>
-                {selectedWorkflow === '__default__' && (
-                  <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="h-3 w-3 text-white" />
+                  {/* Category header */}
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-bold tracking-widest text-muted-foreground">
+                        {meta.label}
+                      </span>
+                      <button className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30 text-[9px] text-muted-foreground/50 flex items-center justify-center leading-none">?</button>
+                    </div>
+                    <button
+                      onClick={() => { setAddingCategory(cat); setNewStatusName(''); setNewStatusColor(meta.defaultColor) }}
+                      className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {DEFAULT_WORKFLOW.map(s => (
-                  <span
-                    key={s.slug}
-                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
-                    style={{ backgroundColor: s.color }}
-                  >
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/60 shrink-0" />
-                    {s.name}
-                  </span>
-                ))}
-              </div>
-            </button>
 
-            {/* Custom templates */}
-            {templatesLoading ? (
-              <div className="flex items-center justify-center py-6">
-                <div className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-              </div>
-            ) : (
-              templates.map(tmpl => {
-                const statuses = (tmpl.statuses as any[]) ?? []
-                return (
-                  <button
-                    key={tmpl.id}
-                    onClick={() => setSelectedWorkflow(tmpl.id)}
-                    className={cn(
-                      'w-full rounded-xl border-2 p-4 text-left transition-all',
-                      selectedWorkflow === tmpl.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-muted-foreground/40'
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-[13px] font-semibold text-foreground">{tmpl.name}</p>
-                      {selectedWorkflow === tmpl.id && (
-                        <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                          <Check className="h-3 w-3 text-white" />
-                        </div>
-                      )}
+                  {/* Status rows */}
+                  {entries.map(status => (
+                    <div key={status.id}
+                      className="group flex items-center gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5 mb-1"
+                    >
+                      <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0 cursor-grab" />
+                      <StatusIcon category={cat} color={status.color} />
+                      <span className="flex-1 text-[13px] font-semibold text-foreground">{status.name}</span>
+                      <button
+                        onClick={() => setWfStatuses(prev => prev.filter(s => s.id !== status.id))}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-all"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {statuses.map((s: any, i: number) => (
-                        <span
-                          key={i}
-                          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
-                          style={{ backgroundColor: s.color ?? '#94a3b8' }}
-                        >
-                          <span className="h-1.5 w-1.5 rounded-full bg-white/60 shrink-0" />
-                          {s.name}
-                        </span>
-                      ))}
+                  ))}
+
+                  {/* Inline add row */}
+                  {isAdding ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-primary/50 bg-background px-3 py-2.5 mb-1">
+                      <StatusIcon category={cat} color={newStatusColor} />
+                      <input
+                        autoFocus
+                        value={newStatusName}
+                        onChange={e => setNewStatusName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') confirmAddStatus()
+                          if (e.key === 'Escape') setAddingCategory(null)
+                        }}
+                        placeholder="Status name..."
+                        className="flex-1 bg-transparent text-[13px] font-semibold outline-none placeholder:text-muted-foreground/40"
+                      />
+                      <div className="flex items-center gap-1 shrink-0">
+                        {WF_PRESET_COLORS.map(c => (
+                          <button
+                            key={c}
+                            onClick={() => setNewStatusColor(c)}
+                            className="h-3.5 w-3.5 rounded-full border-2 transition-transform hover:scale-110 shrink-0"
+                            style={{ backgroundColor: c, borderColor: newStatusColor === c ? '#1d4ed8' : 'transparent' }}
+                          />
+                        ))}
+                      </div>
+                      <button onClick={confirmAddStatus}
+                        className="text-[12px] font-semibold text-primary hover:text-primary/80 shrink-0 ml-1">
+                        Add
+                      </button>
+                      <button onClick={() => setAddingCategory(null)}
+                        className="text-[12px] text-muted-foreground hover:text-foreground shrink-0">
+                        Cancel
+                      </button>
                     </div>
-                  </button>
-                )
-              })
-            )}
+                  ) : (
+                    <button
+                      onClick={() => { setAddingCategory(cat); setNewStatusName(''); setNewStatusColor(meta.defaultColor) }}
+                      className="flex items-center gap-1.5 w-full px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add status
+                    </button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
 
-        {/* ── Step 4: Settings ── */}
-        {step === 4 && (
+        {/* ── Step 3: Settings ── */}
+        {step === 3 && (
           <div className="px-6 pb-2 space-y-2">
             <p className="text-[13px] text-muted-foreground mb-1">
               Choose which views are available in this space by default.
@@ -698,7 +724,7 @@ export function CreateSpaceDialog({
             <div />
           )}
 
-          {step < 4 ? (
+          {step < 3 ? (
             <button
               onClick={goNext}
               className="flex items-center gap-1.5 rounded-lg bg-foreground text-background px-5 py-2 text-[13px] font-semibold hover:bg-foreground/90 transition-colors"

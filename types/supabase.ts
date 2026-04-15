@@ -47,6 +47,7 @@ export interface Database {
           id: string
           name: string
           description: string | null
+          default_permission: 'full_edit' | 'can_edit' | 'view_only' | 'no_access'
           created_by: string
           created_at: string
           updated_at: string
@@ -55,6 +56,7 @@ export interface Database {
           id?: string
           name: string
           description?: string | null
+          default_permission?: 'full_edit' | 'can_edit' | 'view_only' | 'no_access'
           created_by: string
           created_at?: string
           updated_at?: string
@@ -62,6 +64,7 @@ export interface Database {
         Update: {
           name?: string
           description?: string | null
+          default_permission?: 'full_edit' | 'can_edit' | 'view_only' | 'no_access'
           updated_at?: string
         }
       }

@@ -220,7 +220,7 @@ function NavItem({
         indent ? 'pl-8 pr-3 py-1.5' : 'px-2 py-1.5',
         active
           ? 'bg-sidebar-primary/15 text-white'
-          : 'text-sidebar-foreground/60 hover:bg-white/5 hover:text-sidebar-foreground/90',
+          : 'text-sidebar-foreground/85 hover:bg-white/5 hover:text-white',
       )}
     >
       {/* Left active bar */}
@@ -232,7 +232,7 @@ function NavItem({
         indent ? 'h-[15px] w-[15px]' : 'h-[17px] w-[17px]',
         active
           ? 'text-sidebar-primary'
-          : 'text-sidebar-foreground/40 group-hover:text-sidebar-foreground/70',
+          : 'text-sidebar-foreground/65 group-hover:text-white',
       )} />
       <span className={cn(
         'truncate font-semibold leading-tight',
@@ -279,11 +279,11 @@ function FolderItem({
         >
           <ChevronDown className={cn('h-3 w-3 transition-transform duration-150', open ? 'rotate-0' : '-rotate-90')} />
         </button>
-        <FolderOpen className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/40 group-hover/folder:text-sidebar-foreground/70" />
+        <FolderOpen className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/65 group-hover/folder:text-white" />
         <Link
           href={`/folders/${folder.id}`}
           onClick={onClose}
-          className="flex-1 truncate text-[12px] font-semibold text-sidebar-foreground/60 group-hover/folder:text-sidebar-foreground/85 pl-1 hover:text-white transition-colors"
+          className="flex-1 truncate text-[12px] font-semibold text-sidebar-foreground/85 group-hover/folder:text-white pl-1 hover:text-white transition-colors"
         >
           {folder.name}
         </Link>
@@ -299,7 +299,7 @@ function FolderItem({
       {open && (
         <div>
           {lists.length === 0 ? (
-            <p className="py-1 text-[11px] text-sidebar-foreground/25 font-medium pl-14 pr-3">Empty folder</p>
+            <p className="py-1 text-[11px] text-sidebar-foreground/50 font-medium pl-14 pr-3">Empty folder</p>
           ) : (
             lists.map(proj => {
               const active = pathname.startsWith(`/lists/${proj.id}`)
@@ -310,7 +310,7 @@ function FolderItem({
                     onClick={onClose}
                     className={cn(
                       'flex items-center gap-2 flex-1 min-w-0 py-1.5 pl-12 pr-2',
-                      active ? 'text-white' : 'text-sidebar-foreground/55 hover:text-sidebar-foreground/85',
+                      active ? 'text-white' : 'text-sidebar-foreground/85 hover:text-white',
                     )}
                   >
                     {active && (
@@ -318,7 +318,7 @@ function FolderItem({
                     )}
                     <ListChecks className={cn(
                       'h-[13px] w-[13px] shrink-0',
-                      active ? 'text-sidebar-primary' : 'text-sidebar-foreground/30 group-hover/list:text-sidebar-foreground/60',
+                      active ? 'text-sidebar-primary' : 'text-sidebar-foreground/60 group-hover/list:text-white',
                     )} />
                     <span className="truncate text-[11px] font-semibold">{proj.name}</span>
                   </Link>
@@ -385,7 +385,7 @@ function SpaceItem({
         <Link
           href={`/spaces/${space.id}`}
           onClick={onClose}
-          className="flex-1 min-w-0 truncate text-[13px] font-semibold text-sidebar-foreground/80 group-hover:text-white transition-colors"
+          className="flex-1 min-w-0 truncate text-[13px] font-semibold text-white transition-colors"
         >
           {space.name}
         </Link>
@@ -458,7 +458,7 @@ function SpaceItem({
                     onClick={onClose}
                     className={cn(
                       'flex items-center gap-2 flex-1 min-w-0 py-1.5 pl-9 pr-2',
-                      active ? 'text-white' : 'text-sidebar-foreground/55 hover:text-sidebar-foreground/85',
+                      active ? 'text-white' : 'text-sidebar-foreground/85 hover:text-white',
                     )}
                   >
                     {active && (
@@ -466,7 +466,7 @@ function SpaceItem({
                     )}
                     <ListChecks className={cn(
                       'h-[14px] w-[14px] shrink-0',
-                      active ? 'text-sidebar-primary' : 'text-sidebar-foreground/30 group-hover/list:text-sidebar-foreground/60',
+                      active ? 'text-sidebar-primary' : 'text-sidebar-foreground/60 group-hover/list:text-white',
                     )} />
                     <span className="truncate text-[12px] font-semibold">{proj.name}</span>
                   </Link>
@@ -498,7 +498,7 @@ function SpaceItem({
             })
           }
           {lists.length === 0 && folders.length === 0 && (
-            <p className="py-1.5 text-[12px] text-sidebar-foreground/25 font-medium pl-9 pr-3">
+            <p className="py-1.5 text-[12px] text-sidebar-foreground/50 font-medium pl-9 pr-3">
               No lists yet
             </p>
           )}
@@ -692,7 +692,7 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
                       <Link href={href} onClick={onClose}
                         className={cn(
                           'flex h-10 w-10 items-center justify-center rounded-lg transition-colors relative',
-                          active ? 'bg-sidebar-primary/20 text-sidebar-primary' : 'text-sidebar-foreground/45 hover:bg-white/8 hover:text-white'
+                          active ? 'bg-sidebar-primary/20 text-sidebar-primary' : 'text-sidebar-foreground/75 hover:bg-white/8 hover:text-white'
                         )}>
                         {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-sidebar-primary" />}
                         <Icon className="h-5 w-5" />
@@ -764,7 +764,7 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
 
                 <div className="space-y-0.5">
                   {/* All Tasks */}
-                  <Link href="/tasks" onClick={onClose} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5 transition-colors text-sidebar-foreground/60 hover:text-sidebar-foreground/90">
+                  <Link href="/tasks" onClick={onClose} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5 transition-colors text-sidebar-foreground/85 hover:text-white">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sidebar-foreground/15">
                       <CheckSquare className="h-4 w-4 text-sidebar-foreground/50" />
                     </span>
@@ -789,7 +789,7 @@ export function Sidebar({ profile, permissions, initialSpaces = [], initialLists
                   {/* New Space */}
                   <button
                     onClick={openCreateSpace}
-                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-sidebar-foreground/35 hover:text-sidebar-foreground/70 hover:bg-white/5 transition-colors mt-1"
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-sidebar-foreground/60 hover:text-white hover:bg-white/5 transition-colors mt-1"
                   >
                     <Plus className="h-[14px] w-[14px] shrink-0" />
                     <span>New Space</span>

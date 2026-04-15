@@ -742,24 +742,6 @@ export function SpaceDetailPage({
               )}
             </section>
 
-            {/* ── Docs ───────────────────────────────────────────────────── */}
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <PenLine className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="font-semibold text-sm">Docs</h2>
-                </div>
-              </div>
-              <div className="rounded-lg border bg-card px-5 py-8 flex flex-col items-center gap-2 text-center">
-                <PenLine className="h-8 w-8 text-muted-foreground/30" />
-                <p className="text-sm font-medium">No docs yet</p>
-                <p className="text-xs text-muted-foreground">Create docs and wikis to keep your team aligned.</p>
-                <Button size="sm" variant="outline" className="mt-1 h-7 text-xs gap-1.5" disabled>
-                  <Plus className="h-3 w-3" />New Doc
-                </Button>
-              </div>
-            </section>
-
             {/* ── Lists ──────────────────────────────────────────────────── */}
             <section>
               <div className="flex items-center justify-between mb-3">
