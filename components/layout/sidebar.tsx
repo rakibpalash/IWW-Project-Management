@@ -299,7 +299,13 @@ function FolderItem({
       {open && (
         <div>
           {lists.length === 0 ? (
-            <p className="py-1 text-[11px] text-sidebar-foreground/50 font-medium pl-14 pr-3">Empty folder</p>
+            <button
+              onClick={() => onCreateList(folder.id)}
+              className="flex items-center gap-1.5 py-1 pl-12 pr-3 text-[11px] text-sidebar-foreground/40 hover:text-white transition-colors w-full"
+            >
+              <Plus className="h-3 w-3 shrink-0" />
+              <span>Add item</span>
+            </button>
           ) : (
             lists.map(proj => {
               const active = pathname.startsWith(`/lists/${proj.id}`)

@@ -186,9 +186,10 @@ export function SpaceDetailPage({
     } catch { return null }
   }
 
-  function saveTabPrefs(order: TabType[], labels: Record<TabType, string>, def: TabType) {
+  function saveTabPrefs(order: TabType[], labels: Record<TabType, string>, def: TabType, visible?: TabType[]) {
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ order, labels, default: def }))
+      const currentVisible = visible ?? (loadTabPrefs()?.visible ?? ['summary', 'list'])
+      localStorage.setItem(storageKey, JSON.stringify({ order, labels, default: def, visible: currentVisible }))
     } catch {}
   }
 
@@ -200,6 +201,9 @@ export function SpaceDetailPage({
   const [tabMenuOpen, setTabMenuOpen] = useState<TabType | null>(null)
   const [renamingTab, setRenamingTab] = useState<TabType | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [visibleTabs, setVisibleTabs] = useState<TabType[]>(savedPrefs?.visible ?? ['summary', 'list'])
+  const [viewPopupOpen, setViewPopupOpen] = useState(false)
+  const viewPopupRef = useRef<HTMLDivElement>(null)
 
   function moveTab(key: TabType, dir: -1 | 1) {
     setTabOrder(prev => {
@@ -451,10 +455,23 @@ export function SpaceDetailPage({
     return weeks
   }, [tlStart, tlEnd, tlTotalDays])
 
-  const tabs = tabOrder.map(key => ({
-    ...ALL_TABS.find(t => t.key === key)!,
-    label: tabLabels[key],
-  }))
+  const tabs = tabOrder
+    .filter(key => visibleTabs.includes(key))
+    .map(key => ({
+      ...ALL_TABS.find(t => t.key === key)!,
+      label: tabLabels[key],
+    }))
+
+  function toggleTabVisible(key: TabType) {
+    if (key === 'list') return // required, cannot hide
+    setVisibleTabs(prev => {
+      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+      saveTabPrefs(tabOrder, tabLabels, defaultTab, next)
+      // if hiding the active tab, switch to first visible
+      if (!next.includes(activeTab)) setActiveTab(next[0] ?? 'summary')
+      return next
+    })
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden">
@@ -622,6 +639,74 @@ export function SpaceDetailPage({
               </DropdownMenu>
             </div>
           ))}
+
+          {/* + View button */}
+          <div className="relative ml-1" ref={viewPopupRef}>
+            <button
+              onClick={() => setViewPopupOpen(v => !v)}
+              className="flex items-center gap-1 px-2 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors rounded hover:bg-muted/50"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              View
+            </button>
+
+            {viewPopupOpen && (
+              <>
+                {/* backdrop */}
+                <div className="fixed inset-0 z-40" onClick={() => setViewPopupOpen(false)} />
+                <div className="absolute left-0 top-full mt-1 z-50 w-64 rounded-xl border bg-popover shadow-xl overflow-hidden">
+                  <div className="p-1">
+                    {ALL_TABS.map(t => {
+                      const isRequired = t.key === 'list'
+                      const isDefault  = t.key === 'summary'
+                      const isOn       = visibleTabs.includes(t.key)
+                      return (
+                        <div
+                          key={t.key}
+                          onClick={() => !isRequired && toggleTabVisible(t.key)}
+                          className={cn(
+                            'flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
+                            isRequired ? 'cursor-default' : 'cursor-pointer hover:bg-muted/60'
+                          )}
+                        >
+                          <span className="text-muted-foreground">{t.icon}</span>
+                          <span className="flex-1 text-sm font-medium">{t.label}</span>
+                          {(isDefault || isRequired) && (
+                            <span className="text-[10px] text-muted-foreground border rounded px-1 py-0.5 mr-1">
+                              {isRequired ? 'Required' : 'Default'}
+                            </span>
+                          )}
+                          {/* Toggle */}
+                          <button
+                            disabled={isRequired}
+                            onClick={e => { e.stopPropagation(); if (!isRequired) toggleTabVisible(t.key) }}
+                            className={cn(
+                              'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors focus:outline-none',
+                              isOn ? 'bg-emerald-500' : 'bg-muted',
+                              isRequired && 'opacity-60 cursor-not-allowed'
+                            )}
+                          >
+                            <span className={cn(
+                              'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform mt-0.5',
+                              isOn ? 'translate-x-4' : 'translate-x-0.5'
+                            )} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="px-3 pb-3 pt-1">
+                    <button
+                      onClick={() => setViewPopupOpen(false)}
+                      className="w-full rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold py-2 transition-colors"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
