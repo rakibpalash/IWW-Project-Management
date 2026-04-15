@@ -98,6 +98,7 @@ function ListTaskList({
   onTaskCreated,
   onOpenDialog,
   visibleCols,
+  onOpenFields,
 }: {
   tasks: Task[]
   profile: Profile
@@ -106,6 +107,7 @@ function ListTaskList({
   onTaskCreated: (t: Task) => void
   onOpenDialog: () => void
   visibleCols: VisibleCols
+  onOpenFields: () => void
 }) {
   const router   = useRouter()
   const supabase = createClient()
@@ -239,11 +241,20 @@ function ListTaskList({
         <div className="flex items-center border-b border-border bg-background/95 text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider select-none h-9">
           <div style={{ width: 52 + 12 }} className="shrink-0" />
           <div className="flex-1 min-w-0 px-2">Name</div>
-          {visibleCols.assignee  && <div className={cn(COL_ASSIGNEES, 'shrink-0 px-1')}>Assigned</div>}
+          {visibleCols.assignee  && <div className={cn(COL_ASSIGNEES, 'shrink-0 px-1')}>Assignee</div>}
           {visibleCols.dueDate   && <div className={cn(COL_DUE,       'shrink-0 px-1')}>Due Date</div>}
           {visibleCols.size      && <div className="w-[70px] shrink-0 px-1">Size</div>}
           {visibleCols.priority  && <div className={cn(COL_PRIORITY,  'shrink-0 px-1')}>Priority</div>}
-          <div className={cn(COL_ACTION, 'shrink-0')} />
+          {/* Fields toggle button — end of header row */}
+          <div className="w-9 shrink-0 flex items-center justify-center">
+            <button
+              onClick={onOpenFields}
+              title="Manage fields"
+              className="h-6 w-6 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <SlidersHorizontal className="h-3 w-3" />
+            </button>
+          </div>
         </div>
 
         {/* Groups */}
@@ -447,7 +458,6 @@ function FilterToolbar({
   onViewChange,
   canManage,
   onAddTask,
-  onOpenFields,
 }: {
   filters: TaskFilters
   onChange: (f: TaskFilters) => void
@@ -456,7 +466,6 @@ function FilterToolbar({
   onViewChange: (v: 'list' | 'board') => void
   canManage: boolean
   onAddTask: () => void
-  onOpenFields: () => void
 }) {
   const [searchOpen, setSearchOpen] = useState(false)
 
@@ -583,15 +592,6 @@ function FilterToolbar({
           </button>
         )}
       </div>
-
-      {/* Fields (column visibility) button */}
-      <button
-        onClick={onOpenFields}
-        className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-        title="Manage columns"
-      >
-        <SlidersHorizontal className="h-3.5 w-3.5" />
-      </button>
 
       {/* Add Task button */}
       {canManage && (
@@ -1146,7 +1146,6 @@ export function ListDetailPage({
             onViewChange={setTaskView}
             canManage={profile.role === 'super_admin' || profile.role === 'staff'}
             onAddTask={() => setShowCreateTask(true)}
-            onOpenFields={() => setColDrawerOpen(true)}
           />
 
           <div className="flex gap-4 items-start">
@@ -1163,6 +1162,7 @@ export function ListDetailPage({
                   onTaskCreated={handleTaskCreated}
                   onOpenDialog={() => setShowCreateTask(true)}
                   visibleCols={visibleCols}
+                  onOpenFields={() => setColDrawerOpen(true)}
                 />
               ) : (
                 <ListBoardView
@@ -1436,33 +1436,121 @@ export function ListDetailPage({
 
       {/* ── Fields / Columns drawer ─────────────────────────────────── */}
       <Sheet open={colDrawerOpen} onOpenChange={setColDrawerOpen}>
-        <SheetContent side="right" className="w-72 p-0 flex flex-col">
-          <SheetHeader className="px-4 py-3 border-b">
+        <SheetContent side="right" className="w-80 p-0 flex flex-col gap-0">
+          {/* Header */}
+          <SheetHeader className="px-4 py-3 border-b shrink-0">
             <SheetTitle className="text-sm font-semibold">Fields</SheetTitle>
           </SheetHeader>
-          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
-            {(Object.keys(DEFAULT_VISIBLE_COLS) as (keyof VisibleCols)[]).map(key => (
-              <div
-                key={key}
-                onClick={() => toggleCol(key)}
-                className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-              >
-                <span className="text-sm font-medium">{COL_LABELS[key]}</span>
+
+          {/* Search */}
+          <div className="px-3 py-2 border-b shrink-0">
+            <input
+              placeholder="Search for new or existing fields"
+              className="w-full rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+            />
+          </div>
+
+          {/* Scrollable field list */}
+          <div className="flex-1 overflow-y-auto">
+
+            {/* Shown section */}
+            <div className="px-3 pt-3 pb-1">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Shown</span>
                 <button
-                  className={cn(
-                    'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors focus:outline-none',
-                    visibleCols[key] ? 'bg-emerald-500' : 'bg-muted'
-                  )}
+                  onClick={() => setVisibleCols(prev => {
+                    const next = { ...prev }
+                    ;(Object.keys(next) as (keyof VisibleCols)[]).forEach(k => { next[k] = false })
+                    return next
+                  })}
+                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <span className={cn(
-                    'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform mt-0.5',
-                    visibleCols[key] ? 'translate-x-4' : 'translate-x-0.5'
-                  )} />
+                  Hide all
                 </button>
               </div>
-            ))}
+
+              {/* Task Name — always shown, non-toggleable */}
+              <div className="flex items-center justify-between px-2 py-2 rounded-lg">
+                <div className="flex items-center gap-2.5">
+                  <span className="h-4 w-4 flex items-center justify-center text-muted-foreground">
+                    <Flag className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="text-sm">Task Name</span>
+                </div>
+                <button className="relative inline-flex h-5 w-9 shrink-0 rounded-full bg-emerald-500 opacity-50 cursor-not-allowed">
+                  <span className="inline-block h-4 w-4 rounded-full bg-white shadow mt-0.5 translate-x-4" />
+                </button>
+              </div>
+
+              {/* Toggleable shown fields */}
+              {(Object.keys(COL_LABELS) as (keyof VisibleCols)[])
+                .filter(key => visibleCols[key])
+                .map(key => (
+                  <div
+                    key={key}
+                    onClick={() => toggleCol(key)}
+                    className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="h-4 w-4 flex items-center justify-center text-muted-foreground">
+                        {key === 'assignee'  ? <Users className="h-3.5 w-3.5" /> :
+                         key === 'dueDate'   ? <Calendar className="h-3.5 w-3.5" /> :
+                         key === 'startDate' ? <Calendar className="h-3.5 w-3.5" /> :
+                         key === 'size'      ? <Clock className="h-3.5 w-3.5" /> :
+                         key === 'priority'  ? <Flag className="h-3.5 w-3.5" /> :
+                                               <Clock className="h-3.5 w-3.5" />}
+                      </span>
+                      <span className="text-sm">{COL_LABELS[key]}</span>
+                    </div>
+                    <button className="relative inline-flex h-5 w-9 shrink-0 rounded-full bg-emerald-500 transition-colors">
+                      <span className="inline-block h-4 w-4 rounded-full bg-white shadow mt-0.5 translate-x-4" />
+                    </button>
+                  </div>
+                ))}
+            </div>
+
+            {/* Divider */}
+            <div className="mx-3 my-1 border-t border-border/50" />
+
+            {/* Hidden section */}
+            <div className="px-3 pb-3">
+              <div className="flex items-center justify-between mb-1 pt-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Hidden</span>
+              </div>
+
+              {(Object.keys(COL_LABELS) as (keyof VisibleCols)[])
+                .filter(key => !visibleCols[key])
+                .map(key => (
+                  <div
+                    key={key}
+                    onClick={() => toggleCol(key)}
+                    className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="h-4 w-4 flex items-center justify-center text-muted-foreground/50">
+                        {key === 'assignee'  ? <Users className="h-3.5 w-3.5" /> :
+                         key === 'dueDate'   ? <Calendar className="h-3.5 w-3.5" /> :
+                         key === 'startDate' ? <Calendar className="h-3.5 w-3.5" /> :
+                         key === 'size'      ? <Clock className="h-3.5 w-3.5" /> :
+                         key === 'priority'  ? <Flag className="h-3.5 w-3.5" /> :
+                                               <Clock className="h-3.5 w-3.5" />}
+                      </span>
+                      <span className="text-sm text-muted-foreground">{COL_LABELS[key]}</span>
+                    </div>
+                    <button className="relative inline-flex h-5 w-9 shrink-0 rounded-full bg-muted transition-colors">
+                      <span className="inline-block h-4 w-4 rounded-full bg-white shadow mt-0.5 translate-x-0.5" />
+                    </button>
+                  </div>
+                ))}
+
+              {(Object.keys(COL_LABELS) as (keyof VisibleCols)[]).filter(k => !visibleCols[k]).length === 0 && (
+                <p className="text-xs text-muted-foreground/50 px-2 py-2">All fields are shown</p>
+              )}
+            </div>
           </div>
-          <div className="px-4 py-3 border-t">
+
+          {/* Footer */}
+          <div className="px-4 py-3 border-t shrink-0">
             <button
               onClick={() => setVisibleCols(DEFAULT_VISIBLE_COLS)}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
