@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Task, Profile, TaskStatus } from '@/types'
 import { updateTaskStatusAction } from '@/app/actions/tasks'
+import { createClient } from '@/lib/supabase/client'
 import {
   Select,
   SelectContent,
@@ -17,7 +18,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronDown, ChevronRight, ExternalLink, Flag, AlertCircle } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, Flag, AlertCircle, Plus, ListTree } from 'lucide-react'
 import { useTaskConfig } from '@/hooks/use-task-config'
 import { cn, formatDate, getInitials, isOverdue } from '@/lib/utils'
 
@@ -61,9 +62,43 @@ export function TaskRow({
 }: TaskRowProps) {
   const cols = visibleCols ?? { assignee: true, dueDate: true, size: true, priority: true }
   const { toast } = useToast()
-  const { statuses, getStatus, getPriority } = useTaskConfig()
+  const { statuses, getStatus, getPriority, defaultPriority } = useTaskConfig()
   const [expanded, setExpanded] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+
+  // Inline subtask creation
+  const [addingSubtask, setAddingSubtask] = useState(false)
+  const [newSubtaskName, setNewSubtaskName] = useState('')
+  const [savingSubtask, setSavingSubtask] = useState(false)
+  const subtaskInputRef = useRef<HTMLInputElement>(null)
+  const supabase = createClient()
+
+  useEffect(() => {
+    if (addingSubtask) setTimeout(() => subtaskInputRef.current?.focus(), 30)
+  }, [addingSubtask])
+
+  async function submitSubtask() {
+    const title = newSubtaskName.trim()
+    if (!title) { setAddingSubtask(false); setNewSubtaskName(''); return }
+    setSavingSubtask(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data, error } = await supabase.from('tasks').insert({
+        title,
+        list_id:        task.list_id,
+        parent_task_id: task.id,
+        status:         'todo',
+        priority:       defaultPriority || 'medium',
+        created_by:     user.id,
+      }).select('*, assignees:task_assignees(user:profiles(*)), subtasks:tasks!parent_task_id(*)').single()
+      if (error) { toast({ title: 'Failed to create subtask', description: error.message, variant: 'destructive' }); return }
+      onTaskUpdated({ ...task, subtasks: [...(task.subtasks ?? []), data as Task] })
+      setNewSubtaskName('')
+      setExpanded(true)
+      subtaskInputRef.current?.focus()
+    } finally { setSavingSubtask(false) }
+  }
 
   const hasSubtasks = (task.subtasks ?? []).length > 0
   const statusCfg   = getStatus(task.status)
@@ -208,6 +243,20 @@ export function TaskRow({
             {overdue && (
               <AlertCircle className="h-3 w-3 text-red-500 shrink-0" />
             )}
+            {/* Hover actions */}
+            <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => { setNewSubtaskName(''); setAddingSubtask(true) }}
+                    className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs font-medium">Add subtask</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
 
           {/* Assignees */}
@@ -285,6 +334,44 @@ export function TaskRow({
             )}
           </div>
         </div>
+
+        {/* ── Inline subtask input ────────────────────────────────────────── */}
+        {addingSubtask && (
+          <div
+            className="flex items-center border-b border-border/40 bg-muted/5 min-h-[36px]"
+            style={{ paddingLeft: paddingLeft + 20 }}
+          >
+            <div className="w-7 shrink-0" />
+            <div className="w-6 shrink-0 flex items-center justify-center">
+              <div className="h-3.5 w-3.5 rounded-full border-2 border-dashed border-muted-foreground/40" />
+            </div>
+            <input
+              ref={subtaskInputRef}
+              value={newSubtaskName}
+              onChange={e => setNewSubtaskName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); submitSubtask() }
+                if (e.key === 'Escape') { setAddingSubtask(false); setNewSubtaskName('') }
+              }}
+              placeholder="Task Name or type '/' for commands..."
+              disabled={savingSubtask}
+              className="flex-1 min-w-0 bg-transparent text-sm px-2 py-2 outline-none placeholder:text-muted-foreground/40"
+            />
+            <div className="flex items-center gap-1 pr-2 shrink-0">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground/50"
+                    onClick={() => { setAddingSubtask(false); setNewSubtaskName('') }}
+                  >
+                    <ListTree className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">Cancel</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+        )}
 
         {/* ── Subtasks ───────────────────────────────────────────────────── */}
         {hasSubtasks && expanded && (

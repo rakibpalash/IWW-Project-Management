@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/server'
 import { SpaceDetailPage } from '@/components/spaces/space-detail-page'
-import { Space, Profile, List, Task, ActivityLog } from '@/types'
+import { Space, Profile, List, Task, ActivityLog, Folder } from '@/types'
 import { getUser, getProfile } from '@/lib/data/auth'
 import { getMyPermissionsAction } from '@/app/actions/permissions'
 import { can } from '@/lib/permissions'
@@ -61,6 +61,13 @@ export default async function SpaceDetailRoute({
     members = (memberProfiles as Profile[]) ?? []
   }
 
+  const { data: foldersRaw } = await admin
+    .from('folders')
+    .select('*')
+    .eq('space_id', id)
+    .order('created_at', { ascending: true })
+  const folders = (foldersRaw as Folder[]) ?? []
+
   const { data: lists } = await admin
     .from('lists')
     .select('*')
@@ -113,6 +120,7 @@ export default async function SpaceDetailRoute({
     <SpaceDetailPage
       space={space as Space}
       members={members}
+      folders={folders}
       lists={listList}
       tasks={tasks}
       activityLogs={activityLogs}

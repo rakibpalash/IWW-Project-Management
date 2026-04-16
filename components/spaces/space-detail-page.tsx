@@ -23,13 +23,13 @@ import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Space, Profile, List, Task, ActivityLog } from '@/types'
+import { Space, Profile, List, Task, ActivityLog, Folder } from '@/types'
 import { cn, formatStatus, getInitials, timeAgo } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 import {
   Users, Search, Filter, LayoutGrid, List as ListIcon, MoreHorizontal, Loader2, Copy,
   Plus, RefreshCw, ChevronDown, ChevronRight, SlidersHorizontal,
-  Share2, Maximize2, UserPlus, FolderKanban, LayoutList, Calendar, Flag,
+  Share2, Maximize2, UserPlus, FolderKanban, LayoutList, Calendar, Flag, Folder as FolderIcon,
   ExternalLink, CheckCircle2, PenLine, FilePlus2, Clock, Activity,
   BarChart2, Globe, ChevronLeft, Check, Pencil,
 } from 'lucide-react'
@@ -52,6 +52,7 @@ type TabType = 'summary' | 'list' | 'board' | 'calendar' | 'timeline'
 interface SpaceDetailPageProps {
   space: Space
   members: Profile[]
+  folders: Folder[]
   lists: List[]
   tasks: Task[]
   activityLogs: ActivityLog[]
@@ -71,6 +72,17 @@ const STATUS_STYLES: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   todo: 'To Do', in_progress: 'In Progress', in_review: 'In Review',
   done: 'Done', cancelled: 'Cancelled',
+}
+
+const STATUS_ORDER: Record<string, number> = {
+  todo: 0, in_progress: 1, in_review: 2, done: 3, cancelled: 4,
+}
+
+const STATUS_COLOR: Record<string, string> = {
+  todo: '#94a3b8', in_progress: '#f59e0b', in_review: '#3b82f6', done: '#22c55e', cancelled: '#ef4444',
+}
+function sortByStatus<T extends { status: string }>(arr: T[]): T[] {
+  return [...arr].sort((a, b) => (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99))
 }
 
 const STATUS_BAR_COLOR: Record<string, string> = {
@@ -146,7 +158,7 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function SpaceDetailPage({
-  space, members: initialMembers, lists, tasks, activityLogs, isAdmin, profile,
+  space, members: initialMembers, folders, lists, tasks, activityLogs, isAdmin, profile,
 }: SpaceDetailPageProps) {
   const router = useRouter()
   const { toast } = useToast()
@@ -168,6 +180,39 @@ export function SpaceDetailPage({
   const [calSearch, setCalSearch] = useState('')
   const [tlSearch, setTlSearch] = useState('')
   const [listView, setListView] = useState<'list' | 'grid'>('list')
+  const [expandedListIds, setExpandedListIds] = useState<Set<string>>(new Set())
+  function toggleListExpand(id: string) {
+    setExpandedListIds(prev => {
+      const n = new Set(prev)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+  }
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(new Set())
+  function toggleFolderExpand(id: string) {
+    setExpandedFolderIds(prev => {
+      const n = new Set(prev)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+  }
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(new Set())
+  function toggleTaskExpand(id: string) {
+    setExpandedTaskIds(prev => {
+      const n = new Set(prev)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+  }
+  // key = `${listId}:${statusSlug}` — collapsed by default means open, so we track collapsed ones
+  const [collapsedStatusGroups, setCollapsedStatusGroups] = useState<Set<string>>(new Set())
+  function toggleStatusGroup(key: string) {
+    setCollapsedStatusGroups(prev => {
+      const n = new Set(prev)
+      n.has(key) ? n.delete(key) : n.add(key)
+      return n
+    })
+  }
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [spaceColDrawerOpen, setSpaceColDrawerOpen] = useState(false)
   const [spaceVisibleCols, setSpaceVisibleCols] = useState<SpaceVisibleCols>(SPACE_DEFAULT_COLS)
@@ -841,6 +886,231 @@ export function SpaceDetailPage({
               )}
             </section>
 
+            {/* ── Folders ────────────────────────────────────────────────── */}
+            {folders.length > 0 && (
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <FolderIcon className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="font-semibold text-sm">Folders</h2>
+                  <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{folders.length}</span>
+                </div>
+                <div className="rounded-lg border bg-card divide-y">
+                  {folders.map(folder => {
+                    const folderLists = lists.filter(l => l.folder_id === folder.id)
+                    const folderTasks = tasks.filter(t => folderLists.some(l => l.id === (t as any).list_id))
+                    const doneCnt = folderTasks.filter(t => t.status === 'done').length
+                    const total = folderTasks.length
+                    const pct = total > 0 ? Math.round((doneCnt / total) * 100) : 0
+                    const isFolderExpanded = expandedFolderIds.has(folder.id)
+                    return (
+                      <div key={folder.id}>
+                        {/* Folder header row */}
+                        <div
+                          className="flex items-center gap-4 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer group"
+                          onClick={() => toggleFolderExpand(folder.id)}
+                        >
+                          <span className="text-muted-foreground/50 shrink-0">
+                            {isFolderExpanded
+                              ? <ChevronDown className="h-3.5 w-3.5" />
+                              : <ChevronRight className="h-3.5 w-3.5" />}
+                          </span>
+                          <div className="h-7 w-7 rounded bg-amber-100 flex items-center justify-center shrink-0">
+                            <FolderIcon className="h-3.5 w-3.5 text-amber-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium truncate">
+                                {folder.name}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                {folderLists.length} list{folderLists.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            {total > 0 && (
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-[160px]">
+                                  <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="text-[11px] text-muted-foreground">{pct}%</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[11px] text-muted-foreground">
+                              {total} task{total !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <button
+                            onClick={e => { e.stopPropagation(); router.push(`/folders/${folder.id}`) }}
+                            className="opacity-0 group-hover:opacity-100 h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground transition-all shrink-0"
+                            title="Open folder"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Expanded: lists inside this folder */}
+                        {isFolderExpanded && (
+                          <div className="bg-muted/20 border-t border-border/40 divide-y divide-border/20">
+                            {folderLists.length === 0 ? (
+                              <div className="px-12 py-3 flex items-center gap-2">
+                                <p className="text-xs text-muted-foreground/60 italic">No lists in this folder</p>
+                                {isAdmin && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setShowCreateList(true) }}
+                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+                                  >
+                                    <Plus className="h-3 w-3" />Add item
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              folderLists.map(list => {
+                                const listTasks = tasks.filter(t => (t as any).list_id === list.id)
+                                const topLevelTasks = sortByStatus(listTasks.filter(t => !(t as any).parent_task_id))
+                                const listDone = listTasks.filter(t => t.status === 'done').length
+                                const listTotal = listTasks.length
+                                const listPct = listTotal > 0 ? Math.round((listDone / listTotal) * 100) : 0
+                                const isListExpanded = expandedListIds.has(list.id)
+                                return (
+                                  <div key={list.id}>
+                                    {/* List row inside folder */}
+                                    <div
+                                      className="flex items-center gap-3 pl-10 pr-4 py-2.5 hover:bg-muted/40 transition-colors cursor-pointer group"
+                                      onClick={() => toggleListExpand(list.id)}
+                                    >
+                                      <span className="text-muted-foreground/40 shrink-0">
+                                        {isListExpanded
+                                          ? <ChevronDown className="h-3 w-3" />
+                                          : <ChevronRight className="h-3 w-3" />}
+                                      </span>
+                                      <div className="h-6 w-6 rounded bg-blue-100 flex items-center justify-center shrink-0">
+                                        <LayoutList className="h-3 w-3 text-blue-600" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-medium truncate">{list.name}</span>
+                                          <span className={cn(
+                                            'text-[10px] px-1.5 py-0.5 rounded border font-medium shrink-0',
+                                            STATUS_STYLES[list.status] ?? 'bg-muted text-muted-foreground border-transparent'
+                                          )}>
+                                            {STATUS_LABEL[list.status] ?? list.status}
+                                          </span>
+                                        </div>
+                                        {listTotal > 0 && (
+                                          <div className="flex items-center gap-2 mt-1">
+                                            <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden max-w-[120px]">
+                                              <div className="h-full bg-green-500 rounded-full" style={{ width: `${listPct}%` }} />
+                                            </div>
+                                            <span className="text-[10px] text-muted-foreground">{listPct}%</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <span className="text-[11px] text-muted-foreground shrink-0">
+                                        {listTotal} task{listTotal !== 1 ? 's' : ''}
+                                      </span>
+                                      <button
+                                        onClick={e => { e.stopPropagation(); router.push(`/lists/${list.id}`) }}
+                                        className="opacity-0 group-hover:opacity-100 h-5 w-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground transition-all shrink-0"
+                                        title="Open list"
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                      </button>
+                                    </div>
+
+                                    {/* Tasks inside list — grouped by status */}
+                                    {isListExpanded && (
+                                      <div className="border-t border-border/20">
+                                        {topLevelTasks.length === 0 ? (
+                                          <p className="px-20 py-2 text-xs text-muted-foreground/60 italic">No tasks</p>
+                                        ) : (
+                                          Object.entries(
+                                            topLevelTasks.reduce<Record<string, Task[]>>((acc, t) => {
+                                              ;(acc[t.status] ??= []).push(t); return acc
+                                            }, {})
+                                          ).sort(([a], [b]) => (STATUS_ORDER[a] ?? 99) - (STATUS_ORDER[b] ?? 99))
+                                          .map(([status, groupTasks]) => {
+                                            const groupKey = `${list.id}:${status}`
+                                            const isGroupCollapsed = collapsedStatusGroups.has(groupKey)
+                                            const color = STATUS_COLOR[status] ?? '#94a3b8'
+                                            return (
+                                              <div key={status}>
+                                                {/* Status group header */}
+                                                <div
+                                                  className="flex items-center gap-2 pl-16 pr-4 py-1.5 border-b border-border/20 cursor-pointer hover:bg-muted/30 select-none"
+                                                  style={{ borderLeft: `3px solid ${color}` }}
+                                                  onClick={() => toggleStatusGroup(groupKey)}
+                                                >
+                                                  <span className="text-muted-foreground/60">
+                                                    {isGroupCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                                  </span>
+                                                  <div className="h-3 w-3 rounded-full border-2 shrink-0" style={{ borderColor: color }} />
+                                                  <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>
+                                                    {STATUS_LABEL[status] ?? status.replace(/_/g, ' ')}
+                                                  </span>
+                                                  <span className="text-[10px] font-medium rounded-full px-1.5 min-w-[18px] text-center" style={{ background: color + '20', color }}>
+                                                    {groupTasks.length}
+                                                  </span>
+                                                </div>
+                                                {/* Tasks in this group */}
+                                                {!isGroupCollapsed && groupTasks.map(task => {
+                                                  const subtasks = listTasks.filter(t => (t as any).parent_task_id === task.id)
+                                                  const isDone = task.status === 'done'
+                                                  const isTaskExpanded = expandedTaskIds.has(task.id)
+                                                  return (
+                                                    <div key={task.id} style={{ borderLeft: `3px solid ${color}25` }}>
+                                                      <div className="flex items-center gap-2 pl-20 pr-4 py-2 hover:bg-muted/40 cursor-pointer border-b border-border/10">
+                                                        {subtasks.length > 0 ? (
+                                                          <button onClick={() => toggleTaskExpand(task.id)} className="text-muted-foreground/40 hover:text-muted-foreground shrink-0">
+                                                            {isTaskExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                                          </button>
+                                                        ) : <span className="w-3 shrink-0" />}
+                                                        <div className="h-3.5 w-3.5 rounded-full border-2 shrink-0"
+                                                          style={{ borderColor: color, backgroundColor: isDone ? color : 'transparent' }} />
+                                                        <span className={cn('text-sm flex-1 min-w-0 truncate', isDone && 'line-through text-muted-foreground')}
+                                                          onClick={() => router.push(`/lists/${list.id}/tasks/${task.id}`)}>
+                                                          {task.title}
+                                                        </span>
+                                                        {subtasks.length > 0 && (
+                                                          <span className="text-[10px] text-muted-foreground/50 shrink-0">
+                                                            {subtasks.filter(s => s.status === 'done').length}/{subtasks.length}
+                                                          </span>
+                                                        )}
+                                                      </div>
+                                                      {isTaskExpanded && subtasks.map(sub => (
+                                                        <div key={sub.id}
+                                                          className="flex items-center gap-2 pl-28 pr-4 py-1.5 hover:bg-muted/30 cursor-pointer border-b border-border/10"
+                                                          onClick={() => router.push(`/lists/${list.id}/tasks/${task.id}`)}>
+                                                          <span className="w-3 shrink-0" />
+                                                          <div className="h-3 w-3 rounded-full border-2 shrink-0"
+                                                            style={{ borderColor: STATUS_COLOR[sub.status] ?? '#94a3b8', backgroundColor: sub.status === 'done' ? (STATUS_COLOR[sub.status] ?? '#94a3b8') : 'transparent' }} />
+                                                          <span className={cn('text-xs flex-1 min-w-0 truncate text-muted-foreground', sub.status === 'done' && 'line-through')}>
+                                                            {sub.title}
+                                                          </span>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  )
+                                                })}
+                                              </div>
+                                            )
+                                          })
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* ── Lists ──────────────────────────────────────────────────── */}
             <section>
               <div className="flex items-center justify-between mb-3">
@@ -872,6 +1142,7 @@ export function SpaceDetailPage({
                 <div className="rounded-lg border bg-card divide-y">
                   {lists.map(list => {
                     const listTasks = tasks.filter(t => (t as any).list_id === list.id)
+                    const topLevelTasks = listTasks.filter(t => !(t as any).parent_task_id)
                     const doneCnt = listTasks.filter(t => t.status === 'done').length
                     const total = listTasks.length
                     const pct = total > 0 ? Math.round((doneCnt / total) * 100) : 0
@@ -881,66 +1152,150 @@ export function SpaceDetailPage({
                       { key: 'in_review',   color: '#3b82f6', count: listTasks.filter(t => t.status === 'in_review').length },
                       { key: 'done',        color: '#22c55e', count: doneCnt },
                     ].filter(s => s.count > 0)
+                    const isExpanded = expandedListIds.has(list.id)
                     return (
-                      <div key={list.id}
-                        className="flex items-center gap-4 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer group"
-                        onClick={() => router.push(`/lists/${list.id}`)}>
-                        <div className="h-7 w-7 rounded bg-blue-100 flex items-center justify-center shrink-0">
-                          <LayoutList className="h-3.5 w-3.5 text-blue-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium truncate group-hover:text-blue-600 transition-colors">
-                              {list.name}
-                            </span>
-                            <span className={cn(
-                              'text-[10px] px-1.5 py-0.5 rounded border font-medium shrink-0',
-                              STATUS_STYLES[list.status] ?? 'bg-muted text-muted-foreground border-transparent'
-                            )}>
-                              {STATUS_LABEL[list.status] ?? list.status}
+                      <div key={list.id}>
+                        {/* ── List header row ── */}
+                        <div
+                          className="flex items-center gap-4 px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer group"
+                          onClick={() => toggleListExpand(list.id)}
+                        >
+                          {/* Expand chevron */}
+                          <span className="text-muted-foreground/50 shrink-0">
+                            {isExpanded
+                              ? <ChevronDown className="h-3.5 w-3.5" />
+                              : <ChevronRight className="h-3.5 w-3.5" />}
+                          </span>
+                          <div className="h-7 w-7 rounded bg-blue-100 flex items-center justify-center shrink-0">
+                            <LayoutList className="h-3.5 w-3.5 text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium truncate">
+                                {list.name}
+                              </span>
+                              <span className={cn(
+                                'text-[10px] px-1.5 py-0.5 rounded border font-medium shrink-0',
+                                STATUS_STYLES[list.status] ?? 'bg-muted text-muted-foreground border-transparent'
+                              )}>
+                                {STATUS_LABEL[list.status] ?? list.status}
+                              </span>
+                            </div>
+                            {total > 0 && (
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-[160px]">
+                                  <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="text-[11px] text-muted-foreground">{pct}%</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            {statusBreakdown.map(s => (
+                              <span key={s.key} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
+                                {s.count}
+                              </span>
+                            ))}
+                            <span className="text-[11px] text-muted-foreground">
+                              {total} task{total !== 1 ? 's' : ''}
                             </span>
                           </div>
-                          {total > 0 && (
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-[160px]">
-                                <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                              </div>
-                              <span className="text-[11px] text-muted-foreground">{pct}%</span>
-                            </div>
-                          )}
+                          {/* Open link */}
+                          <button
+                            onClick={e => { e.stopPropagation(); router.push(`/lists/${list.id}`) }}
+                            className="opacity-0 group-hover:opacity-100 h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground transition-all shrink-0"
+                            title="Open list"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </button>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          {statusBreakdown.map(s => (
-                            <span key={s.key} className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                              <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
-                              {s.count}
-                            </span>
-                          ))}
-                          <span className="text-[11px] text-muted-foreground">
-                            {total} task{total !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+
+                        {/* ── Expanded task rows — grouped by status ── */}
+                        {isExpanded && (
+                          <div className="border-t border-border/40">
+                            {topLevelTasks.length === 0 ? (
+                              <p className="px-12 py-3 text-xs text-muted-foreground/60 italic">No tasks in this list</p>
+                            ) : (
+                              Object.entries(
+                                topLevelTasks.reduce<Record<string, Task[]>>((acc, t) => {
+                                  ;(acc[t.status] ??= []).push(t); return acc
+                                }, {})
+                              ).sort(([a], [b]) => (STATUS_ORDER[a] ?? 99) - (STATUS_ORDER[b] ?? 99))
+                              .map(([status, groupTasks]) => {
+                                const groupKey = `${list.id}:${status}`
+                                const isGroupCollapsed = collapsedStatusGroups.has(groupKey)
+                                const color = STATUS_COLOR[status] ?? '#94a3b8'
+                                return (
+                                  <div key={status}>
+                                    {/* Status group header */}
+                                    <div
+                                      className="flex items-center gap-2 pl-8 pr-4 py-1.5 border-b border-border/20 cursor-pointer hover:bg-muted/30 select-none"
+                                      style={{ borderLeft: `3px solid ${color}` }}
+                                      onClick={() => toggleStatusGroup(groupKey)}
+                                    >
+                                      <span className="text-muted-foreground/60">
+                                        {isGroupCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                      </span>
+                                      <div className="h-3 w-3 rounded-full border-2 shrink-0" style={{ borderColor: color }} />
+                                      <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>
+                                        {STATUS_LABEL[status] ?? status.replace(/_/g, ' ')}
+                                      </span>
+                                      <span className="text-[10px] font-medium rounded-full px-1.5 min-w-[18px] text-center" style={{ background: color + '20', color }}>
+                                        {groupTasks.length}
+                                      </span>
+                                    </div>
+                                    {/* Tasks in this group */}
+                                    {!isGroupCollapsed && groupTasks.map(task => {
+                                      const subtasks = listTasks.filter(t => (t as any).parent_task_id === task.id)
+                                      const isDone = task.status === 'done'
+                                      const isTaskExpanded = expandedTaskIds.has(task.id)
+                                      return (
+                                        <div key={task.id} style={{ borderLeft: `3px solid ${color}25` }}>
+                                          <div className="flex items-center gap-2 pl-12 pr-4 py-2 hover:bg-muted/40 cursor-pointer border-b border-border/10">
+                                            {subtasks.length > 0 ? (
+                                              <button onClick={() => toggleTaskExpand(task.id)} className="text-muted-foreground/40 hover:text-muted-foreground shrink-0">
+                                                {isTaskExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                              </button>
+                                            ) : <span className="w-3 shrink-0" />}
+                                            <div className="h-3.5 w-3.5 rounded-full border-2 shrink-0"
+                                              style={{ borderColor: color, backgroundColor: isDone ? color : 'transparent' }} />
+                                            <span className={cn('text-sm flex-1 min-w-0 truncate', isDone && 'line-through text-muted-foreground')}
+                                              onClick={() => router.push(`/lists/${list.id}/tasks/${task.id}`)}>
+                                              {task.title}
+                                            </span>
+                                            {subtasks.length > 0 && (
+                                              <span className="text-[10px] text-muted-foreground/50 shrink-0">
+                                                {subtasks.filter(s => s.status === 'done').length}/{subtasks.length}
+                                              </span>
+                                            )}
+                                          </div>
+                                          {isTaskExpanded && subtasks.map(sub => (
+                                            <div key={sub.id}
+                                              className="flex items-center gap-2 pl-20 pr-4 py-1.5 hover:bg-muted/30 cursor-pointer border-b border-border/10"
+                                              onClick={() => router.push(`/lists/${list.id}/tasks/${task.id}`)}>
+                                              <span className="w-3 shrink-0" />
+                                              <div className="h-3 w-3 rounded-full border-2 shrink-0"
+                                                style={{ borderColor: STATUS_COLOR[sub.status] ?? '#94a3b8', backgroundColor: sub.status === 'done' ? (STATUS_COLOR[sub.status] ?? '#94a3b8') : 'transparent' }} />
+                                              <span className={cn('text-xs flex-1 min-w-0 truncate text-muted-foreground', sub.status === 'done' && 'line-through')}>
+                                                {sub.title}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
                 </div>
               )}
-            </section>
-
-            {/* ── Resources ──────────────────────────────────────────────── */}
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Share2 className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="font-semibold text-sm">Resources</h2>
-                </div>
-              </div>
-              <div className="rounded-lg border border-dashed bg-card px-5 py-8 flex flex-col items-center gap-2 text-center">
-                <Share2 className="h-8 w-8 text-muted-foreground/30" />
-                <p className="text-sm font-medium">No resources yet</p>
-                <p className="text-xs text-muted-foreground">Drop files or links here to share with the team.</p>
-              </div>
             </section>
 
             {/* ── Workload by Status ─────────────────────────────────────── */}

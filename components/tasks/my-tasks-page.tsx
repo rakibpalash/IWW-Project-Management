@@ -11,9 +11,15 @@ import {
   format,
 } from 'date-fns'
 import { Task, Profile, List, TaskStatus, Priority } from '@/types'
-import { TaskRow } from './task-row'
+import { TaskRow, VisibleColsRow } from './task-row'
 import { CreateTaskDialog } from './create-task-dialog'
 import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -40,6 +46,7 @@ import {
   Calendar,
   Flag,
   FolderOpen,
+  Columns3,
 } from 'lucide-react'
 import { TASK_STATUSES, PRIORITIES } from '@/lib/constants'
 import { cn } from '@/lib/utils'
@@ -65,6 +72,13 @@ const COL_ASSIGNEES = 'w-[80px]'
 const COL_DUE       = 'w-[90px]'
 const COL_PRIORITY  = 'w-[90px]'
 const COL_ACTION    = 'w-8'
+
+const COL_LABELS: Record<keyof VisibleColsRow, string> = {
+  assignee: 'Assignees',
+  dueDate:  'Due Date',
+  size:     'Time Estimate',
+  priority: 'Priority',
+}
 
 const GROUP_COLORS: Record<string, string> = {
   overdue:   '#ef4444',
@@ -95,6 +109,19 @@ export function MyTasksPage({ initialTasks, profile, lists }: MyTasksPageProps) 
   const [saving,          setSaving]          = useState(false)
   const inlineInputRef = useRef<HTMLInputElement>(null)
 
+  // Fields drawer
+  const [fieldsOpen, setFieldsOpen] = useState(false)
+  const [visibleCols, setVisibleCols] = useState<VisibleColsRow>({
+    assignee: true,
+    dueDate:  true,
+    size:     true,
+    priority: true,
+  })
+  function toggleCol(key: keyof VisibleColsRow) {
+    setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+
   useEffect(() => {
     if (addingToGroup) setTimeout(() => inlineInputRef.current?.focus(), 30)
   }, [addingToGroup])
@@ -119,7 +146,7 @@ export function MyTasksPage({ initialTasks, profile, lists }: MyTasksPageProps) 
       const { data, error } = await supabase.from('tasks').insert({
         title,
         list_id: newTaskList,
-        status:     'todo',
+        status:     addingToGroup ?? 'todo',
         priority:   defaultPriority || 'medium',
         created_by: user.id,
       }).select('*, assignees:task_assignees(user:profiles(*)), subtasks:tasks!parent_task_id(*)').single()
@@ -401,19 +428,39 @@ export function MyTasksPage({ initialTasks, profile, lists }: MyTasksPageProps) 
             {/* indent: expand(28) + status(24) = 52px */}
             <div style={{ width: 52 + 12 }} className="shrink-0" />
             <div className="flex-1 min-w-0 px-2">Task Name</div>
-            <div className={cn(COL_ASSIGNEES, 'shrink-0 flex items-center gap-1 px-1')}>
-              <Users className="h-3 w-3" />
-              Assignees
+            {visibleCols.assignee && (
+              <div className={cn(COL_ASSIGNEES, 'shrink-0 flex items-center gap-1 px-1')}>
+                <Users className="h-3 w-3" />
+                Assignees
+              </div>
+            )}
+            {visibleCols.dueDate && (
+              <div className={cn(COL_DUE, 'shrink-0 flex items-center gap-1 px-1')}>
+                <Calendar className="h-3 w-3" />
+                Due Date
+              </div>
+            )}
+            {visibleCols.size && (
+              <div className="w-[70px] shrink-0 flex items-center gap-1 px-1">
+                <Calendar className="h-3 w-3" />
+                Time Est.
+              </div>
+            )}
+            {visibleCols.priority && (
+              <div className={cn(COL_PRIORITY, 'shrink-0 flex items-center gap-1 px-1')}>
+                <Flag className="h-3 w-3" />
+                Priority
+              </div>
+            )}
+            <div className="w-9 shrink-0 flex items-center justify-center">
+              <button
+                onClick={() => setFieldsOpen(true)}
+                title="Manage fields"
+                className="h-6 w-6 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <Columns3 className="h-3.5 w-3.5" />
+              </button>
             </div>
-            <div className={cn(COL_DUE, 'shrink-0 flex items-center gap-1 px-1')}>
-              <Calendar className="h-3 w-3" />
-              Due Date
-            </div>
-            <div className={cn(COL_PRIORITY, 'shrink-0 flex items-center gap-1 px-1')}>
-              <Flag className="h-3 w-3" />
-              Priority
-            </div>
-            <div className={cn(COL_ACTION, 'shrink-0')} />
           </div>
 
           {/* ── Groups ──────────────────────────────────────────────────── */}
@@ -463,6 +510,7 @@ export function MyTasksPage({ initialTasks, profile, lists }: MyTasksPageProps) 
                           onTaskUpdated={handleTaskUpdated}
                           onClick={() => handleTaskClick(task)}
                           showList
+                          visibleCols={visibleCols}
                         />
                       </div>
                     ))}
@@ -541,6 +589,119 @@ export function MyTasksPage({ initialTasks, profile, lists }: MyTasksPageProps) 
           onCreated={handleTaskCreated}
         />
       )}
+
+      {/* ── Fields drawer ───────────────────────────────────────────────── */}
+      <Sheet open={fieldsOpen} onOpenChange={setFieldsOpen}>
+        <SheetContent side="right" className="w-80 p-0 flex flex-col gap-0">
+          <SheetHeader className="px-4 py-3 border-b shrink-0">
+            <SheetTitle className="text-sm font-semibold">Fields</SheetTitle>
+          </SheetHeader>
+
+          {/* Search */}
+          <div className="px-3 py-2 border-b shrink-0">
+            <input
+              placeholder="Search for new or existing fields"
+              className="w-full rounded-md border border-border bg-muted/30 px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {/* Shown section */}
+            <div className="px-3 pt-3 pb-1">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Shown</span>
+                <button
+                  onClick={() => setVisibleCols({ assignee: false, dueDate: false, size: false, priority: false })}
+                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Hide all
+                </button>
+              </div>
+
+              {/* Task Name — always shown */}
+              <div className="flex items-center justify-between px-2 py-2 rounded-lg">
+                <div className="flex items-center gap-2.5">
+                  <span className="h-4 w-4 flex items-center justify-center text-muted-foreground">
+                    <Flag className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="text-sm">Task Name</span>
+                </div>
+                <button className="relative inline-flex h-5 w-9 shrink-0 rounded-full bg-emerald-500 opacity-50 cursor-not-allowed">
+                  <span className="inline-block h-4 w-4 rounded-full bg-white shadow mt-0.5 translate-x-4" />
+                </button>
+              </div>
+
+              {(Object.keys(COL_LABELS) as (keyof VisibleColsRow)[])
+                .filter(key => visibleCols[key])
+                .map(key => (
+                  <div
+                    key={key}
+                    onClick={() => toggleCol(key)}
+                    className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="h-4 w-4 flex items-center justify-center text-muted-foreground">
+                        {key === 'assignee' ? <Users className="h-3.5 w-3.5" /> :
+                         key === 'dueDate'  ? <Calendar className="h-3.5 w-3.5" /> :
+                         key === 'priority' ? <Flag className="h-3.5 w-3.5" /> :
+                                              <Calendar className="h-3.5 w-3.5" />}
+                      </span>
+                      <span className="text-sm">{COL_LABELS[key]}</span>
+                    </div>
+                    <button className="relative inline-flex h-5 w-9 shrink-0 rounded-full bg-emerald-500 transition-colors">
+                      <span className="inline-block h-4 w-4 rounded-full bg-white shadow mt-0.5 translate-x-4" />
+                    </button>
+                  </div>
+                ))}
+            </div>
+
+            <div className="mx-3 my-1 border-t border-border/50" />
+
+            {/* Hidden section */}
+            <div className="px-3 pb-3">
+              <div className="flex items-center justify-between mb-1 pt-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Hidden</span>
+              </div>
+
+              {(Object.keys(COL_LABELS) as (keyof VisibleColsRow)[])
+                .filter(key => !visibleCols[key])
+                .map(key => (
+                  <div
+                    key={key}
+                    onClick={() => toggleCol(key)}
+                    className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="h-4 w-4 flex items-center justify-center text-muted-foreground/50">
+                        {key === 'assignee' ? <Users className="h-3.5 w-3.5" /> :
+                         key === 'dueDate'  ? <Calendar className="h-3.5 w-3.5" /> :
+                         key === 'priority' ? <Flag className="h-3.5 w-3.5" /> :
+                                              <Calendar className="h-3.5 w-3.5" />}
+                      </span>
+                      <span className="text-sm text-muted-foreground">{COL_LABELS[key]}</span>
+                    </div>
+                    <button className="relative inline-flex h-5 w-9 shrink-0 rounded-full bg-muted transition-colors">
+                      <span className="inline-block h-4 w-4 rounded-full bg-white shadow mt-0.5 translate-x-0.5" />
+                    </button>
+                  </div>
+                ))}
+
+              {(Object.keys(COL_LABELS) as (keyof VisibleColsRow)[]).filter(k => !visibleCols[k]).length === 0 && (
+                <p className="text-xs text-muted-foreground/50 px-2 py-2">All fields are shown</p>
+              )}
+            </div>
+          </div>
+
+          <div className="px-4 py-3 border-t shrink-0">
+            <button
+              onClick={() => setVisibleCols({ assignee: true, dueDate: true, size: true, priority: true })}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+            >
+              Reset to defaults
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

@@ -202,11 +202,6 @@ function SuperAdminDashboard({
         </p>
       </div>
 
-      {/* Recents */}
-      {recentLists.length > 0 && (
-        <RecentsStrip items={recentLists.map(p => ({ id: p.id, name: p.name, subtitle: formatStatus(p.status), href: `/lists/${p.id}`, type: 'list' as const }))} router={router} />
-      )}
-
       {/* Stats */}
       <div data-tour="dashboard-stats" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard title="Total Lists"  value={totalLists}        icon={FolderKanban}  variant="blue"    />
@@ -321,18 +316,6 @@ function StaffDashboard({
           Manage cards
         </Button>
       </div>
-
-      {/* Recents strip */}
-      <RecentsStrip
-        items={myTasks.slice(0, 6).map(t => ({
-          id: t.id,
-          name: t.title,
-          subtitle: t.list?.name ?? '',
-          href: `/lists/${t.list_id}/tasks/${t.id}`,
-          type: 'task' as const,
-        }))}
-        router={router}
-      />
 
       {/* Two-column: My Work + Right Panel */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">

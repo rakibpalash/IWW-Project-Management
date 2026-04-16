@@ -27,6 +27,13 @@ import {
   CircleDot,
   Layers,
   Sliders,
+  Star,
+  PenLine,
+  Link2,
+  Palette,
+  EyeOff,
+  Copy,
+  Share2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Profile, Space, List, Folder } from '@/types'
@@ -338,6 +345,74 @@ function FolderItem({
   )
 }
 
+// ─── Space options menu ────────────────────────────────────────────────────────
+
+function SpaceOptionsMenu({
+  anchorRef,
+  space,
+  onClose,
+  onCreateList,
+  onCreateFolder,
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>
+  space: Space
+  onClose: () => void
+  onCreateList: () => void
+  onCreateFolder: () => void
+}) {
+  const router = useRouter()
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const r = anchorRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left })
+    }
+  }, [anchorRef])
+
+  function copyLink() {
+    navigator.clipboard.writeText(window.location.origin + `/spaces/${space.id}`)
+    onClose()
+  }
+
+  const MenuItem = ({ icon: Icon, label, onClick, className }: { icon: React.ElementType; label: string; onClick?: () => void; className?: string }) => (
+    <button
+      onClick={() => { onClick?.(); onClose() }}
+      className={cn('flex w-full items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-muted/60 transition-colors rounded-sm text-left', className)}
+    >
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      {label}
+    </button>
+  )
+
+  return (
+    <div
+      className="fixed z-[9999] w-56 rounded-lg border border-border bg-popover shadow-xl py-1"
+      style={{ top: pos.top, left: pos.left }}
+      onClick={e => e.stopPropagation()}
+    >
+      <MenuItem icon={Star}   label="Favorite" />
+      <MenuItem icon={PenLine} label="Rename" onClick={() => router.push(`/spaces/${space.id}?edit=name`)} />
+      <MenuItem icon={Link2}  label="Copy link" onClick={copyLink} />
+      <div className="my-1 border-t border-border/50" />
+      <MenuItem icon={Plus}   label="Create new" onClick={onCreateList} />
+      <MenuItem icon={Palette} label="Color & Icon" />
+      <div className="my-1 border-t border-border/50" />
+      <MenuItem icon={EyeOff} label="Hide Space" />
+      <MenuItem icon={Copy}   label="Duplicate" />
+      <div className="my-1 border-t border-border/50" />
+      <button
+        onClick={() => { router.push(`/spaces/${space.id}`); onClose() }}
+        className="flex w-full items-center justify-center gap-2 mx-2 mb-1 px-3 py-2 text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white rounded-md transition-colors"
+        style={{ width: 'calc(100% - 16px)' }}
+      >
+        <Share2 className="h-4 w-4" />
+        Sharing &amp; Permissions
+      </button>
+    </div>
+  )
+}
+
 // ─── space item ────────────────────────────────────────────────────────────────
 
 function SpaceItem({
@@ -362,8 +437,10 @@ function SpaceItem({
   const hasActiveList = lists.some(p => pathname.startsWith(`/lists/${p.id}`))
   const [open, setOpen] = useState(true)
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false)
+  const [spaceOptionsOpen, setSpaceOptionsOpen] = useState(false)
   const [listMenuOpen, setListMenuOpen] = useState<string | null>(null)
   const spacePlusBtnRef = useRef<HTMLButtonElement>(null)
+  const spaceOptionsBtnRef = useRef<HTMLButtonElement>(null)
   const listPlusBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   useEffect(() => {
@@ -410,9 +487,26 @@ function SpaceItem({
 
         {/* Actions: ... and + */}
         <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <button className="h-5 w-5 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors">
+          <button
+            ref={spaceOptionsBtnRef}
+            onClick={e => { e.stopPropagation(); setSpaceOptionsOpen(o => !o) }}
+            className="h-5 w-5 flex items-center justify-center rounded text-sidebar-foreground/40 hover:text-white hover:bg-white/10 transition-colors"
+          >
             <MoreHorizontal className="h-3.5 w-3.5" />
           </button>
+          {spaceOptionsOpen && typeof window !== 'undefined' && createPortal(
+            <>
+              <div className="fixed inset-0 z-[9998]" onClick={() => setSpaceOptionsOpen(false)} />
+              <SpaceOptionsMenu
+                anchorRef={spaceOptionsBtnRef}
+                space={space}
+                onClose={() => setSpaceOptionsOpen(false)}
+                onCreateList={() => { setSpaceOptionsOpen(false); onCreateList(space.id) }}
+                onCreateFolder={() => { setSpaceOptionsOpen(false); onCreateFolder(space.id) }}
+              />
+            </>,
+            document.body
+          )}
           {/* Space + button with portal popup */}
           <button
             ref={spacePlusBtnRef}
